@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Brain, ClipboardPaste, Mic, MicOff, Loader2, Check, ChevronRight,
-  User, Ruler, Paintbrush,
+  User, Ruler, Paintbrush, Camera, ImageIcon, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -75,12 +75,28 @@ export default function AIEingabePage() {
   const [ergebnis, setErgebnis] = useState<ParsedResult | null>(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  function handleImageSelect(file: File) {
+    setImage(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function removeImage() {
+    setImage(null);
+    setImagePreview(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  }
 
   async function handleAnalyse() {
-    if (!text.trim()) {
-      toast.error("Bitte füge zuerst einen Text ein");
+    if (!text.trim() && !image) {
+      toast.error("Bitte füge einen Text ein oder mache ein Foto");
       return;
     }
 
@@ -94,11 +110,24 @@ export default function AIEingabePage() {
     }
 
     try {
-      const res = await fetch("/api/ai/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
+      let res: Response;
+
+      if (image) {
+        // Send as FormData with image
+        const formData = new FormData();
+        formData.append("image", image);
+        if (text.trim()) formData.append("text", text);
+        res = await fetch("/api/ai/parse", {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        res = await fetch("/api/ai/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+      }
 
       if (!res.ok) {
         const err = await res.json();
@@ -234,7 +263,6 @@ export default function AIEingabePage() {
           <button
             onClick={() => {
               setModus("text");
-              // Aufnahme direkt starten nach kurzem Delay (damit UI gerendert ist)
               setTimeout(() => handleSprache(), 100);
             }}
             className="w-full rounded-2xl border-2 border-primary/20 p-5 text-left active:scale-[0.98] transition-transform hover:border-primary/40"
@@ -247,6 +275,27 @@ export default function AIEingabePage() {
                 <h2 className="font-semibold">Sprachmemo</h2>
                 <p className="text-sm text-muted-foreground">
                   Einfach reinreden — Whisper erkennt alles
+                </p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </button>
+
+          <button
+            onClick={() => {
+              setModus("text");
+              setTimeout(() => imageInputRef.current?.click(), 100);
+            }}
+            className="w-full rounded-2xl border-2 border-primary/20 p-5 text-left active:scale-[0.98] transition-transform hover:border-primary/40"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Camera className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <h2 className="font-semibold">Foto / Screenshot</h2>
+                <p className="text-sm text-muted-foreground">
+                  Handschriftliche Notiz, WhatsApp, E-Mail
                 </p>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -297,15 +346,52 @@ export default function AIEingabePage() {
           </button>
         </div>
 
+        {/* Hidden file input for images */}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleImageSelect(file);
+          }}
+        />
+
+        {/* Image preview */}
+        {imagePreview && (
+          <div className="relative rounded-xl overflow-hidden border">
+            <img src={imagePreview} alt="Foto" className="w-full max-h-48 object-cover" />
+            <button
+              onClick={removeImage}
+              className="absolute top-2 right-2 h-8 w-8 rounded-full bg-black/60 text-white flex items-center justify-center"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
+              <p className="text-white text-xs">AI wird dieses Bild analysieren</p>
+            </div>
+          </div>
+        )}
+
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Hier den Text der Kundenanfrage einfügen (E-Mail, WhatsApp, Notiz)..."
-          rows={10}
+          placeholder={image ? "Optional: zusätzliche Infos zum Foto..." : "Hier den Text der Kundenanfrage einfügen (E-Mail, WhatsApp, Notiz)..."}
+          rows={image ? 4 : 10}
           className="text-base"
         />
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => imageInputRef.current?.click()}
+          >
+            <ImageIcon className="h-4 w-4 mr-1" />
+            {image ? "Anderes Foto" : "Foto hinzufügen"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -314,7 +400,7 @@ export default function AIEingabePage() {
               toast.success("Demo-Text geladen");
             }}
           >
-            Demo-Text laden
+            Demo-Text
           </Button>
           <Button
             variant="outline"
@@ -322,6 +408,7 @@ export default function AIEingabePage() {
             onClick={() => {
               setModus("wahl");
               setText("");
+              removeImage();
               setAnalysierSchritt(-1);
             }}
           >
@@ -356,10 +443,10 @@ export default function AIEingabePage() {
           <Button
             onClick={handleAnalyse}
             className="w-full h-12 text-base"
-            disabled={!text.trim()}
+            disabled={!text.trim() && !image}
           >
             <Brain className="h-5 w-5 mr-2" />
-            AI analysieren
+            {image ? "Foto + Text analysieren" : "AI analysieren"}
           </Button>
         )}
       </div>

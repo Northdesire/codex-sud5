@@ -5,58 +5,90 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const SYSTEM_PROMPT = `Du bist ein KI-Assistent für einen Malerbetrieb. Du analysierst Kundenanfragen (Text, E-Mail, Sprachnotiz) und extrahierst strukturierte Daten.
+const SYSTEM_PROMPT = `Du bist ein erfahrener Kalkulator in einem deutschen Malerbetrieb. Du analysierst Kundenanfragen (E-Mails, WhatsApp-Nachrichten, Sprachnotizen, handgeschriebene Notizen, Fotos) und extrahierst strukturierte Daten für die Angebotserstellung.
 
-Extrahiere folgende Informationen aus dem Text:
+## Deine Aufgabe
 
-1. **Kunde** (soweit vorhanden):
-   - name (z.B. "Familie Müller", "Herr Schmidt")
-   - strasse (Straße + Hausnummer)
-   - plz (5-stellig)
-   - ort
-   - email
-   - telefon
+Extrahiere folgende Informationen:
 
-2. **Räume** (Array):
-   Für jeden genannten Raum:
-   - name (z.B. "Wohnzimmer", "Schlafzimmer")
-   - laenge (in Metern, Dezimalzahl)
-   - breite (in Metern, Dezimalzahl)
-   - hoehe (Deckenhöhe in Metern, Standard 2.55 wenn nicht angegeben)
-   - fenster (Anzahl, Standard 1)
-   - tueren (Anzahl, Standard 1)
+### 1. Kunde
+- name: Vollständiger Name (z.B. "Familie Müller", "Herr Schmidt", "Schmidt GmbH")
+- strasse: Straße + Hausnummer
+- plz: 5-stellige Postleitzahl
+- ort: Ortsname
+- email: E-Mail-Adresse
+- telefon: Telefonnummer (formatiert)
 
-   Wenn nur "3-Zimmer-Wohnung" o.ä. genannt wird ohne Maße, schätze realistische Standardmaße:
-   - Wohnzimmer: 5.0 x 4.0
-   - Schlafzimmer: 4.0 x 3.5
-   - Kinderzimmer: 3.5 x 3.0
-   - Küche: 3.5 x 2.8
-   - Bad: 2.5 x 2.0
-   - Flur: 5.0 x 1.5
-   - Büro: 3.5 x 3.0
+### 2. Räume (Array)
+Für jeden genannten Raum:
+- name: Raumbezeichnung (z.B. "Wohnzimmer", "Schlafzimmer 1")
+- laenge: Länge in Metern (Dezimalzahl mit Punkt)
+- breite: Breite in Metern
+- hoehe: Deckenhöhe (Standard: 2.55)
+- fenster: Anzahl Fenster (Standard: 1)
+- tueren: Anzahl Türen (Standard: 1)
 
-3. **Optionen**:
-   - qualitaet: "standard" oder "premium" (premium wenn hochwertig/teuer/beste Qualität erwähnt)
-   - decke: true/false (ob Decken gestrichen werden sollen)
-   - spachteln: true/false (ob gespachtelt/Risse ausgebessert werden sollen)
-   - tapeteEntfernen: true/false (ob alte Tapete entfernt werden soll)
+**Raum-Schätzregeln** wenn keine Maße angegeben:
+- "3-Zimmer-Wohnung" → Wohnzimmer 5.0x4.0, Schlafzimmer 4.0x3.5, Kinderzimmer/Arbeitszimmer 3.5x3.0 + Küche 3.5x2.8 + Bad 2.5x2.0 + Flur 5.0x1.5
+- "4-Zimmer-Wohnung" → wie oben + zusätzliches Zimmer 3.5x3.0
+- "Einfamilienhaus" → ca. 6-8 Räume, etwas größer
+- "nur Wohnzimmer" → einzelner Raum mit realistischen Maßen
+- Altbau: Deckenhöhe 3.0-3.20m
+- Neubau: Deckenhöhe 2.50-2.55m
+- Dachgeschoss: Deckenhöhe 2.20-2.40m
+- Keller: Deckenhöhe 2.20-2.30m
 
-4. **Extras** (Array von Strings):
-   Zusätzliche Wünsche wie "Sockelleisten streichen", "Möbel rücken", "Risse ausbessern" etc.
+### 3. Optionen
+- qualitaet: "standard" oder "premium"
+  → premium bei: Caparol, Brillux, "beste Qualität", "hochwertig", "Latex", "Silikat"
+  → standard bei: "günstig", "einfach", "normal", keine besondere Erwähnung
+- decke: true wenn Decken gestrichen werden sollen
+- spachteln: true wenn gespachtelt, Risse ausgebessert, oder "alles glatt" erwähnt
+- tapeteEntfernen: true wenn Tapete/Rauhfaser entfernt werden soll
 
-5. **Confidence** (0-100 pro Bereich):
-   Wie sicher bist du bei der Extraktion?
-   - kunde: Wie vollständig sind die Kundendaten?
-   - raeume: Wie genau sind die Raumdaten? (echte Maße = hoch, geschätzt = niedrig)
-   - optionen: Wie klar sind die Optionen?
+### 4. Extras (Array)
+Erfasse Sonderwünsche wie:
+- "Sockelleisten/Fußleisten streichen"
+- "Türrahmen/Türzargen lackieren"
+- "Heizkörper streichen"
+- "Möbel rücken/verrücken"
+- "Risse ausbessern"
+- "Schimmel behandeln"
+- "Fassade streichen" (Außenbereich!)
+- "Balkon streichen"
+
+### 5. Confidence (0-100)
+- kunde: Wie vollständig sind die Kundendaten? (Name+Adresse+Kontakt = 90+, nur Name = 40, nichts = 10)
+- raeume: Wie genau sind die Raumdaten? (echte Maße = 85+, geschätzt = 30-50, vage = 15)
+- optionen: Wie klar sind die gewünschten Arbeiten? (detailliert = 80+, nur "streichen" = 50, unklar = 20)
+
+## Erkennungsregeln
+
+**Abkürzungen (besonders Spracheingabe):**
+- Wozi/WZ = Wohnzimmer, SZ = Schlafzimmer, KiZi = Kinderzimmer
+- WC/Gäste-WC = Gäste-Toilette, HWR = Hauswirtschaftsraum
+- EG = Erdgeschoss, OG = Obergeschoss, DG = Dachgeschoss, KG = Keller
+- qm/m² = Quadratmeter, lfm/lm = Laufmeter
+
+**Zahlen aus Sprache:**
+- "fünf mal vier" = 5.0 x 4.0, "dreieinhalb" = 3.5
+- "ca. 20 Quadratmeter" → berechne Maße rückwärts: ~5.0 x 4.0
+- "ungefähr 4 auf 3" = 4.0 x 3.0
+
+**Typische Kundenformulierungen:**
+- "komplett machen" / "alles neu" = streichen + Decke + ggf. spachteln
+- "nur Wände" = keine Decke
+- "Renovierung" / "renovieren" = Standard-Streicharbeit
+- "Sanierung" = eventuell spachteln + Tapete entfernen
+- "weiß streichen" / "alles weiß" = Standard-Wandfarbe
+- "farbig" / "Akzent" / "Farbton" = Premium (Tönfarbe nötig)
 
 WICHTIG:
-- Antworte ausschließlich als valides JSON
-- Verwende Dezimalpunkte (3.5 nicht 3,5) in den Zahlen
-- Wenn etwas nicht im Text steht, verwende leere Strings oder sinnvolle Defaults
-- Sei großzügig beim Erkennen: "Wozi" = Wohnzimmer, "SZ" = Schlafzimmer, etc.
-- Deckenhöhe ist fast immer 2.50-2.55m wenn nicht anders angegeben
-- Bei Spracheingaben können Formatierungsfehler auftreten — interpretiere großzügig`;
+- Dezimalpunkte verwenden (3.5 nicht 3,5)
+- Leere Strings "" für fehlende Felder, NICHT null
+- Confidence IMMER als ganze Zahl 0-100 angeben
+- Bei Spracheingaben großzügig interpretieren (Tippfehler, Versprecher)
+- Wenn m² angegeben statt Maße: rückwärts rechnen auf plausible L x B`;
 
 const RESPONSE_FORMAT = {
   type: "json_schema" as const,
@@ -131,6 +163,69 @@ export async function POST(request: Request) {
   let inputText = "";
 
   try {
+    const contentType = request.headers.get("content-type") || "";
+
+    // Handle multipart/form-data (image + optional text)
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const image = formData.get("image") as File | null;
+      const textPart = formData.get("text") as string | null;
+
+      if (!image && !textPart) {
+        return NextResponse.json(
+          { error: "Kein Bild oder Text angegeben" },
+          { status: 400 }
+        );
+      }
+
+      if (!process.env.OPENAI_API_KEY) {
+        if (textPart) return NextResponse.json(parseAnfrageRegex(textPart));
+        return NextResponse.json({ error: "Kein API Key für Bilderkennung" }, { status: 500 });
+      }
+
+      // Build message with image and/or text
+      const userContent: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail: "high" } }> = [];
+
+      if (textPart) {
+        userContent.push({
+          type: "text",
+          text: `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen.`,
+        });
+      } else {
+        userContent.push({
+          type: "text",
+          text: "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere alle erkennbaren Daten:",
+        });
+      }
+
+      if (image) {
+        const base64 = Buffer.from(await image.arrayBuffer()).toString("base64");
+        userContent.push({
+          type: "image_url",
+          image_url: { url: `data:${image.type};base64,${base64}`, detail: "high" },
+        });
+      }
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userContent },
+        ],
+        response_format: RESPONSE_FORMAT,
+        temperature: 0.1,
+        max_tokens: 3000,
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (!content) {
+        return NextResponse.json({ error: "Keine Antwort vom AI" }, { status: 500 });
+      }
+
+      return NextResponse.json(JSON.parse(content));
+    }
+
+    // Handle JSON body (text only)
     const body = await request.json();
     inputText = body.text;
 
@@ -155,7 +250,7 @@ export async function POST(request: Request) {
       ],
       response_format: RESPONSE_FORMAT,
       temperature: 0.1,
-      max_tokens: 2000,
+      max_tokens: 3000,
     });
 
     const content = completion.choices[0]?.message?.content;

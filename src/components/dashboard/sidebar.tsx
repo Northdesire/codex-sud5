@@ -14,6 +14,7 @@ import {
   Calculator,
   FileText,
   FileSpreadsheet,
+  Sparkles,
   LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const navItems = [
   { href: "/dashboard/kalkulation", label: "Kalkulation", icon: Calculator },
   { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
   { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
+  { href: "/dashboard/import", label: "AI-Import", icon: Sparkles },
 ];
 
 export function Sidebar() {
