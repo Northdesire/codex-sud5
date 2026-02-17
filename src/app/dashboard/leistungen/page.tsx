@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { AICatalogUpload } from "@/components/dashboard/ai-catalog-upload";
 
 const LEISTUNGS_KATEGORIEN = [
   { value: "STREICHEN", label: "Streichen" },
@@ -156,10 +157,13 @@ export default function LeistungenPage() {
         title="Leistungskatalog"
         description="Preise pro Einheit, Material-Verknüpfungen und Zeitkalkulation"
         actions={
-          <Button onClick={openNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neue Leistung
-          </Button>
+          <div className="flex gap-2">
+            <AICatalogUpload filterTyp="leistung" onImported={loadData} />
+            <Button onClick={openNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              Neue Leistung
+            </Button>
+          </div>
         }
       />
       <div className="p-8 space-y-4">

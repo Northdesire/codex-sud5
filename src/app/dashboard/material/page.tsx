@@ -18,6 +18,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Info } from "lucide-react";
+import { AICatalogUpload } from "@/components/dashboard/ai-catalog-upload";
 
 const KATEGORIEN = [
   { value: "WANDFARBE", label: "Wandfarbe" },
@@ -162,10 +163,13 @@ export default function MaterialPage() {
         title="Material & Preise"
         description="Einkaufs- und Verkaufspreise, Ergiebigkeit, Lieferanten"
         actions={
-          <Button onClick={openNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neues Material
-          </Button>
+          <div className="flex gap-2">
+            <AICatalogUpload filterTyp="material" onImported={loadData} />
+            <Button onClick={openNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              Neues Material
+            </Button>
+          </div>
         }
       />
       <div className="p-8 space-y-4">
