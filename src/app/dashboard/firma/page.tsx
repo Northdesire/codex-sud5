@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Header } from "@/components/dashboard/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, Upload, Trash2 } from "lucide-react";
 
 interface FirmaData {
   id: string;
@@ -33,6 +33,7 @@ interface FirmaData {
   angebotsGueltig: number;
   nrPrefix: string;
   agbText: string | null;
+  logoUrl: string | null;
   googleReviewUrl: string | null;
 }
 
@@ -40,6 +41,21 @@ export default function FirmaPage() {
   const [firma, setFirma] = useState<FirmaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const logoRef = useRef<HTMLInputElement>(null);
+
+  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !firma) return;
+    if (file.size > 500_000) {
+      toast.error("Logo darf max. 500 KB sein");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFirma({ ...firma, logoUrl: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+  }
 
   useEffect(() => {
     fetch("/api/firma")
@@ -102,6 +118,58 @@ export default function FirmaPage() {
         }
       />
       <div className="p-8 max-w-4xl space-y-6">
+        {/* Logo */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Firmenlogo</CardTitle>
+            <CardDescription>Wird im PDF-Header angezeigt (max. 500 KB)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <input
+              ref={logoRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoUpload}
+            />
+            <div className="flex items-center gap-4">
+              {firma.logoUrl ? (
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={firma.logoUrl}
+                    alt="Firmenlogo"
+                    className="h-16 max-w-[200px] object-contain rounded border p-1"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white hover:bg-destructive/90"
+                    onClick={() => setFirma({ ...firma, logoUrl: null })}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  className="h-16 w-40 rounded border-2 border-dashed flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => logoRef.current?.click()}
+                >
+                  <span className="text-xs text-muted-foreground">Kein Logo</span>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => logoRef.current?.click()}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {firma.logoUrl ? "Ändern" : "Hochladen"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stammdaten */}
         <Card>
           <CardHeader>

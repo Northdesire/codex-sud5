@@ -2,6 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+
+    const kunde = await prisma.kunde.findFirst({
+      where: { id, firmaId: user.firmaId },
+      include: {
+        angebote: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            nummer: true,
+            datum: true,
+            status: true,
+            brutto: true,
+            kundeName: true,
+          },
+        },
+      },
+    });
+
+    if (!kunde) {
+      return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
+    }
+
+    return NextResponse.json(kunde);
+  } catch {
+    return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

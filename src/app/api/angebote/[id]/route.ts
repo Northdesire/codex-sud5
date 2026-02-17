@@ -52,6 +52,58 @@ export async function PUT(
       );
     }
 
+    // Full edit: positionen + summen + kunde
+    if (body.positionen) {
+      const result = await prisma.$transaction(async (tx) => {
+        // Delete old positions
+        await tx.angebotPosition.deleteMany({ where: { angebotId: id } });
+
+        // Update Angebot with new data
+        const updated = await tx.angebot.update({
+          where: { id },
+          data: {
+            kundeName: body.kundeName ?? existing.kundeName,
+            kundeStrasse: body.kundeStrasse ?? existing.kundeStrasse,
+            kundePlz: body.kundePlz ?? existing.kundePlz,
+            kundeOrt: body.kundeOrt ?? existing.kundeOrt,
+            kundeEmail: body.kundeEmail ?? existing.kundeEmail,
+            kundeTelefon: body.kundeTelefon ?? existing.kundeTelefon,
+            materialNetto: body.materialNetto,
+            arbeitsNetto: body.arbeitsNetto,
+            anfahrt: body.anfahrt,
+            zuschlagNetto: body.zuschlagNetto ?? 0,
+            rabattNetto: body.rabattNetto ?? 0,
+            netto: body.netto,
+            mwstBetrag: body.mwstBetrag,
+            brutto: body.brutto,
+            einleitungsText: body.einleitungsText ?? existing.einleitungsText,
+            schlussText: body.schlussText ?? existing.schlussText,
+            positionen: {
+              create: body.positionen.map(
+                (p: { posNr: number; typ: string; raumName?: string; bezeichnung: string; menge: number; einheit: string; einzelpreis: number; gesamtpreis: number }, i: number) => ({
+                  posNr: p.posNr,
+                  typ: p.typ,
+                  raumName: p.raumName || null,
+                  bezeichnung: p.bezeichnung,
+                  menge: p.menge,
+                  einheit: p.einheit,
+                  einzelpreis: p.einzelpreis,
+                  gesamtpreis: p.gesamtpreis,
+                  sortierung: i,
+                })
+              ),
+            },
+          },
+          include: { positionen: { orderBy: { sortierung: "asc" } }, firma: true },
+        });
+
+        return updated;
+      });
+
+      return NextResponse.json(result);
+    }
+
+    // Simple status update
     const updateData: Record<string, unknown> = {};
 
     if (body.status) {

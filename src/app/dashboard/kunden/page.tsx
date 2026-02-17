@@ -12,8 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface Kunde {
   id: string;
@@ -35,6 +36,7 @@ const KundenTypLabels: Record<string, string> = {
 };
 
 export default function KundenPage() {
+  const router = useRouter();
   const [kunden, setKunden] = useState<Kunde[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -172,8 +174,9 @@ export default function KundenPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(k)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(k.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <Button variant="ghost" size="sm" title="Details" onClick={() => router.push(`/dashboard/kunden/${k.id}`)}><ExternalLink className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" title="Bearbeiten" onClick={() => openEdit(k)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" title="Löschen" onClick={() => handleDelete(k.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </div>
                     </td>
                   </tr>

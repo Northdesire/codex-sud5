@@ -13,6 +13,7 @@ export async function GET() {
         positionen: {
           orderBy: { sortierung: "asc" },
         },
+        firma: true,
       },
     });
 

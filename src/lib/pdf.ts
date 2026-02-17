@@ -38,6 +38,7 @@ interface PDFData {
     steuernummer?: string | null;
     ustIdNr?: string | null;
     agbText?: string | null;
+    logoUrl?: string | null;
   } | null;
   positionen: PDFPosition[];
   raeume?: Array<{
@@ -112,6 +113,16 @@ function buildPDF(data: PDFData, JsPDF: any): InstanceType<typeof jsPDF> {
 
   // ═══ HEADER: Firma ═══
   y = 15;
+
+  // Logo (if available)
+  if (data.firma?.logoUrl) {
+    try {
+      doc.addImage(data.firma.logoUrl, "AUTO", pageWidth - mR - 40, 10, 40, 14);
+    } catch {
+      // Ignore logo errors
+    }
+  }
+
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(30, 30, 30);
