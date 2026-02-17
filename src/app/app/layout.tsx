@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Home, Brain, FileText, FileSpreadsheet, BarChart3 } from "lucide-react";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const navItems = [
   { href: "/app", icon: Home, label: "Start" },
@@ -18,7 +19,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col min-h-screen max-w-lg mx-auto bg-background">
-      <main className="flex-1 overflow-y-auto pb-20">{children}</main>
+      <main className="flex-1 overflow-y-auto pb-20">
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </main>
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/95 backdrop-blur-sm safe-area-bottom">

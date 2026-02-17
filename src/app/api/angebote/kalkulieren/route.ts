@@ -9,6 +9,8 @@ import {
   type MaterialInfo,
   type LeistungInfo,
   type KalkRegeln,
+  type ZuschlagInfo,
+  type RabattInfo,
 } from "@/lib/kalkulation";
 
 export async function POST(request: Request) {
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
     };
 
     // Daten aus der DB laden
-    const [materialien, leistungen, kalkRegeln, firma] = await Promise.all([
+    const [materialien, leistungen, kalkRegeln, firma, zuschlaege, rabatte] = await Promise.all([
       prisma.material.findMany({
         where: { firmaId: user.firmaId, aktiv: true },
       }),
@@ -50,6 +52,12 @@ export async function POST(request: Request) {
         where: { firmaId: user.firmaId },
       }),
       prisma.firma.findUnique({ where: { id: user.firmaId } }),
+      prisma.zuschlag.findMany({
+        where: { firmaId: user.firmaId, aktiv: true },
+      }),
+      prisma.rabatt.findMany({
+        where: { firmaId: user.firmaId, aktiv: true },
+      }),
     ]);
 
     const regeln: KalkRegeln = kalkRegeln
@@ -89,6 +97,19 @@ export async function POST(request: Request) {
 
     const mwstSatz = firma?.mwstSatz ?? 19.0;
 
+    // Zuschläge & Rabatte aufbereiten
+    const zuschlagInfos: ZuschlagInfo[] = zuschlaege.map((z) => ({
+      name: z.name,
+      typ: z.typ as "PROZENT" | "PAUSCHAL",
+      wert: z.wert,
+    }));
+
+    const rabattInfos: RabattInfo[] = rabatte.map((r) => ({
+      name: r.name,
+      typ: r.typ as "PROZENT" | "PAUSCHAL",
+      wert: r.wert,
+    }));
+
     // Kalkulation durchführen
     const ergebnis = kalkuliere(
       raeume,
@@ -96,7 +117,9 @@ export async function POST(request: Request) {
       regeln,
       matInfos,
       leistInfos,
-      mwstSatz
+      mwstSatz,
+      zuschlagInfos,
+      rabattInfos
     );
 
     return NextResponse.json({
@@ -117,6 +140,9 @@ export async function POST(request: Request) {
             bankname: firma.bankname,
             nrPrefix: firma.nrPrefix,
             zahlungsziel: firma.zahlungsziel,
+            steuernummer: firma.steuernummer,
+            ustIdNr: firma.ustIdNr,
+            agbText: firma.agbText,
           }
         : null,
     });

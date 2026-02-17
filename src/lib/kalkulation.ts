@@ -160,6 +160,18 @@ export function berechneMaterialBedarf(
   return Math.ceil(bedarf); // Aufrunden auf ganze Einheiten
 }
 
+export interface ZuschlagInfo {
+  name: string;
+  typ: "PROZENT" | "PAUSCHAL";
+  wert: number;
+}
+
+export interface RabattInfo {
+  name: string;
+  typ: "PROZENT" | "PAUSCHAL";
+  wert: number;
+}
+
 /**
  * Hauptfunktion: Komplette Angebots-Kalkulation
  */
@@ -169,7 +181,9 @@ export function kalkuliere(
   regeln: KalkRegeln,
   materialien: MaterialInfo[],
   leistungen: LeistungInfo[],
-  mwstSatz: number
+  mwstSatz: number,
+  zuschlagInfos: ZuschlagInfo[] = [],
+  rabattInfos: RabattInfo[] = []
 ): KalkErgebnis {
   const berechneteRaeume = raeume.map((r) => berechneRaumFlaeche(r, regeln));
   const positionen: Position[] = [];
@@ -355,9 +369,45 @@ export function kalkuliere(
     gesamtpreis: anfahrt,
   });
 
-  // --- SUMMEN ---
-  const zuschlagNetto = 0; // Wird in Phase 2 mit Zuschlag-Automatik erweitert
-  const rabattNetto = 0;
+  // --- ZUSCHLÄGE ---
+  let zuschlagNetto = 0;
+  const zwischenNetto = materialNetto + arbeitsNetto + anfahrt;
+
+  for (const z of zuschlagInfos) {
+    const betrag = z.typ === "PROZENT"
+      ? runde2(zwischenNetto * (z.wert / 100))
+      : z.wert;
+    positionen.push({
+      posNr: posNr++,
+      typ: "ZUSCHLAG",
+      bezeichnung: `${z.name}${z.typ === "PROZENT" ? ` (${z.wert}%)` : ""}`,
+      menge: 1,
+      einheit: z.typ === "PROZENT" ? "%" : "pauschal",
+      einzelpreis: betrag,
+      gesamtpreis: betrag,
+    });
+    zuschlagNetto += betrag;
+  }
+
+  // --- RABATTE ---
+  let rabattNetto = 0;
+  const vorRabattNetto = zwischenNetto + zuschlagNetto;
+
+  for (const r of rabattInfos) {
+    const betrag = r.typ === "PROZENT"
+      ? runde2(vorRabattNetto * (r.wert / 100))
+      : r.wert;
+    positionen.push({
+      posNr: posNr++,
+      typ: "RABATT",
+      bezeichnung: `${r.name}${r.typ === "PROZENT" ? ` (${r.wert}%)` : ""}`,
+      menge: 1,
+      einheit: r.typ === "PROZENT" ? "%" : "pauschal",
+      einzelpreis: -betrag,
+      gesamtpreis: -betrag,
+    });
+    rabattNetto += betrag;
+  }
 
   const netto = runde2(
     materialNetto + arbeitsNetto + anfahrt + zuschlagNetto - rabattNetto
