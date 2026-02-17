@@ -1,0 +1,572 @@
+"use client";
+
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Brain, ClipboardPaste, Mic, MicOff, Loader2, Check, ChevronRight,
+  User, Ruler, Paintbrush,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const DEMO_TEXT = `Hallo Herr Schneider,
+
+wir haben eine 3-Zimmer-Wohnung in der Gartenstraße 8, 26721 Emden und würden gerne alle Räume streichen lassen.
+
+Wohnzimmer: ca. 5,2 x 4,1 m, 2 Fenster, 1 Tür
+Schlafzimmer: ca. 4,0 x 3,5 m, 1 Fenster, 1 Tür
+Kinderzimmer: ca. 3,5 x 3,0 m, 1 Fenster, 1 Tür
+
+Deckenhöhe ist überall 2,55m. Wir hätten gerne eine hochwertige Farbe (Caparol oder ähnlich). Die Decken sollen auch gestrichen werden.
+
+Können Sie uns ein Angebot machen?
+
+Mit freundlichen Grüßen
+Familie Müller
+Tel: 0176 1234567
+mueller@email.de`;
+
+interface ParsedResult {
+  kunde: {
+    name: string;
+    strasse: string;
+    plz: string;
+    ort: string;
+    email: string;
+    telefon: string;
+  };
+  raeume: Array<{
+    name: string;
+    laenge: number;
+    breite: number;
+    hoehe: number;
+    fenster: number;
+    tueren: number;
+  }>;
+  optionen: {
+    qualitaet: "standard" | "premium";
+    decke: boolean;
+    spachteln: boolean;
+    tapeteEntfernen: boolean;
+  };
+  extras: string[];
+  confidence: { kunde: number; raeume: number; optionen: number };
+}
+
+const ANALYSE_SCHRITTE = [
+  { icon: "📖", text: "Text wird gelesen..." },
+  { icon: "👤", text: "Kundendaten extrahieren..." },
+  { icon: "📐", text: "Räume & Maße erkennen..." },
+  { icon: "🎨", text: "Optionen & Qualität bestimmen..." },
+  { icon: "✅", text: "Fertig!" },
+];
+
+export default function AIEingabePage() {
+  const router = useRouter();
+  const [modus, setModus] = useState<"wahl" | "text" | "sprache">("wahl");
+  const [text, setText] = useState("");
+  const [analysiert, setAnalysiert] = useState(false);
+  const [analysierSchritt, setAnalysierSchritt] = useState(-1);
+  const [ergebnis, setErgebnis] = useState<ParsedResult | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  async function handleAnalyse() {
+    if (!text.trim()) {
+      toast.error("Bitte füge zuerst einen Text ein");
+      return;
+    }
+
+    setAnalysiert(false);
+    setErgebnis(null);
+
+    // Fortschrittsanimation
+    for (let i = 0; i < ANALYSE_SCHRITTE.length - 1; i++) {
+      setAnalysierSchritt(i);
+      await new Promise((r) => setTimeout(r, 600));
+    }
+
+    try {
+      const res = await fetch("/api/ai/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "AI-Analyse fehlgeschlagen");
+      }
+
+      const data = await res.json();
+      // Normalize confidence: OpenAI returns 0-1, display expects 0-100
+      if (data.confidence) {
+        const c = data.confidence;
+        if (c.kunde <= 1 && c.raeume <= 1 && c.optionen <= 1) {
+          c.kunde = Math.round(c.kunde * 100);
+          c.raeume = Math.round(c.raeume * 100);
+          c.optionen = Math.round(c.optionen * 100);
+        }
+      }
+      setErgebnis(data);
+      setAnalysierSchritt(ANALYSE_SCHRITTE.length - 1);
+      setAnalysiert(true);
+    } catch (err) {
+      toast.error("Analyse fehlgeschlagen", {
+        description: err instanceof Error ? err.message : "Unbekannter Fehler",
+      });
+      setAnalysierSchritt(-1);
+    }
+  }
+
+  function handleUebernehmen() {
+    if (!ergebnis) return;
+    // Ergebnis in sessionStorage speichern und zum Formular weiterleiten
+    sessionStorage.setItem("ai-ergebnis", JSON.stringify(ergebnis));
+    sessionStorage.setItem("ai-originaltext", text);
+    router.push("/app/formular");
+  }
+
+  async function handleSprache() {
+    // Stoppen
+    if (recording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      return;
+    }
+
+    // Mikrofon-Zugriff
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      toast.error("Mikrofon nicht verfügbar", {
+        description: "Bitte erlaube den Mikrofon-Zugriff in den Browser-Einstellungen",
+      });
+      return;
+    }
+
+    // MediaRecorder starten
+    chunksRef.current = [];
+    const mediaRecorder = new MediaRecorder(stream, {
+      mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm",
+    });
+    mediaRecorderRef.current = mediaRecorder;
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      // Mikrofon freigeben
+      stream.getTracks().forEach((t) => t.stop());
+      setRecording(false);
+      setTranscribing(true);
+
+      try {
+        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+
+        // An Whisper senden
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "aufnahme.webm");
+
+        const res = await fetch("/api/ai/transcribe", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) throw new Error("Transkription fehlgeschlagen");
+
+        const { text: transcript } = await res.json();
+        setText((prev) => (prev ? prev + "\n" + transcript : transcript));
+        toast.success("Sprache erkannt");
+      } catch (err) {
+        console.error("Transkription Fehler:", err);
+        toast.error("Sprache konnte nicht erkannt werden");
+      } finally {
+        setTranscribing(false);
+      }
+    };
+
+    mediaRecorder.start();
+    setRecording(true);
+    setModus("text");
+  }
+
+  // --- SCHRITT: MODUS WÄHLEN ---
+  if (modus === "wahl") {
+    return (
+      <div className="px-5 pt-8 space-y-6">
+        <div>
+          <h1 className="text-xl font-bold">AI-Eingabe</h1>
+          <p className="text-sm text-muted-foreground">
+            Wie möchtest du die Anfrage eingeben?
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <button
+            onClick={() => setModus("text")}
+            className="w-full rounded-2xl border-2 border-primary/20 p-5 text-left active:scale-[0.98] transition-transform hover:border-primary/40"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <ClipboardPaste className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <h2 className="font-semibold">Text einfügen</h2>
+                <p className="text-sm text-muted-foreground">
+                  E-Mail, WhatsApp oder Notiz reinpasten
+                </p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </button>
+
+          <button
+            onClick={() => {
+              setModus("text");
+              // Aufnahme direkt starten nach kurzem Delay (damit UI gerendert ist)
+              setTimeout(() => handleSprache(), 100);
+            }}
+            className="w-full rounded-2xl border-2 border-primary/20 p-5 text-left active:scale-[0.98] transition-transform hover:border-primary/40"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Mic className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <h2 className="font-semibold">Sprachmemo</h2>
+                <p className="text-sm text-muted-foreground">
+                  Einfach reinreden — Whisper erkennt alles
+                </p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- SCHRITT: TEXT EINGEBEN + ANALYSIEREN ---
+  if (!analysiert) {
+    return (
+      <div className="px-5 pt-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">
+              {recording
+                ? "Aufnahme läuft..."
+                : transcribing
+                  ? "Wird erkannt..."
+                  : "Text eingeben"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {transcribing
+                ? "Whisper transkribiert deine Sprache"
+                : "Kundenanfrage einfügen oder diktieren"}
+            </p>
+          </div>
+          <button
+            onClick={handleSprache}
+            disabled={transcribing}
+            className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+              recording
+                ? "bg-red-500 text-white animate-pulse"
+                : transcribing
+                  ? "bg-muted text-muted-foreground opacity-50"
+                  : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {transcribing ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : recording ? (
+              <MicOff className="h-5 w-5" />
+            ) : (
+              <Mic className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Hier den Text der Kundenanfrage einfügen (E-Mail, WhatsApp, Notiz)..."
+          rows={10}
+          className="text-base"
+        />
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setText(DEMO_TEXT);
+              toast.success("Demo-Text geladen");
+            }}
+          >
+            Demo-Text laden
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setModus("wahl");
+              setText("");
+              setAnalysierSchritt(-1);
+            }}
+          >
+            Zurück
+          </Button>
+        </div>
+
+        {/* Analyse Button / Fortschritt */}
+        {analysierSchritt >= 0 ? (
+          <Card>
+            <CardContent className="pt-5 space-y-3">
+              {ANALYSE_SCHRITTE.map((schritt, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 transition-opacity ${
+                    i > analysierSchritt ? "opacity-30" : "opacity-100"
+                  }`}
+                >
+                  {i < analysierSchritt ? (
+                    <Check className="h-5 w-5 text-primary" />
+                  ) : i === analysierSchritt ? (
+                    <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                  ) : (
+                    <span className="text-lg leading-none">{schritt.icon}</span>
+                  )}
+                  <span className="text-sm">{schritt.text}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <Button
+            onClick={handleAnalyse}
+            className="w-full h-12 text-base"
+            disabled={!text.trim()}
+          >
+            <Brain className="h-5 w-5 mr-2" />
+            AI analysieren
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // --- SCHRITT: ERGEBNIS PRÜFEN ---
+  if (!ergebnis) return null;
+
+  return (
+    <div className="px-5 pt-6 space-y-4 pb-4">
+      <div>
+        <h1 className="text-xl font-bold">Ergebnis prüfen</h1>
+        <p className="text-sm text-muted-foreground">
+          Von der AI erkannt — du kannst alles bearbeiten
+        </p>
+      </div>
+
+      {/* Kundendaten */}
+      <Card>
+        <CardContent className="pt-5">
+          <div className="flex items-center gap-2 mb-3">
+            <User className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Kundendaten</h3>
+            <Badge variant="outline" className="ml-auto text-xs">
+              {ergebnis.confidence.kunde}%
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs text-muted-foreground">Name</Label>
+                <Input
+                  value={ergebnis.kunde.name}
+                  onChange={(e) =>
+                    setErgebnis({
+                      ...ergebnis,
+                      kunde: { ...ergebnis.kunde, name: e.target.value },
+                    })
+                  }
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Telefon</Label>
+                <Input
+                  value={ergebnis.kunde.telefon}
+                  onChange={(e) =>
+                    setErgebnis({
+                      ...ergebnis,
+                      kunde: { ...ergebnis.kunde, telefon: e.target.value },
+                    })
+                  }
+                  className="h-9 text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">E-Mail</Label>
+              <Input
+                value={ergebnis.kunde.email}
+                onChange={(e) =>
+                  setErgebnis({
+                    ...ergebnis,
+                    kunde: { ...ergebnis.kunde, email: e.target.value },
+                  })
+                }
+                className="h-9 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Straße</Label>
+              <Input
+                value={ergebnis.kunde.strasse}
+                onChange={(e) =>
+                  setErgebnis({
+                    ...ergebnis,
+                    kunde: { ...ergebnis.kunde, strasse: e.target.value },
+                  })
+                }
+                className="h-9 text-sm"
+                placeholder="Musterstraße 12"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-xs text-muted-foreground">PLZ</Label>
+                <Input
+                  value={ergebnis.kunde.plz}
+                  onChange={(e) =>
+                    setErgebnis({
+                      ...ergebnis,
+                      kunde: { ...ergebnis.kunde, plz: e.target.value },
+                    })
+                  }
+                  className="h-9 text-sm"
+                  placeholder="12345"
+                />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs text-muted-foreground">Ort</Label>
+                <Input
+                  value={ergebnis.kunde.ort}
+                  onChange={(e) =>
+                    setErgebnis({
+                      ...ergebnis,
+                      kunde: { ...ergebnis.kunde, ort: e.target.value },
+                    })
+                  }
+                  className="h-9 text-sm"
+                  placeholder="Berlin"
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Räume */}
+      <Card>
+        <CardContent className="pt-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Ruler className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Räume</h3>
+            <Badge variant="outline" className="ml-auto text-xs">
+              {ergebnis.confidence.raeume}%
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            {ergebnis.raeume.map((raum, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
+              >
+                <div>
+                  <p className="font-medium text-sm">{raum.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {raum.laenge} x {raum.breite} m, H {raum.hoehe} m |{" "}
+                    {raum.fenster} F, {raum.tueren} T
+                  </p>
+                </div>
+                <p className="text-xs font-mono text-muted-foreground">
+                  ~{(
+                    2 * (raum.laenge + raum.breite) * raum.hoehe
+                  ).toFixed(0)}{" "}
+                  m²
+                </p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Optionen */}
+      <Card>
+        <CardContent className="pt-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Paintbrush className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Optionen</h3>
+            <Badge variant="outline" className="ml-auto text-xs">
+              {ergebnis.confidence.optionen}%
+            </Badge>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge
+              variant={ergebnis.optionen.qualitaet === "premium" ? "default" : "secondary"}
+            >
+              {ergebnis.optionen.qualitaet === "premium" ? "Premium" : "Standard"}
+            </Badge>
+            <Badge variant={ergebnis.optionen.decke ? "default" : "secondary"}>
+              Decke {ergebnis.optionen.decke ? "Ja" : "Nein"}
+            </Badge>
+            <Badge variant={ergebnis.optionen.spachteln ? "default" : "secondary"}>
+              Spachteln {ergebnis.optionen.spachteln ? "Ja" : "Nein"}
+            </Badge>
+          </div>
+          {ergebnis.extras.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground mb-1">Extras:</p>
+              {ergebnis.extras.map((extra, i) => (
+                <Badge key={i} variant="outline" className="mr-1 mb-1">
+                  {extra}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Aktionen */}
+      <div className="flex gap-3">
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => {
+            setAnalysiert(false);
+            setAnalysierSchritt(-1);
+            setErgebnis(null);
+          }}
+        >
+          Nochmal
+        </Button>
+        <Button className="flex-1 h-12 text-base" onClick={handleUebernehmen}>
+          <Check className="h-5 w-5 mr-2" />
+          Übernehmen
+        </Button>
+      </div>
+    </div>
+  );
+}

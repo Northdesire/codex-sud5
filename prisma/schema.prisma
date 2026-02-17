@@ -1,0 +1,440 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════
+// TENANT / FIRMA
+// ═══════════════════════════════════════════
+
+model Firma {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  firmenname      String
+  inhaberName     String
+  inhaberTitel    String?
+  strasse         String
+  plz             String
+  ort             String
+  telefon         String
+  email           String
+  website         String?
+  steuernummer    String?
+  ustIdNr         String?
+  iban            String?
+  bic             String?
+  bankname        String?
+  logoUrl         String?
+
+  mwstSatz        Float    @default(19.0)
+  stundensatz     Float    @default(47.0)
+  zahlungsziel    Int      @default(14)
+  angebotsGueltig Int      @default(14)
+  nrPrefix        String   @default("ANG-")
+  nrCounter       Int      @default(1)
+  agbText         String?
+
+  googleReviewUrl String?
+
+  users           User[]
+  kunden          Kunde[]
+  materialien     Material[]
+  leistungen      Leistung[]
+  zuschlaege      Zuschlag[]
+  rabatte         Rabatt[]
+  raumVorlagen    RaumVorlage[]
+  textVorlagen    TextVorlage[]
+  angebote        Angebot[]
+  kalkRegeln      KalkulationsRegeln?
+}
+
+// ═══════════════════════════════════════════
+// USER
+// ═══════════════════════════════════════════
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String
+  name            String
+  rolle           Rolle    @default(INHABER)
+  firmaId         String
+  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+}
+
+enum Rolle {
+  INHABER
+  MITARBEITER
+  BUERO
+}
+
+// ═══════════════════════════════════════════
+// KUNDENSTAMM
+// ═══════════════════════════════════════════
+
+model Kunde {
+  id              String    @id @default(cuid())
+  firmaId         String
+  firma           Firma     @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  typ             KundenTyp @default(PRIVAT)
+  strasse         String?
+  plz             String?
+  ort             String?
+  email           String?
+  telefon         String?
+  telefon2        String?
+
+  notizen         String?
+  stammkunde      Boolean   @default(false)
+  rabattProzent   Float?
+
+  angebote        Angebot[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum KundenTyp {
+  PRIVAT
+  GEWERBE
+  HAUSVERWALTUNG
+}
+
+// ═══════════════════════════════════════════
+// MATERIALIEN
+// ═══════════════════════════════════════════
+
+model Material {
+  id              String      @id @default(cuid())
+  firmaId         String
+  firma           Firma       @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  kategorie       MaterialKat
+  artikelNr       String?
+
+  ekPreis         Float
+  vkPreis         Float
+  einheit         String
+
+  ergiebigkeit    Float?
+  anstriche       Int?
+
+  lieferant       String?
+  lieferantNr     String?
+
+  aktiv           Boolean     @default(true)
+  notizen         String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([firmaId, name])
+}
+
+enum MaterialKat {
+  WANDFARBE
+  GRUNDIERUNG
+  SPACHTEL
+  LACK
+  VERBRAUCH
+  TAPETE
+  SONSTIGES
+}
+
+// ═══════════════════════════════════════════
+// LEISTUNGSKATALOG
+// ═══════════════════════════════════════════
+
+model Leistung {
+  id              String       @id @default(cuid())
+  firmaId         String
+  firma           Firma        @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  kategorie       LeistungsKat
+  einheit         String
+
+  preisProEinheit Float
+  sqmProStunde    Float?
+
+  materialKat     MaterialKat?
+
+  beschreibung    String?
+  aktiv           Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([firmaId, name])
+}
+
+enum LeistungsKat {
+  STREICHEN
+  VORBEREITUNG
+  LACKIEREN
+  FASSADE
+  BODEN
+  TAPEZIEREN
+  TROCKENBAU
+  SONSTIGES
+}
+
+// ═══════════════════════════════════════════
+// ZUSCHLÄGE & RABATTE
+// ═══════════════════════════════════════════
+
+model Zuschlag {
+  id              String   @id @default(cuid())
+  firmaId         String
+  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  typ             WertTyp
+  wert            Float
+  proEinheit      String?
+
+  automatisch     Boolean  @default(false)
+  bedingung       String?
+  bedingungFeld   String?
+  bedingungOp     String?
+  bedingungWert   Float?
+
+  aktiv           Boolean  @default(true)
+}
+
+model Rabatt {
+  id              String   @id @default(cuid())
+  firmaId         String
+  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  typ             WertTyp
+  wert            Float
+  bedingung       String?
+  automatisch     Boolean  @default(false)
+  aktiv           Boolean  @default(true)
+}
+
+enum WertTyp {
+  PROZENT
+  PAUSCHAL
+}
+
+// ═══════════════════════════════════════════
+// RAUM-VORLAGEN
+// ═══════════════════════════════════════════
+
+model RaumVorlage {
+  id              String   @id @default(cuid())
+  firmaId         String
+  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  icon            String?
+  laenge          Float
+  breite          Float
+  hoehe           Float
+  fenster         Int      @default(1)
+  tueren          Int      @default(1)
+  sortierung      Int      @default(0)
+
+  @@unique([firmaId, name])
+}
+
+// ═══════════════════════════════════════════
+// KALKULATIONSREGELN
+// ═══════════════════════════════════════════
+
+model KalkulationsRegeln {
+  id                   String  @id @default(cuid())
+  firmaId              String  @unique
+  firma                Firma   @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  verschnittFaktor     Float   @default(10.0)
+  standardAnstriche    Int     @default(2)
+  grundierungImmer     Boolean @default(true)
+  abklebebandProRaum   Int     @default(2)
+  abdeckfolieProRaum   Int     @default(1)
+  acrylProRaum         Int     @default(0)
+
+  anfahrtKlein         Float   @default(35.0)
+  anfahrtGross         Float   @default(55.0)
+  anfahrtSchwelle      Int     @default(3)
+
+  standardQualitaet    String  @default("standard")
+  deckeStandard        Boolean @default(false)
+  grundierungStandard  Boolean @default(true)
+  zuschlagAutoErkennen Boolean @default(true)
+
+  fensterAbzug         Float   @default(1.5)
+  tuerAbzug            Float   @default(2.0)
+}
+
+// ═══════════════════════════════════════════
+// TEXTVORLAGEN
+// ═══════════════════════════════════════════
+
+model TextVorlage {
+  id              String      @id @default(cuid())
+  firmaId         String
+  firma           Firma       @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  typ             VorlagenTyp
+  betreff         String?
+  text            String
+  aktiv           Boolean     @default(true)
+}
+
+enum VorlagenTyp {
+  ANGEBOT_INTRO
+  ANGEBOT_SCHLUSS
+  FOLLOWUP_TAG3
+  FOLLOWUP_TAG7
+  FOLLOWUP_TAG12
+  GOOGLE_BEWERTUNG
+  SONSTIGE
+}
+
+// ═══════════════════════════════════════════
+// ANGEBOTE
+// ═══════════════════════════════════════════
+
+model Angebot {
+  id              String         @id @default(cuid())
+  firmaId         String
+  firma           Firma          @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  kundeId         String?
+  kunde           Kunde?         @relation(fields: [kundeId], references: [id], onDelete: SetNull)
+
+  nummer          String
+  datum           DateTime       @default(now())
+  gueltigBis      DateTime
+
+  status          AngebotsStatus @default(OFFEN)
+  statusAenderung DateTime?
+
+  eingabeMethode  EingabeMethode
+  originalText    String?
+
+  kundeName       String
+  kundeStrasse    String?
+  kundePlz        String?
+  kundeOrt        String?
+  kundeEmail      String?
+  kundeTelefon    String?
+
+  positionen      AngebotPosition[]
+  materialNetto   Float
+  arbeitsNetto    Float
+  anfahrt         Float
+  zuschlagNetto   Float          @default(0)
+  rabattNetto     Float          @default(0)
+  netto           Float
+  mwstBetrag      Float
+  brutto          Float
+
+  einleitungsText String?
+  schlussText     String?
+
+  pdfUrl          String?
+
+  followUps       FollowUp[]
+  bewertungAngefragt Boolean     @default(false)
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+enum AngebotsStatus {
+  ENTWURF
+  OFFEN
+  ANGENOMMEN
+  ABGELEHNT
+  ABGELAUFEN
+}
+
+enum EingabeMethode {
+  SPRACHE
+  TEXT_EMAIL
+  TEXT_WHATSAPP
+  TEXT_SONSTIG
+  FORMULAR
+}
+
+// ═══════════════════════════════════════════
+// ANGEBOTS-POSITIONEN
+// ═══════════════════════════════════════════
+
+model AngebotPosition {
+  id              String       @id @default(cuid())
+  angebotId       String
+  angebot         Angebot      @relation(fields: [angebotId], references: [id], onDelete: Cascade)
+
+  posNr           Int
+  typ             PositionsTyp
+
+  raumName        String?
+  raumLaenge      Float?
+  raumBreite      Float?
+  raumHoehe       Float?
+  raumFenster     Int?
+  raumTueren      Int?
+  wandflaeche     Float?
+  deckenflaeche   Float?
+
+  bezeichnung     String
+  menge           Float
+  einheit         String
+  einzelpreis     Float
+  gesamtpreis     Float
+
+  leistungId      String?
+  materialId      String?
+
+  sortierung      Int          @default(0)
+}
+
+enum PositionsTyp {
+  LEISTUNG
+  MATERIAL
+  ZUSCHLAG
+  RABATT
+  ANFAHRT
+}
+
+// ═══════════════════════════════════════════
+// FOLLOW-UP TRACKING
+// ═══════════════════════════════════════════
+
+model FollowUp {
+  id               String         @id @default(cuid())
+  angebotId        String
+  angebot          Angebot        @relation(fields: [angebotId], references: [id], onDelete: Cascade)
+
+  typ              FollowUpTyp
+  geplanterVersand DateTime
+  gesendetAm       DateTime?
+  status           FollowUpStatus @default(GEPLANT)
+  kanal            String         @default("email")
+}
+
+enum FollowUpTyp {
+  TAG3
+  TAG7
+  TAG12
+  GOOGLE_BEWERTUNG
+}
+
+enum FollowUpStatus {
+  GEPLANT
+  GESENDET
+  ABGEBROCHEN
+}
