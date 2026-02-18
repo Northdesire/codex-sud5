@@ -258,13 +258,13 @@ export default function AngebotPage() {
   const materialien = data.positionen.filter((p) => p.typ === "MATERIAL");
   const anfahrt = data.positionen.find((p) => p.typ === "ANFAHRT");
 
-  // Zusätzlich verfügbare Materialien (die noch nicht als Position drin sind)
-  const usedMaterialIds = new Set(materialien.map((p) => p.materialId).filter(Boolean));
-  const verfuegbareZusatz = data.materialAlternativen
-    ? Object.entries(data.materialAlternativen).flatMap(([, items]) =>
-        items.filter((m) => !usedMaterialIds.has(m.id))
-      )
+  // Alle verfügbaren Materialien aus dem Katalog
+  const alleMaterialien = data.materialAlternativen
+    ? Object.entries(data.materialAlternativen).flatMap(([, items]) => items)
     : [];
+  const usedMaterialIds = new Set(materialien.map((p) => p.materialId).filter(Boolean));
+  const verfuegbareZusatz = alleMaterialien.filter((m) => !usedMaterialIds.has(m.id));
+  const hatKatalogMaterial = alleMaterialien.length > 0;
 
   return (
     <div className="px-4 pt-5 space-y-4 pb-4">
@@ -382,11 +382,11 @@ export default function AngebotPage() {
           </div>
 
           {/* Leistungen */}
-          {leistungen.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Arbeitsleistungen
-              </p>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Arbeitsleistungen
+            </p>
+            {leistungen.length > 0 ? (
               <div className="space-y-1">
                 {leistungen.map((p) => (
                   <div
@@ -405,21 +405,27 @@ export default function AngebotPage() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-3">
+                <p className="text-xs text-amber-800">
+                  Keine Leistungen hinterlegt. Bitte im Dashboard unter &quot;Leistungen&quot; mindestens eine Leistung (z.B. &quot;Wände streichen&quot;, Kategorie: Streichen) anlegen.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Material — mit Auswahl-Dropdowns */}
-          {materialien.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Material
-              </p>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Material
+            </p>
+
+            {materialien.length > 0 && (
               <div className="space-y-2">
                 {materialien.map((p) => {
                   const kat = p.materialKategorie;
                   const alternativen = kat && data.materialAlternativen?.[kat];
                   const hasAlternatives = alternativen && alternativen.length > 1;
-                  // Check if this is a ZUSATZ (user-added) position
                   const isZusatz = Object.entries(selectedMaterials).some(
                     ([key, val]) => key.startsWith("ZUSATZ_") && !key.startsWith("ZUSATZ_MENGE_") && val === p.materialId
                   );
@@ -472,56 +478,72 @@ export default function AngebotPage() {
                   );
                 })}
               </div>
+            )}
 
-              {/* Zusätzliches Material hinzufügen */}
-              {verfuegbareZusatz.length > 0 && (
-                <div className="mt-3">
-                  {showAddMaterial ? (
-                    <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
-                      <p className="text-xs font-medium">Material hinzufügen:</p>
-                      <div className="max-h-40 overflow-y-auto space-y-1">
-                        {verfuegbareZusatz.map((m) => (
-                          <button
-                            key={m.id}
-                            onClick={() => handleAddZusatz(m.id)}
-                            className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors flex justify-between items-center"
-                          >
-                            <div>
-                              <span className="font-medium">{m.name}</span>
-                              <Badge variant="outline" className="text-[10px] px-1 py-0 ml-2">
-                                {KAT_LABELS[m.kategorie] || m.kategorie}
-                              </Badge>
-                            </div>
-                            <span className="text-xs text-muted-foreground font-mono">
-                              {formatEuro(m.vkPreis)}/{m.einheit}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full text-xs"
-                        onClick={() => setShowAddMaterial(false)}
-                      >
-                        Abbrechen
-                      </Button>
+            {materialien.length === 0 && !hatKatalogMaterial && (
+              <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-3">
+                <p className="text-xs text-amber-800">
+                  Keine Materialien im Katalog. Bitte im Dashboard unter &quot;Material &amp; Preise&quot; Materialien anlegen (z.B. Wandfarbe, Grundierung).
+                </p>
+              </div>
+            )}
+
+            {materialien.length === 0 && hatKatalogMaterial && (
+              <div className="rounded-lg border border-dashed border-blue-300 bg-blue-50 p-3 mb-2">
+                <p className="text-xs text-blue-800">
+                  Keine Materialien automatisch zugeordnet. Materialien unten manuell hinzufügen oder Kategorie (WANDFARBE, GRUNDIERUNG) bei den Materialien im Dashboard prüfen.
+                </p>
+              </div>
+            )}
+
+            {/* Material hinzufügen — IMMER sichtbar wenn Katalog-Material existiert */}
+            {verfuegbareZusatz.length > 0 && (
+              <div className="mt-2">
+                {showAddMaterial ? (
+                  <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                    <p className="text-xs font-medium">Material hinzufügen:</p>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {verfuegbareZusatz.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => handleAddZusatz(m.id)}
+                          className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-medium">{m.name}</span>
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 ml-2">
+                              {KAT_LABELS[m.kategorie] || m.kategorie}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {formatEuro(m.vkPreis)}/{m.einheit}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-                  ) : (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       className="w-full text-xs"
-                      onClick={() => setShowAddMaterial(true)}
+                      onClick={() => setShowAddMaterial(false)}
                     >
-                      <Plus className="h-3.5 w-3.5 mr-1" />
-                      Material hinzufügen
+                      Abbrechen
                     </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => setShowAddMaterial(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Material hinzufügen ({verfuegbareZusatz.length} verfügbar)
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Anfahrt */}
           {anfahrt && (

@@ -148,16 +148,28 @@ export function berechneRaumFlaeche(
 /**
  * Berechnet den Materialbedarf (z.B. Liter Farbe)
  */
+// Standard-Ergiebigkeiten wenn nicht hinterlegt (m² pro Einheit)
+const DEFAULT_ERGIEBIGKEIT: Record<string, number> = {
+  WANDFARBE: 7,
+  GRUNDIERUNG: 9,
+  LACK: 10,
+  SPACHTEL: 3,
+};
+
 export function berechneMaterialBedarf(
   flaeche: number,
   material: MaterialInfo,
   regeln: KalkRegeln
 ): number {
-  if (!material.ergiebigkeit || material.ergiebigkeit <= 0) return 0;
+  const ergiebigkeit = material.ergiebigkeit && material.ergiebigkeit > 0
+    ? material.ergiebigkeit
+    : DEFAULT_ERGIEBIGKEIT[material.kategorie] ?? 0;
+
+  if (ergiebigkeit <= 0) return 1; // Mindestens 1 Einheit
 
   const anstriche = material.anstriche ?? regeln.standardAnstriche;
   const verschnitt = 1 + regeln.verschnittFaktor / 100;
-  const bedarf = (flaeche * anstriche) / material.ergiebigkeit * verschnitt;
+  const bedarf = (flaeche * anstriche) / ergiebigkeit * verschnitt;
 
   return Math.ceil(bedarf); // Aufrunden auf ganze Einheiten
 }
