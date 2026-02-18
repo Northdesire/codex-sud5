@@ -80,6 +80,7 @@ export interface Position {
   gesamtpreis: number;
   leistungId?: string;
   materialId?: string;
+  materialKategorie?: string;
 }
 
 export interface KalkErgebnis {
@@ -94,6 +95,7 @@ export interface KalkErgebnis {
   mwstSatz: number;
   mwstBetrag: number;
   brutto: number;
+  materialAlternativen: Record<string, MaterialInfo[]>;
 }
 
 // --- DEFAULT REGELN ---
@@ -183,7 +185,8 @@ export function kalkuliere(
   leistungen: LeistungInfo[],
   mwstSatz: number,
   zuschlagInfos: ZuschlagInfo[] = [],
-  rabattInfos: RabattInfo[] = []
+  rabattInfos: RabattInfo[] = [],
+  selectedMaterials?: Record<string, string>
 ): KalkErgebnis {
   const berechneteRaeume = raeume.map((r) => berechneRaumFlaeche(r, regeln));
   const positionen: Position[] = [];
@@ -247,14 +250,24 @@ export function kalkuliere(
 
   // --- MATERIALIEN ---
 
+  // Hilfsfunktion: Material per Kategorie finden (selected oder auto)
+  function findMaterial(kategorie: string, autoFilter?: (m: MaterialInfo) => boolean): MaterialInfo | undefined {
+    if (selectedMaterials?.[kategorie]) {
+      return materialien.find((m) => m.id === selectedMaterials[kategorie]);
+    }
+    if (autoFilter) {
+      return materialien.find((m) => m.kategorie === kategorie && autoFilter(m))
+        ?? materialien.find((m) => m.kategorie === kategorie);
+    }
+    return materialien.find((m) => m.kategorie === kategorie);
+  }
+
   // Wandfarbe
-  const wandfarbe = materialien.find((m) =>
-    m.kategorie === "WANDFARBE" &&
-    (optionen.qualitaet === "premium"
-      ? m.name.toLowerCase().includes("premium") ||
-        m.name.toLowerCase().includes("caparol")
-      : true)
-  ) ?? materialien.find((m) => m.kategorie === "WANDFARBE");
+  const wandfarbe = findMaterial("WANDFARBE", (m) =>
+    optionen.qualitaet === "premium"
+      ? m.name.toLowerCase().includes("premium") || m.name.toLowerCase().includes("caparol")
+      : true
+  );
 
   if (wandfarbe && gesamtflaeche > 0) {
     const menge = berechneMaterialBedarf(gesamtflaeche, wandfarbe, regeln);
@@ -269,6 +282,7 @@ export function kalkuliere(
         einzelpreis: wandfarbe.vkPreis,
         gesamtpreis: gp,
         materialId: wandfarbe.id,
+        materialKategorie: "WANDFARBE",
       });
       materialNetto += gp;
     }
@@ -276,9 +290,7 @@ export function kalkuliere(
 
   // Grundierung
   if (optionen.grundierung || regeln.grundierungImmer) {
-    const grundierung = materialien.find(
-      (m) => m.kategorie === "GRUNDIERUNG"
-    );
+    const grundierung = findMaterial("GRUNDIERUNG");
     if (grundierung && gesamtflaeche > 0) {
       const menge = berechneMaterialBedarf(
         gesamtflaeche,
@@ -296,6 +308,7 @@ export function kalkuliere(
           einzelpreis: grundierung.vkPreis,
           gesamtpreis: gp,
           materialId: grundierung.id,
+          materialKategorie: "GRUNDIERUNG",
         });
         materialNetto += gp;
       }
@@ -304,7 +317,7 @@ export function kalkuliere(
 
   // Spachtelmasse
   if (optionen.spachteln) {
-    const spachtel = materialien.find((m) => m.kategorie === "SPACHTEL");
+    const spachtel = findMaterial("SPACHTEL");
     if (spachtel) {
       const verschnitt = 1 + regeln.verschnittFaktor / 100;
       const menge = Math.ceil(gesamtflaeche * 0.3 * verschnitt); // 0.3 kg/m²
@@ -318,6 +331,7 @@ export function kalkuliere(
         einzelpreis: spachtel.vkPreis,
         gesamtpreis: gp,
         materialId: spachtel.id,
+        materialKategorie: "SPACHTEL",
       });
       materialNetto += gp;
     }
@@ -348,8 +362,36 @@ export function kalkuliere(
         einzelpreis: vm.vkPreis,
         gesamtpreis: gp,
         materialId: vm.id,
+        materialKategorie: "VERBRAUCH",
       });
       materialNetto += gp;
+    }
+  }
+
+  // Zusätzliche Materialien (SONSTIGES, LACK, TAPETE etc.) — vom User manuell gewählt
+  if (selectedMaterials) {
+    for (const [key, matId] of Object.entries(selectedMaterials)) {
+      if (key.startsWith("ZUSATZ_")) {
+        const mat = materialien.find((m) => m.id === matId);
+        if (mat) {
+          // Menge aus selectedMaterials: ZUSATZ_MENGE_{matId}
+          const mengeKey = `ZUSATZ_MENGE_${matId}`;
+          const menge = selectedMaterials[mengeKey] ? parseFloat(selectedMaterials[mengeKey]) : 1;
+          const gp = runde2(menge * mat.vkPreis);
+          positionen.push({
+            posNr: posNr++,
+            typ: "MATERIAL",
+            bezeichnung: mat.name,
+            menge,
+            einheit: mat.einheit,
+            einzelpreis: mat.vkPreis,
+            gesamtpreis: gp,
+            materialId: mat.id,
+            materialKategorie: mat.kategorie,
+          });
+          materialNetto += gp;
+        }
+      }
     }
   }
 
@@ -415,6 +457,16 @@ export function kalkuliere(
   const mwstBetrag = runde2(netto * (mwstSatz / 100));
   const brutto = runde2(netto + mwstBetrag);
 
+  // Material-Alternativen pro Kategorie sammeln
+  const kategorien = ["WANDFARBE", "GRUNDIERUNG", "SPACHTEL", "LACK", "VERBRAUCH", "TAPETE", "SONSTIGES"];
+  const materialAlternativen: Record<string, MaterialInfo[]> = {};
+  for (const kat of kategorien) {
+    const items = materialien.filter((m) => m.kategorie === kat);
+    if (items.length > 0) {
+      materialAlternativen[kat] = items;
+    }
+  }
+
   return {
     raeume: berechneteRaeume,
     positionen,
@@ -427,6 +479,7 @@ export function kalkuliere(
     mwstSatz,
     mwstBetrag,
     brutto,
+    materialAlternativen,
   };
 }
 

@@ -1,13 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Pencil, Download, Save, Loader2 } from "lucide-react";
+import { Pencil, Download, Save, Loader2, RefreshCw, Plus, X } from "lucide-react";
 import { formatEuro } from "@/lib/kalkulation";
+import { toast } from "sonner";
+
+interface MaterialAlt {
+  id: string;
+  name: string;
+  kategorie: string;
+  vkPreis: number;
+  einheit: string;
+  ergiebigkeit: number | null;
+  anstriche: number | null;
+}
 
 interface KalkData {
   raeume: Array<{
@@ -32,6 +43,7 @@ interface KalkData {
     gesamtpreis: number;
     leistungId?: string;
     materialId?: string;
+    materialKategorie?: string;
   }>;
   materialNetto: number;
   arbeitsNetto: number;
@@ -42,6 +54,7 @@ interface KalkData {
   mwstSatz: number;
   mwstBetrag: number;
   brutto: number;
+  materialAlternativen?: Record<string, MaterialAlt[]>;
   kunde: {
     name: string;
     strasse: string;
@@ -67,12 +80,25 @@ interface KalkData {
   } | null;
 }
 
+const KAT_LABELS: Record<string, string> = {
+  WANDFARBE: "Wandfarbe",
+  GRUNDIERUNG: "Grundierung",
+  SPACHTEL: "Spachtel",
+  LACK: "Lack",
+  VERBRAUCH: "Verbrauch",
+  TAPETE: "Tapete",
+  SONSTIGES: "Sonstiges",
+};
+
 export default function AngebotPage() {
   const router = useRouter();
   const [data, setData] = useState<KalkData | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [selectedMaterials, setSelectedMaterials] = useState<Record<string, string>>({});
+  const [showAddMaterial, setShowAddMaterial] = useState(false);
 
   useEffect(() => {
     const kalk = sessionStorage.getItem("kalkulation");
@@ -80,6 +106,65 @@ export default function AngebotPage() {
       setData(JSON.parse(kalk));
     }
   }, []);
+
+  const recalculate = useCallback(async (newSelections: Record<string, string>) => {
+    const formRaw = sessionStorage.getItem("formular-daten");
+    if (!formRaw) {
+      toast.error("Formulardaten nicht gefunden — bitte neu berechnen");
+      return;
+    }
+    setRecalculating(true);
+    try {
+      const formData = JSON.parse(formRaw);
+      const res = await fetch("/api/angebote/kalkulieren", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, selectedMaterials: newSelections }),
+      });
+      if (!res.ok) throw new Error();
+      const result = await res.json();
+      setData(result);
+      sessionStorage.setItem("kalkulation", JSON.stringify(result));
+      toast.success("Neu berechnet");
+    } catch {
+      toast.error("Fehler bei der Neuberechnung");
+    } finally {
+      setRecalculating(false);
+    }
+  }, []);
+
+  function handleMaterialChange(kategorie: string, materialId: string) {
+    const newSelections = { ...selectedMaterials, [kategorie]: materialId };
+    setSelectedMaterials(newSelections);
+    recalculate(newSelections);
+  }
+
+  function handleAddZusatz(materialId: string) {
+    // Find next free ZUSATZ key
+    let idx = 0;
+    while (selectedMaterials[`ZUSATZ_${idx}`]) idx++;
+    const newSelections = {
+      ...selectedMaterials,
+      [`ZUSATZ_${idx}`]: materialId,
+      [`ZUSATZ_MENGE_${materialId}`]: "1",
+    };
+    setSelectedMaterials(newSelections);
+    setShowAddMaterial(false);
+    recalculate(newSelections);
+  }
+
+  function handleRemoveZusatz(materialId: string) {
+    const newSelections = { ...selectedMaterials };
+    // Find and remove the ZUSATZ entry for this materialId
+    for (const [key, val] of Object.entries(newSelections)) {
+      if (key.startsWith("ZUSATZ_") && !key.startsWith("ZUSATZ_MENGE_") && val === materialId) {
+        delete newSelections[key];
+      }
+    }
+    delete newSelections[`ZUSATZ_MENGE_${materialId}`];
+    setSelectedMaterials(newSelections);
+    recalculate(newSelections);
+  }
 
   async function handleSave() {
     if (!data || saving) return;
@@ -173,8 +258,26 @@ export default function AngebotPage() {
   const materialien = data.positionen.filter((p) => p.typ === "MATERIAL");
   const anfahrt = data.positionen.find((p) => p.typ === "ANFAHRT");
 
+  // Zusätzlich verfügbare Materialien (die noch nicht als Position drin sind)
+  const usedMaterialIds = new Set(materialien.map((p) => p.materialId).filter(Boolean));
+  const verfuegbareZusatz = data.materialAlternativen
+    ? Object.entries(data.materialAlternativen).flatMap(([, items]) =>
+        items.filter((m) => !usedMaterialIds.has(m.id))
+      )
+    : [];
+
   return (
     <div className="px-4 pt-5 space-y-4 pb-4">
+      {/* Recalculating Overlay */}
+      {recalculating && (
+        <div className="fixed inset-0 bg-background/60 z-50 flex items-center justify-center">
+          <div className="flex items-center gap-2 bg-card p-4 rounded-lg shadow-lg border">
+            <RefreshCw className="h-5 w-5 animate-spin" />
+            <span className="text-sm font-medium">Neu berechnen...</span>
+          </div>
+        </div>
+      )}
+
       {/* Angebots-Dokument */}
       <Card className="overflow-hidden">
         <CardContent className="p-5 space-y-5">
@@ -305,30 +408,118 @@ export default function AngebotPage() {
             </div>
           )}
 
-          {/* Material */}
+          {/* Material — mit Auswahl-Dropdowns */}
           {materialien.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Material
               </p>
-              <div className="space-y-1">
-                {materialien.map((p) => (
-                  <div
-                    key={p.posNr}
-                    className="flex justify-between text-sm py-1"
-                  >
-                    <div>
-                      <p>{p.bezeichnung}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {p.menge} {p.einheit} × {formatEuro(p.einzelpreis)}
-                      </p>
+              <div className="space-y-2">
+                {materialien.map((p) => {
+                  const kat = p.materialKategorie;
+                  const alternativen = kat && data.materialAlternativen?.[kat];
+                  const hasAlternatives = alternativen && alternativen.length > 1;
+                  // Check if this is a ZUSATZ (user-added) position
+                  const isZusatz = Object.entries(selectedMaterials).some(
+                    ([key, val]) => key.startsWith("ZUSATZ_") && !key.startsWith("ZUSATZ_MENGE_") && val === p.materialId
+                  );
+
+                  return (
+                    <div key={p.posNr} className="py-1">
+                      <div className="flex justify-between text-sm">
+                        <div className="flex-1 min-w-0">
+                          {hasAlternatives ? (
+                            <select
+                              className="w-full text-sm font-medium bg-muted/50 border rounded px-2 py-1 appearance-none cursor-pointer"
+                              value={p.materialId || ""}
+                              onChange={(e) => handleMaterialChange(kat, e.target.value)}
+                            >
+                              {alternativen.map((alt) => (
+                                <option key={alt.id} value={alt.id}>
+                                  {alt.name} — {formatEuro(alt.vkPreis)}/{alt.einheit}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <p className="font-medium">{p.bezeichnung}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {kat && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                {KAT_LABELS[kat] || kat}
+                              </Badge>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              {p.menge} {p.einheit} × {formatEuro(p.einzelpreis)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <p className="font-mono font-medium">
+                            {formatEuro(p.gesamtpreis)}
+                          </p>
+                          {isZusatz && (
+                            <button
+                              onClick={() => handleRemoveZusatz(p.materialId!)}
+                              className="text-destructive hover:bg-destructive/10 rounded p-0.5"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <p className="font-mono font-medium shrink-0 ml-4">
-                      {formatEuro(p.gesamtpreis)}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+
+              {/* Zusätzliches Material hinzufügen */}
+              {verfuegbareZusatz.length > 0 && (
+                <div className="mt-3">
+                  {showAddMaterial ? (
+                    <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                      <p className="text-xs font-medium">Material hinzufügen:</p>
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {verfuegbareZusatz.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => handleAddZusatz(m.id)}
+                            className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors flex justify-between items-center"
+                          >
+                            <div>
+                              <span className="font-medium">{m.name}</span>
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 ml-2">
+                                {KAT_LABELS[m.kategorie] || m.kategorie}
+                              </Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {formatEuro(m.vkPreis)}/{m.einheit}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs"
+                        onClick={() => setShowAddMaterial(false)}
+                      >
+                        Abbrechen
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs"
+                      onClick={() => setShowAddMaterial(true)}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Material hinzufügen
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

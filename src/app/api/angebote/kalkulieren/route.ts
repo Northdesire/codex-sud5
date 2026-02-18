@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const body = await request.json();
 
-    const { kunde, raeume: rawRaeume, optionen: rawOptionen } = body;
+    const { kunde, raeume: rawRaeume, optionen: rawOptionen, selectedMaterials } = body;
 
     // Räume aufbereiten
     const raeume: Raum[] = rawRaeume.map(
@@ -119,7 +119,8 @@ export async function POST(request: Request) {
       leistInfos,
       mwstSatz,
       zuschlagInfos,
-      rabattInfos
+      rabattInfos,
+      selectedMaterials
     );
 
     return NextResponse.json({
