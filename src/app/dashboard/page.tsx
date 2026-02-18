@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Header } from "@/components/dashboard/header";
@@ -6,19 +7,33 @@ import { Users, Paintbrush, ClipboardList, FileSpreadsheet } from "lucide-react"
 import Link from "next/link";
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return null; // Middleware redirects to login
+  let user;
+  try {
+    user = await getCurrentUser();
+  } catch {
+    redirect("/login");
   }
 
-  const [kundenCount, materialCount, leistungenCount, angeboteCount] =
-    await Promise.all([
-      prisma.kunde.count({ where: { firmaId: user.firmaId } }),
-      prisma.material.count({ where: { firmaId: user.firmaId } }),
-      prisma.leistung.count({ where: { firmaId: user.firmaId } }),
-      prisma.angebot.count({ where: { firmaId: user.firmaId } }),
-    ]);
+  if (!user) {
+    redirect("/login");
+  }
+
+  let kundenCount = 0;
+  let materialCount = 0;
+  let leistungenCount = 0;
+  let angeboteCount = 0;
+
+  try {
+    [kundenCount, materialCount, leistungenCount, angeboteCount] =
+      await Promise.all([
+        prisma.kunde.count({ where: { firmaId: user.firmaId } }),
+        prisma.material.count({ where: { firmaId: user.firmaId } }),
+        prisma.leistung.count({ where: { firmaId: user.firmaId } }),
+        prisma.angebot.count({ where: { firmaId: user.firmaId } }),
+      ]);
+  } catch (error) {
+    console.error("Dashboard DB-Fehler:", error);
+  }
 
   const stats = [
     {
@@ -55,7 +70,7 @@ export default async function DashboardPage() {
     <>
       <Header
         title={`Willkommen, ${user.name}`}
-        description={user.firma.firmenname}
+        description={user.firma?.firmenname ?? ""}
       />
       <div className="p-8 space-y-8">
         {/* Quick Stats */}
