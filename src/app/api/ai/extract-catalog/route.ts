@@ -134,42 +134,41 @@ export async function POST(request: Request) {
 
     let extractedText = textInput || "";
 
-    // PDF: Text extrahieren
+    // File → send to GPT-4o for extraction
     if (file) {
-      if (file.type === "application/pdf") {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        try {
-          // pdf-parse v1: require the lib entry directly to avoid test-PDF loading issue on Vercel
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const pdfParse = require("pdf-parse/lib/pdf-parse.js");
-          const pdfData = await pdfParse(buffer);
-          extractedText = pdfData.text;
-        } catch (pdfError) {
-          console.error("PDF-Parse Fehler:", pdfError);
-          return NextResponse.json(
-            { error: "PDF konnte nicht gelesen werden. Bitte als Foto/Screenshot hochladen." },
-            { status: 400 }
-          );
-        }
-      } else if (file.type.startsWith("image/")) {
-        // Bild: direkt an GPT-4o Vision senden
+      if (file.type === "application/pdf" || file.type.startsWith("image/")) {
+        // PDF and images: send as base64 to GPT-4o Vision
         const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-        const dataUrl = `data:${file.type};base64,${base64}`;
+
+        // For PDFs, GPT-4o accepts them as images with the PDF data URL
+        const mimeType = file.type === "application/pdf" ? "application/pdf" : file.type;
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const userContent: any[] = [
+          {
+            type: "text",
+            text: "Extrahiere alle Produkte und Leistungen aus diesem Dokument:",
+          },
+        ];
+
+        if (file.type === "application/pdf") {
+          userContent.push({
+            type: "file",
+            file: { filename: file.name, file_data: dataUrl },
+          });
+        } else {
+          userContent.push({
+            type: "image_url",
+            image_url: { url: dataUrl, detail: "high" },
+          });
+        }
 
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Extrahiere alle Produkte und Leistungen aus diesem Dokument/Bild:",
-                },
-                { type: "image_url", image_url: { url: dataUrl } },
-              ],
-            },
+            { role: "user", content: userContent },
           ],
           response_format: RESPONSE_FORMAT,
           temperature: 0.1,
@@ -226,8 +225,9 @@ export async function POST(request: Request) {
     return NextResponse.json(JSON.parse(content));
   } catch (error) {
     console.error("Katalog-Extraktion Fehler:", error);
+    const msg = error instanceof Error ? error.message : "Unbekannter Fehler";
     return NextResponse.json(
-      { error: "Fehler bei der Analyse" },
+      { error: `Fehler bei der Analyse: ${msg}` },
       { status: 500 }
     );
   }

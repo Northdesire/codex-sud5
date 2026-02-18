@@ -189,10 +189,8 @@ export async function POST(request: Request) {
     }
 
     // Build messages based on file type
-    type ContentPart =
-      | { type: "text"; text: string }
-      | { type: "image_url"; image_url: { url: string; detail: "high" } };
-    const userContent: ContentPart[] = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userContent: any[] = [
       {
         type: "text",
         text: "Analysiere dieses alte Angebot / diese Rechnung und extrahiere alle Daten. Erfasse JEDE Position, jeden Preis, alle Kundendaten.",
@@ -200,27 +198,15 @@ export async function POST(request: Request) {
     ];
 
     if (file.type === "application/pdf") {
-      // Extract text from PDF — use lib entry directly to avoid Vercel test-PDF issue
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require("pdf-parse/lib/pdf-parse.js");
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const pdfData = await pdfParse(buffer);
-      const pdfText = pdfData.text;
-
-      if (pdfText && pdfText.trim().length > 50) {
-        // PDF has extractable text — use text mode (cheaper, faster)
-        userContent.push({
-          type: "text",
-          text: `\n\nInhalt des Dokuments:\n\n${pdfText.substring(0, 15000)}`,
-        });
-      } else {
-        // PDF is scanned/image-based — would need OCR
-        // For now, tell user to upload as image
-        return NextResponse.json(
-          { error: "PDF enthält keinen lesbaren Text. Bitte als Foto/Screenshot hochladen." },
-          { status: 400 }
-        );
-      }
+      // Send PDF directly to GPT-4o (no pdf-parse needed)
+      const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+      userContent.push({
+        type: "file",
+        file: {
+          filename: file.name,
+          file_data: `data:application/pdf;base64,${base64}`,
+        },
+      });
     } else if (file.type.startsWith("image/")) {
       const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
       userContent.push({
@@ -259,7 +245,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Angebot-Extraktion Fehler:", error);
     return NextResponse.json(
-      { error: "Fehler bei der Analyse" },
+      { error: `Fehler bei der Analyse: ${error instanceof Error ? error.message : "Unbekannt"}` },
       { status: 500 }
     );
   }
