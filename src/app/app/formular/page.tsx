@@ -129,15 +129,19 @@ export default function FormularPage() {
         body: JSON.stringify(form),
       });
 
-      if (!res.ok) throw new Error("Kalkulation fehlgeschlagen");
-
       const kalkulation = await res.json();
+
+      if (!res.ok) {
+        throw new Error(kalkulation.error || "Kalkulation fehlgeschlagen");
+      }
+
       sessionStorage.setItem("kalkulation", JSON.stringify(kalkulation));
 
       toast.success("Angebot erstellt!");
       router.push("/app/angebot");
-    } catch {
-      toast.error("Fehler bei der Angebotserstellung");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unbekannter Fehler";
+      toast.error(msg);
       setGeneriert(false);
     }
   }

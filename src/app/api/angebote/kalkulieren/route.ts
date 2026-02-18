@@ -20,6 +20,13 @@ export async function POST(request: Request) {
 
     const { kunde, raeume: rawRaeume, optionen: rawOptionen, selectedMaterials } = body;
 
+    if (!rawRaeume || !Array.isArray(rawRaeume) || rawRaeume.length === 0) {
+      return NextResponse.json(
+        { error: "Mindestens ein Raum muss angegeben werden" },
+        { status: 400 }
+      );
+    }
+
     // Räume aufbereiten
     const raeume: Raum[] = rawRaeume.map(
       (r: { name: string; laenge: number; breite: number; hoehe: number; fenster: number; tueren: number }) => ({
@@ -149,8 +156,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Kalkulation Fehler:", error);
+    const message = error instanceof Error ? error.message : "Unbekannter Fehler";
     return NextResponse.json(
-      { error: "Fehler bei der Kalkulation" },
+      { error: `Kalkulation fehlgeschlagen: ${message}` },
       { status: 500 }
     );
   }
