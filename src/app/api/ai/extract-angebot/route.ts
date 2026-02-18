@@ -198,15 +198,32 @@ export async function POST(request: Request) {
     ];
 
     if (file.type === "application/pdf") {
-      // Send PDF directly to GPT-4o (no pdf-parse needed)
-      const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-      userContent.push({
-        type: "file",
-        file: {
-          filename: file.name,
-          file_data: `data:application/pdf;base64,${base64}`,
-        },
-      });
+      // Extract text from PDF server-side
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const pdfData = await pdfParse(buffer);
+        const pdfText = pdfData.text || "";
+
+        if (pdfText.trim().length > 50) {
+          userContent.push({
+            type: "text",
+            text: `\n\nInhalt des Dokuments:\n\n${pdfText.substring(0, 15000)}`,
+          });
+        } else {
+          return NextResponse.json(
+            { error: "PDF enthält keinen lesbaren Text. Bitte als Foto hochladen." },
+            { status: 400 }
+          );
+        }
+      } catch (e) {
+        console.error("pdf-parse failed:", e);
+        return NextResponse.json(
+          { error: "PDF konnte nicht gelesen werden. Bitte als Foto hochladen." },
+          { status: 400 }
+        );
+      }
     } else if (file.type.startsWith("image/")) {
       const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
       userContent.push({

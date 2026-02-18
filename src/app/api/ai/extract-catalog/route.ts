@@ -136,39 +136,41 @@ export async function POST(request: Request) {
 
     // File → send to GPT-4o for extraction
     if (file) {
-      if (file.type === "application/pdf" || file.type.startsWith("image/")) {
-        // PDF and images: send as base64 to GPT-4o Vision
-        const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-
-        // For PDFs, GPT-4o accepts them as images with the PDF data URL
-        const mimeType = file.type === "application/pdf" ? "application/pdf" : file.type;
-        const dataUrl = `data:${mimeType};base64,${base64}`;
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const userContent: any[] = [
-          {
-            type: "text",
-            text: "Extrahiere alle Produkte und Leistungen aus diesem Dokument:",
-          },
-        ];
-
-        if (file.type === "application/pdf") {
-          userContent.push({
-            type: "file",
-            file: { filename: file.name, file_data: dataUrl },
-          });
-        } else {
-          userContent.push({
-            type: "image_url",
-            image_url: { url: dataUrl, detail: "high" },
-          });
+      if (file.type === "application/pdf") {
+        // PDF: extract text server-side, then send to AI
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+          const buffer = Buffer.from(await file.arrayBuffer());
+          const pdfData = await pdfParse(buffer);
+          extractedText = pdfData.text || "";
+        } catch (e) {
+          console.error("pdf-parse failed:", e);
+          extractedText = "";
         }
+
+        if (!extractedText.trim()) {
+          return NextResponse.json(
+            { error: "PDF enthält keinen lesbaren Text. Bitte als Foto hochladen." },
+            { status: 400 }
+          );
+        }
+      } else if (file.type.startsWith("image/")) {
+        // Images: send to GPT-4o Vision
+        const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+        const dataUrl = `data:${file.type};base64,${base64}`;
 
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: userContent },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Extrahiere alle Produkte und Leistungen aus diesem Dokument/Bild:" },
+                { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+              ],
+            },
           ],
           response_format: RESPONSE_FORMAT,
           temperature: 0.1,
@@ -177,10 +179,7 @@ export async function POST(request: Request) {
 
         const content = completion.choices[0]?.message?.content;
         if (!content)
-          return NextResponse.json(
-            { error: "Keine Antwort vom AI" },
-            { status: 500 }
-          );
+          return NextResponse.json({ error: "Keine Antwort vom AI" }, { status: 500 });
         return NextResponse.json(JSON.parse(content));
       } else {
         // Textdatei
