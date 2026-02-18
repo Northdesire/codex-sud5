@@ -138,10 +138,19 @@ export async function POST(request: Request) {
     if (file) {
       if (file.type === "application/pdf") {
         const buffer = Buffer.from(await file.arrayBuffer());
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require("pdf-parse");
-        const pdfData = await pdfParse(buffer);
-        extractedText = pdfData.text;
+        try {
+          // pdf-parse v1: require the lib entry directly to avoid test-PDF loading issue on Vercel
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+          const pdfData = await pdfParse(buffer);
+          extractedText = pdfData.text;
+        } catch (pdfError) {
+          console.error("PDF-Parse Fehler:", pdfError);
+          return NextResponse.json(
+            { error: "PDF konnte nicht gelesen werden. Bitte als Foto/Screenshot hochladen." },
+            { status: 400 }
+          );
+        }
       } else if (file.type.startsWith("image/")) {
         // Bild: direkt an GPT-4o Vision senden
         const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");

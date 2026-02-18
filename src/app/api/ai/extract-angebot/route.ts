@@ -200,9 +200,9 @@ export async function POST(request: Request) {
     ];
 
     if (file.type === "application/pdf") {
-      // Extract text from PDF
+      // Extract text from PDF — use lib entry directly to avoid Vercel test-PDF issue
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require("pdf-parse");
+      const pdfParse = require("pdf-parse/lib/pdf-parse.js");
       const buffer = Buffer.from(await file.arrayBuffer());
       const pdfData = await pdfParse(buffer);
       const pdfText = pdfData.text;
