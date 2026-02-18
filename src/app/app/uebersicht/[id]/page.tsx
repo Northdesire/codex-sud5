@@ -83,7 +83,10 @@ export default function AngebotDetailPage() {
 
   useEffect(() => {
     fetch(`/api/angebote/${id}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));

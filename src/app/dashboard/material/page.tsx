@@ -75,7 +75,7 @@ export default function MaterialPage() {
     const url = filter === "ALLE" ? "/api/material" : `/api/material?kategorie=${filter}`;
     const res = await fetch(url);
     const data = await res.json();
-    setMaterialien(data);
+    if (Array.isArray(data)) setMaterialien(data);
     setLoading(false);
   }, [filter]);
 

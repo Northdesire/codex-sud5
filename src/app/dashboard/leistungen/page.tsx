@@ -80,7 +80,7 @@ export default function LeistungenPage() {
         : `/api/leistungen?kategorie=${filter}`;
     const res = await fetch(url);
     const data = await res.json();
-    setLeistungen(data);
+    if (Array.isArray(data)) setLeistungen(data);
     setLoading(false);
   }, [filter]);
 
