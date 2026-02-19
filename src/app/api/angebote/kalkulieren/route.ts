@@ -91,6 +91,7 @@ export async function POST(request: Request) {
     }
 
     const qualitaet = body.qualitaet || "standard";
+    const customAnfahrt = typeof body.anfahrt === "number" ? body.anfahrt : undefined;
     const { regeln, matInfos, leistInfos, mwstSatz, zuschlagInfos, rabattInfos, firma } = await loadKalkData(user.firmaId);
     const extrasInfos = parseExtras(rawExtras);
 
@@ -104,7 +105,8 @@ export async function POST(request: Request) {
       zuschlagInfos,
       rabattInfos,
       selectedMaterials,
-      extrasInfos
+      extrasInfos,
+      customAnfahrt,
     );
 
     return NextResponse.json({

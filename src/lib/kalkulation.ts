@@ -589,7 +589,8 @@ export function kalkuliereV2(
   zuschlagInfos: ZuschlagInfo[] = [],
   rabattInfos: RabattInfo[] = [],
   selectedMaterials?: Record<string, string>,
-  extras?: ExtraInfo[]
+  extras?: ExtraInfo[],
+  customAnfahrt?: number,
 ): KalkErgebnis {
   const positionen: Position[] = [];
   let posNr = 1;
@@ -977,20 +978,23 @@ export function kalkuliereV2(
   }
 
   // --- ANFAHRT ---
-  const anfahrt =
-    arbeitsbereiche.length <= regeln.anfahrtSchwelle
-      ? regeln.anfahrtKlein
-      : regeln.anfahrtGross;
+  const anfahrt = customAnfahrt !== undefined
+    ? customAnfahrt
+    : (arbeitsbereiche.length <= regeln.anfahrtSchwelle
+        ? regeln.anfahrtKlein
+        : regeln.anfahrtGross);
 
-  positionen.push({
-    posNr: posNr++,
-    typ: "ANFAHRT",
-    bezeichnung: "Anfahrtspauschale",
-    menge: 1,
-    einheit: "pauschal",
-    einzelpreis: anfahrt,
-    gesamtpreis: anfahrt,
-  });
+  if (anfahrt > 0) {
+    positionen.push({
+      posNr: posNr++,
+      typ: "ANFAHRT",
+      bezeichnung: "Anfahrtspauschale",
+      menge: 1,
+      einheit: "pauschal",
+      einzelpreis: anfahrt,
+      gesamtpreis: anfahrt,
+    });
+  }
 
   // --- ZUSCHLÄGE ---
   let zuschlagNetto = 0;

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Rocket, Wrench, Ruler, SquareIcon, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, Wrench, Ruler, SquareIcon, ArrowLeft, Truck, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface ArbeitsbereichArbeiten {
@@ -158,6 +158,8 @@ export default function FormularPage() {
   const [qualitaet, setQualitaet] = useState<"standard" | "premium">("standard");
   const [kunde, setKunde] = useState<Kunde>({ name: "", strasse: "", plz: "", ort: "", email: "", telefon: "" });
   const [extras, setExtras] = useState<ExtraItem[]>([]);
+  const [anfahrtAktiv, setAnfahrtAktiv] = useState(true);
+  const [anfahrtBetrag, setAnfahrtBetrag] = useState(35);
   const [raumvorlagen, setRaumvorlagen] = useState<RaumVorlage[]>([]);
   const [leistungen, setLeistungen] = useState<LeistungInfo[]>([]);
 
@@ -256,6 +258,8 @@ export default function FormularPage() {
         if (Array.isArray(parsed.bereiche) && parsed.bereiche.length > 0) setBereiche(parsed.bereiche);
         if (parsed.qualitaet) setQualitaet(parsed.qualitaet);
         if (Array.isArray(parsed.extras)) setExtras(parsed.extras);
+        if (typeof parsed.anfahrtAktiv === "boolean") setAnfahrtAktiv(parsed.anfahrtAktiv);
+        if (typeof parsed.anfahrtBetrag === "number") setAnfahrtBetrag(parsed.anfahrtBetrag);
         toast.info("Entwurf wiederhergestellt");
       } catch {
         // ignore
@@ -267,11 +271,11 @@ export default function FormularPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (kunde.name || bereiche.length > 1 || bereiche[0]?.name !== "Wohnzimmer") {
-        localStorage.setItem("formular-draft", JSON.stringify({ kunde, bereiche, qualitaet, extras }));
+        localStorage.setItem("formular-draft", JSON.stringify({ kunde, bereiche, qualitaet, extras, anfahrtAktiv, anfahrtBetrag }));
       }
     }, 1000);
     return () => clearTimeout(timer);
-  }, [kunde, bereiche, qualitaet, extras]);
+  }, [kunde, bereiche, qualitaet, extras, anfahrtAktiv, anfahrtBetrag]);
 
   function updateKunde(field: string, value: string) {
     setKunde({ ...kunde, [field]: value });
@@ -375,9 +379,10 @@ export default function FormularPage() {
       arbeitsbereiche: bereiche,
       qualitaet,
       extras: extras.filter((e) => e.aktiv).map(({ aktiv: _, ...rest }) => rest),
+      anfahrt: anfahrtAktiv ? anfahrtBetrag : 0,
     };
     sessionStorage.setItem("formular-daten", JSON.stringify(formularDaten));
-    localStorage.setItem("formular-draft", JSON.stringify({ kunde, bereiche, qualitaet, extras }));
+    localStorage.setItem("formular-draft", JSON.stringify({ kunde, bereiche, qualitaet, extras, anfahrtAktiv, anfahrtBetrag }));
 
     try {
       const res = await fetch("/api/angebote/kalkulieren", {
@@ -728,57 +733,161 @@ export default function FormularPage() {
         })}
       </div>
 
-      {/* Zusatzarbeiten / Extras */}
-      {extras.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Wrench className="h-4 w-4" />
-              Zusatzarbeiten
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {extras.map((extra, i) => (
-              <div
-                key={i}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-                  extra.aktiv ? "bg-muted/50" : "bg-muted/20 opacity-60"
+      {/* Anfahrt & Extras */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Weiteres</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Anfahrt */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Anfahrtspauschale</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                step="5"
+                min="0"
+                value={anfahrtBetrag}
+                onChange={(e) => setAnfahrtBetrag(parseFloat(e.target.value) || 0)}
+                className="h-8 w-20 text-sm text-right"
+                disabled={!anfahrtAktiv}
+              />
+              <span className="text-xs text-muted-foreground">€</span>
+              <button
+                onClick={() => setAnfahrtAktiv(!anfahrtAktiv)}
+                className={`h-6 w-10 rounded-full transition-colors relative ${
+                  anfahrtAktiv ? "bg-primary" : "bg-muted"
                 }`}
               >
-                <input
-                  type="checkbox"
-                  checked={extra.aktiv}
-                  onChange={() => {
-                    const updated = [...extras];
-                    updated[i] = { ...updated[i], aktiv: !updated[i].aktiv };
-                    setExtras(updated);
-                  }}
-                  className="h-4 w-4 rounded border-gray-300"
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    anfahrtAktiv ? "translate-x-4" : "translate-x-0.5"
+                  }`}
                 />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{extra.bezeichnung}</p>
-                  <p className="text-xs text-muted-foreground">{extra.kategorie}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={extra.schaetzMenge}
-                    onChange={(e) => {
+              </button>
+            </div>
+          </div>
+
+          {/* Extras aus AI oder manuell */}
+          {extras.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Zusatzarbeiten
+              </p>
+              {extras.map((extra, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
+                    extra.aktiv ? "bg-muted/50" : "bg-muted/20 opacity-60"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={extra.aktiv}
+                    onChange={() => {
                       const updated = [...extras];
-                      updated[i] = { ...updated[i], schaetzMenge: parseFloat(e.target.value) || 0 };
+                      updated[i] = { ...updated[i], aktiv: !updated[i].aktiv };
                       setExtras(updated);
                     }}
-                    className="h-7 w-16 text-sm text-right"
-                    disabled={!extra.aktiv}
+                    className="h-4 w-4 rounded border-gray-300"
                   />
-                  <span className="text-xs text-muted-foreground w-12">{extra.einheit}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{extra.bezeichnung}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={extra.schaetzMenge}
+                      onChange={(e) => {
+                        const updated = [...extras];
+                        updated[i] = { ...updated[i], schaetzMenge: parseFloat(e.target.value) || 0 };
+                        setExtras(updated);
+                      }}
+                      className="h-7 w-14 text-sm text-right"
+                      disabled={!extra.aktiv}
+                    />
+                    <span className="text-xs text-muted-foreground w-10">{extra.einheit}</span>
+                    <button
+                      onClick={() => setExtras(extras.filter((_, j) => j !== i))}
+                      className="text-muted-foreground hover:text-destructive p-0.5"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+              ))}
+            </div>
+          )}
+
+          {/* Extra hinzufügen */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs"
+            onClick={() =>
+              setExtras([
+                ...extras,
+                {
+                  bezeichnung: "",
+                  kategorie: "SONSTIGES",
+                  schaetzMenge: 1,
+                  einheit: "pauschal",
+                  aktiv: true,
+                },
+              ])
+            }
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Zusatzarbeit hinzufügen
+          </Button>
+
+          {/* Inline Edit für leere Bezeichnung */}
+          {extras.length > 0 && !extras[extras.length - 1].bezeichnung && (
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                placeholder="z.B. Sockelleisten streichen"
+                className="h-8 text-sm flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.currentTarget.value) {
+                    const updated = [...extras];
+                    updated[updated.length - 1] = { ...updated[updated.length - 1], bezeichnung: e.currentTarget.value };
+                    setExtras(updated);
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value) {
+                    const updated = [...extras];
+                    updated[updated.length - 1] = { ...updated[updated.length - 1], bezeichnung: e.target.value };
+                    setExtras(updated);
+                  } else {
+                    // Leeres Extra wieder entfernen
+                    setExtras(extras.slice(0, -1));
+                  }
+                }}
+              />
+              <select
+                defaultValue="pauschal"
+                onChange={(e) => {
+                  const updated = [...extras];
+                  updated[updated.length - 1] = { ...updated[updated.length - 1], einheit: e.target.value };
+                  setExtras(updated);
+                }}
+                className="h-8 text-xs border rounded px-1.5 bg-background"
+              >
+                <option value="pauschal">pauschal</option>
+                <option value="Stück">Stück</option>
+                <option value="lfm">lfm</option>
+                <option value="m²">m²</option>
+              </select>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Generieren Button */}
       <Button
