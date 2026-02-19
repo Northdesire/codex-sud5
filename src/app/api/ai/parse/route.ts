@@ -7,6 +7,163 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// ═══════════════════════════════════════════
+// SHOP SYSTEM PROMPT + RESPONSE FORMAT
+// ═══════════════════════════════════════════
+
+const SHOP_SYSTEM_PROMPT = `Du bist ein Assistent für ein deutsches Shop/E-Commerce-Unternehmen. Du analysierst Kundenanfragen, Bestellungen, Rechnungen, Produktlisten und Fotos davon und extrahierst strukturierte Daten für die Angebotserstellung.
+
+## Deine Aufgabe
+
+Extrahiere folgende Informationen:
+
+### 1. Kunde
+- name: Vollständiger Name oder Firmenname
+- strasse: Straße + Hausnummer
+- plz: 5-stellige Postleitzahl
+- ort: Ortsname
+- email: E-Mail-Adresse
+- telefon: Telefonnummer
+
+### 2. Produkte (Array)
+Für jedes genannte Produkt:
+- name: Produktbezeichnung (so genau wie möglich)
+- menge: Gewünschte Anzahl (Standard: 1)
+- einheit: "Stk.", "kg", "m", "Paar", "Set", "Rolle", "Karton" etc.
+- preis: Falls ein Preis genannt wird, sonst 0
+
+### 3. Confidence (0-100)
+- kunde: Wie vollständig sind die Kundendaten?
+- raeume: Wie genau sind die Produktdaten? (verwende "raeume" als Feld)
+- optionen: Wie klar ist die Anfrage insgesamt?
+
+## Erkennungsregeln
+
+**Mengenangaben:**
+- "5x Laptop" = menge: 5
+- "Laptop Dell" ohne Mengenangabe = menge: 1
+- "ein Paar Schuhe" = menge: 1, einheit: "Paar"
+- "3 Karton Druckerpapier" = menge: 3, einheit: "Karton"
+
+**Preise:**
+- Wenn Preise genannt werden (z.B. "à 199€"), diese erfassen
+- Bei "VK", "Stückpreis", "pro Stück" den Einzelpreis verwenden
+- Falls kein Preis: preis = 0
+
+**Produktnamen:**
+- Möglichst vollständig erfassen (Marke + Modell + Variante)
+- "Dell XPS 15 16GB" → name: "Laptop Dell XPS 15 16GB"
+- Abkürzungen auflösen wo sinnvoll
+
+WICHTIG:
+- Dezimalpunkte verwenden (3.5 nicht 3,5)
+- Leere Strings "" für fehlende Felder, NICHT null
+- Confidence IMMER als ganze Zahl 0-100 angeben`;
+
+const SHOP_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "shop_anfrage_parsing",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        kunde: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            strasse: { type: "string" },
+            plz: { type: "string" },
+            ort: { type: "string" },
+            email: { type: "string" },
+            telefon: { type: "string" },
+          },
+          required: ["name", "strasse", "plz", "ort", "email", "telefon"],
+          additionalProperties: false,
+        },
+        produkte: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              menge: { type: "number" },
+              einheit: { type: "string" },
+              preis: { type: "number" },
+            },
+            required: ["name", "menge", "einheit", "preis"],
+            additionalProperties: false,
+          },
+        },
+        confidence: {
+          type: "object",
+          properties: {
+            kunde: { type: "number" },
+            raeume: { type: "number" },
+            optionen: { type: "number" },
+          },
+          required: ["kunde", "raeume", "optionen"],
+          additionalProperties: false,
+        },
+      },
+      required: ["kunde", "produkte", "confidence"],
+      additionalProperties: false,
+    },
+  },
+};
+
+function buildShopSystemPrompt(katalogKontext: string): string {
+  return SHOP_SYSTEM_PROMPT + (katalogKontext ? `\n\n${katalogKontext}` : "");
+}
+
+async function loadShopKatalogKontext(firmaId: string): Promise<string> {
+  const produkte = await prisma.produkt.findMany({
+    where: { firmaId, aktiv: true },
+    select: { name: true, kategorie: true, vkPreis: true, einheit: true },
+  });
+
+  if (produkte.length === 0) return "";
+
+  let kontext = "## Verfügbarer Produktkatalog\nWenn der Kunde Produkte erwähnt, versuche die passenden Einträge aus diesem Katalog zu referenzieren und verwende deren Preise.\n";
+  kontext += "Produkte: " + produkte.map((p) => `${p.name} (${p.kategorie}, ${p.vkPreis}€/${p.einheit})`).join(", ") + "\n";
+  return kontext;
+}
+
+function parseShopAnfrageRegex(rawText: string) {
+  const text = rawText;
+  const kunde = parseKunde(text);
+
+  // Einfaches Regex-Parsing für Produkte
+  const produkte: Array<{ name: string; menge: number; einheit: string; preis: number }> = [];
+  const lines = text.split("\n");
+  for (const line of lines) {
+    // Patterns: "5x Laptop Dell", "- 3 Stk. Monitor", "10x USB-Kabel à 12,90€"
+    const match = line.match(/[-•*]?\s*(\d+)\s*[xX×]?\s+(.+?)(?:\s+[àa@]\s*([\d.,]+)\s*(?:€|EUR|eur))?$/);
+    if (match) {
+      const menge = parseInt(match[1]) || 1;
+      const name = match[2].replace(/\s+$/, "").replace(/^[,\s]+/, "");
+      const preis = match[3] ? parseFloat(match[3].replace(",", ".")) : 0;
+      if (name.length > 1) {
+        produkte.push({ name, menge, einheit: "Stk.", preis });
+      }
+    }
+  }
+
+  return {
+    kunde,
+    produkte,
+    confidence: {
+      kunde: kunde.name ? 50 : 15,
+      raeume: produkte.length > 0 ? 50 : 10,
+      optionen: 40,
+    },
+  };
+}
+
+// ═══════════════════════════════════════════
+// MALER SYSTEM PROMPT (original)
+// ═══════════════════════════════════════════
+
 const SYSTEM_PROMPT = `Du bist ein erfahrener Kalkulator in einem deutschen Malerbetrieb. Du analysierst Kundenanfragen (E-Mails, WhatsApp-Nachrichten, Sprachnotizen, handgeschriebene Notizen, Fotos) und extrahierst strukturierte Daten für die Angebotserstellung.
 
 ## Deine Aufgabe
@@ -272,18 +429,29 @@ function validateParsedResult(data: Record<string, unknown>): Record<string, unk
 
 export async function POST(request: Request) {
   let inputText = "";
+  let branche = "MALER";
 
   try {
     // Auth + catalog context (best-effort, don't fail if not logged in)
     let katalogKontext = "";
     try {
       const user = await requireUser();
-      katalogKontext = await loadKatalogKontext(user.firmaId);
+      // Detect branche from firma
+      const firma = await prisma.firma.findUnique({
+        where: { id: user.firmaId },
+        select: { branche: true },
+      });
+      if (firma?.branche) branche = firma.branche;
+
+      if (branche === "SHOP") {
+        katalogKontext = await loadShopKatalogKontext(user.firmaId);
+      } else {
+        katalogKontext = await loadKatalogKontext(user.firmaId);
+      }
     } catch {
       // Not logged in or DB error — proceed without catalog
     }
 
-    const systemPrompt = buildSystemPrompt(katalogKontext);
     const contentType = request.headers.get("content-type") || "";
 
     // Handle multipart/form-data (image + optional text)
@@ -291,6 +459,8 @@ export async function POST(request: Request) {
       const formData = await request.formData();
       const image = formData.get("image") as File | null;
       const textPart = formData.get("text") as string | null;
+      const branchePart = formData.get("branche") as string | null;
+      if (branchePart) branche = branchePart;
 
       if (!image && !textPart) {
         return NextResponse.json(
@@ -299,22 +469,37 @@ export async function POST(request: Request) {
         );
       }
 
+      const isShop = branche === "SHOP";
+
       if (!process.env.OPENAI_API_KEY) {
-        if (textPart) return NextResponse.json(parseAnfrageRegex(textPart));
+        if (textPart) {
+          return NextResponse.json(
+            isShop ? parseShopAnfrageRegex(textPart) : parseAnfrageRegex(textPart)
+          );
+        }
         return NextResponse.json({ error: "Kein API Key für Bilderkennung" }, { status: 500 });
       }
+
+      const systemPrompt = isShop
+        ? buildShopSystemPrompt(katalogKontext)
+        : buildSystemPrompt(katalogKontext);
+      const responseFormat = isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
 
       const userContent: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail: "high" } }> = [];
 
       if (textPart) {
         userContent.push({
           type: "text",
-          text: `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen.`,
+          text: isShop
+            ? `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere alle Produkte mit Mengen und Preisen.`
+            : `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen.`,
         });
       } else {
         userContent.push({
           type: "text",
-          text: "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere alle erkennbaren Daten:",
+          text: isShop
+            ? "Analysiere dieses Bild. Es zeigt eine Rechnung, Bestellung, Preisliste oder Produktliste. Extrahiere alle Produkte mit Namen, Mengen, Einheiten und Preisen:"
+            : "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere alle erkennbaren Daten:",
         });
       }
 
@@ -332,7 +517,7 @@ export async function POST(request: Request) {
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
         ],
-        response_format: RESPONSE_FORMAT,
+        response_format: responseFormat,
         temperature: 0.1,
         max_tokens: 4000,
       });
@@ -342,12 +527,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Keine Antwort vom AI" }, { status: 500 });
       }
 
-      return NextResponse.json(validateParsedResult(JSON.parse(content)));
+      const parsed = JSON.parse(content);
+      return NextResponse.json(isShop ? parsed : validateParsedResult(parsed));
     }
 
     // Handle JSON body (text only)
     const body = await request.json();
     inputText = body.text;
+    if (body.branche) branche = body.branche;
 
     if (!inputText || typeof inputText !== "string") {
       return NextResponse.json(
@@ -356,11 +543,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const isShop = branche === "SHOP";
+
     // Fallback auf Regex wenn kein API Key
     if (!process.env.OPENAI_API_KEY) {
       console.log("AI Parse: Kein API Key, nutze Regex-Fallback");
-      return NextResponse.json(parseAnfrageRegex(inputText));
+      return NextResponse.json(
+        isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+      );
     }
+
+    const systemPrompt = isShop
+      ? buildShopSystemPrompt(katalogKontext)
+      : buildSystemPrompt(katalogKontext);
+    const responseFormat = isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -368,7 +564,7 @@ export async function POST(request: Request) {
         { role: "system", content: systemPrompt },
         { role: "user", content: inputText },
       ],
-      response_format: RESPONSE_FORMAT,
+      response_format: responseFormat,
       temperature: 0.1,
       max_tokens: 4000,
     });
@@ -376,17 +572,22 @@ export async function POST(request: Request) {
     const content = completion.choices[0]?.message?.content;
     if (!content) {
       console.error("OpenAI: Leere Antwort, nutze Regex-Fallback");
-      return NextResponse.json(parseAnfrageRegex(inputText));
+      return NextResponse.json(
+        isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+      );
     }
 
-    const parsed = validateParsedResult(JSON.parse(content));
-    return NextResponse.json(parsed);
+    const parsed = JSON.parse(content);
+    return NextResponse.json(isShop ? parsed : validateParsedResult(parsed));
   } catch (error) {
     console.error("AI Parse Fehler:", error);
 
     if (inputText) {
       console.log("OpenAI fehlgeschlagen, nutze Regex-Fallback");
-      return NextResponse.json(parseAnfrageRegex(inputText));
+      const isShop = branche === "SHOP";
+      return NextResponse.json(
+        isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+      );
     }
 
     return NextResponse.json(

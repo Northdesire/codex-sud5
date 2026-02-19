@@ -9,13 +9,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Paintbrush, Package } from "lucide-react";
+import { BRANCHE_CONFIG, type Branche } from "@/lib/branche-config";
+import { cn } from "@/lib/utils";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [branche, setBranche] = useState<Branche | null>(null);
+
+  const config = branche ? BRANCHE_CONFIG[branche] : null;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!branche) {
+      toast.error("Bitte wähle eine Branche");
+      return;
+    }
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
@@ -24,6 +34,7 @@ export default function RegisterPage() {
       firmenname: formData.get("firmenname") as string,
       email: formData.get("email") as string,
       password: formData.get("password") as string,
+      branche,
     };
 
     // 1. Supabase Auth User erstellen
@@ -73,6 +84,43 @@ export default function RegisterPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Branche-Auswahl */}
+          <div className="space-y-2 mb-6">
+            <Label>Branche wählen</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setBranche("MALER")}
+                className={cn(
+                  "flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all hover:border-primary/40",
+                  branche === "MALER"
+                    ? "border-primary bg-primary/5"
+                    : "border-muted"
+                )}
+              >
+                <Paintbrush className={cn("h-8 w-8", branche === "MALER" ? "text-primary" : "text-muted-foreground")} />
+                <span className={cn("text-sm font-medium", branche === "MALER" ? "text-primary" : "text-muted-foreground")}>
+                  Malerbetrieb
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBranche("SHOP")}
+                className={cn(
+                  "flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all hover:border-primary/40",
+                  branche === "SHOP"
+                    ? "border-primary bg-primary/5"
+                    : "border-muted"
+                )}
+              >
+                <Package className={cn("h-8 w-8", branche === "SHOP" ? "text-primary" : "text-muted-foreground")} />
+                <span className={cn("text-sm font-medium", branche === "SHOP" ? "text-primary" : "text-muted-foreground")}>
+                  Shop / E-Commerce
+                </span>
+              </button>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Dein Name</Label>
@@ -88,7 +136,7 @@ export default function RegisterPage() {
               <Input
                 id="firmenname"
                 name="firmenname"
-                placeholder="Malerbetrieb Schneider"
+                placeholder={config?.registerPlaceholders.firmenname ?? "Firmenname"}
                 required
               />
             </div>
@@ -98,7 +146,7 @@ export default function RegisterPage() {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="info@maler-schneider.de"
+                placeholder={config?.registerPlaceholders.email ?? "info@firma.de"}
                 required
               />
             </div>
@@ -113,7 +161,7 @@ export default function RegisterPage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || !branche}>
               {loading ? "Wird erstellt..." : "Kostenlos registrieren"}
             </Button>
           </form>

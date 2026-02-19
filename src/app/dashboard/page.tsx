@@ -4,8 +4,9 @@ import { prisma } from "@/lib/db";
 import { Header } from "@/components/dashboard/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Paintbrush, ClipboardList, FileSpreadsheet, GraduationCap } from "lucide-react";
+import { GraduationCap } from "lucide-react";
 import Link from "next/link";
+import { BRANCHE_CONFIG, type Branche } from "@/lib/branche-config";
 
 export default async function DashboardPage() {
   let user;
@@ -19,72 +20,64 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  let kundenCount = 0;
-  let materialCount = 0;
-  let leistungenCount = 0;
-  let angeboteCount = 0;
+  // Firma inkl. Branche laden
+  const firma = await prisma.firma.findUnique({
+    where: { id: user.firmaId },
+    select: { firmenname: true, strasse: true, branche: true },
+  });
+
+  const branche: Branche = (firma?.branche as Branche) ?? "MALER";
+  const config = BRANCHE_CONFIG[branche];
+
+  // Counts laden basierend auf Branche
+  let counts: Record<string, number> = {};
   let hasKalkRegeln = false;
-  let hasFirma = false;
+  const hasFirma = !!(firma?.firmenname && firma?.strasse);
 
   try {
-    const [kc, mc, lc, ac, kalkRegeln, firma] = await Promise.all([
-      prisma.kunde.count({ where: { firmaId: user.firmaId } }),
-      prisma.material.count({ where: { firmaId: user.firmaId } }),
-      prisma.leistung.count({ where: { firmaId: user.firmaId } }),
-      prisma.angebot.count({ where: { firmaId: user.firmaId } }),
-      prisma.kalkulationsRegeln.findUnique({ where: { firmaId: user.firmaId } }),
-      prisma.firma.findUnique({ where: { id: user.firmaId }, select: { firmenname: true, strasse: true } }),
-    ]);
-    kundenCount = kc;
-    materialCount = mc;
-    leistungenCount = lc;
-    angeboteCount = ac;
-    hasKalkRegeln = !!kalkRegeln;
-    hasFirma = !!(firma?.firmenname && firma?.strasse);
+    const kundenCount = await prisma.kunde.count({ where: { firmaId: user.firmaId } });
+    const angeboteCount = await prisma.angebot.count({ where: { firmaId: user.firmaId } });
+    counts = { kunden: kundenCount, angebote: angeboteCount };
+
+    if (branche === "SHOP") {
+      const produkteCount = await prisma.produkt.count({ where: { firmaId: user.firmaId } });
+      counts.produkte = produkteCount;
+    } else {
+      const [materialCount, leistungenCount, kalkRegeln] = await Promise.all([
+        prisma.material.count({ where: { firmaId: user.firmaId } }),
+        prisma.leistung.count({ where: { firmaId: user.firmaId } }),
+        prisma.kalkulationsRegeln.findUnique({ where: { firmaId: user.firmaId } }),
+      ]);
+      counts.materialien = materialCount;
+      counts.leistungen = leistungenCount;
+      hasKalkRegeln = !!kalkRegeln;
+    }
   } catch (error) {
     console.error("Dashboard DB-Fehler:", error);
   }
 
-  const setupChecks = [
-    { label: "Firmendaten", done: hasFirma },
-    { label: "Material", done: materialCount > 0 },
-    { label: "Leistungen", done: leistungenCount > 0 },
-    { label: "Kalkulation", done: hasKalkRegeln },
-    { label: "Angebot", done: angeboteCount > 0 },
-  ];
+  // Setup-Checks aus branche-config
+  const setupStatus: Record<string, boolean> = {
+    hasFirma,
+    hasMaterial: (counts.materialien ?? 0) > 0,
+    hasLeistungen: (counts.leistungen ?? 0) > 0,
+    hasKalkRegeln,
+    hasAngebote: (counts.angebote ?? 0) > 0,
+    hasProdukte: (counts.produkte ?? 0) > 0,
+  };
+
+  const setupChecks = config.setupChecks.map((c) => ({
+    label: c.label,
+    done: !!setupStatus[c.key],
+  }));
   const setupDone = setupChecks.filter((c) => c.done).length;
   const allDone = setupDone === setupChecks.length;
 
-  const stats = [
-    {
-      label: "Kunden",
-      value: kundenCount,
-      icon: Users,
-      href: "/dashboard/kunden",
-      color: "text-blue-600",
-    },
-    {
-      label: "Materialien",
-      value: materialCount,
-      icon: Paintbrush,
-      href: "/dashboard/material",
-      color: "text-emerald-600",
-    },
-    {
-      label: "Leistungen",
-      value: leistungenCount,
-      icon: ClipboardList,
-      href: "/dashboard/leistungen",
-      color: "text-amber-600",
-    },
-    {
-      label: "Angebote",
-      value: angeboteCount,
-      icon: FileSpreadsheet,
-      href: "/dashboard/angebote",
-      color: "text-purple-600",
-    },
-  ];
+  // Dashboard-Stats aus branche-config
+  const stats = config.dashboardStats.map((s) => ({
+    ...s,
+    value: counts[s.key] ?? 0,
+  }));
 
   return (
     <>
@@ -119,7 +112,7 @@ export default async function DashboardPage() {
                     variant={c.done ? "default" : "outline"}
                     className="text-xs"
                   >
-                    {c.done ? "✓" : "○"} {c.label}
+                    {c.done ? "\u2713" : "\u25CB"} {c.label}
                   </Badge>
                 ))}
               </div>
@@ -137,7 +130,7 @@ export default async function DashboardPage() {
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((stat) => (
-            <Link key={stat.label} href={stat.href}>
+            <Link key={stat.key} href={stat.href}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -157,36 +150,18 @@ export default async function DashboardPage() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Schnellstart</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Link href="/dashboard/firma">
-              <Card className="hover:shadow-md transition-shadow cursor-pointer border-primary/20 hover:border-primary/40">
-                <CardContent className="pt-6">
-                  <h3 className="font-semibold mb-1">Firmendaten pflegen</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Logo, Kontaktdaten und Einstellungen hinterlegen
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/dashboard/material">
-              <Card className="hover:shadow-md transition-shadow cursor-pointer border-primary/20 hover:border-primary/40">
-                <CardContent className="pt-6">
-                  <h3 className="font-semibold mb-1">Material anlegen</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Einkaufs- und Verkaufspreise verwalten
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/dashboard/leistungen">
-              <Card className="hover:shadow-md transition-shadow cursor-pointer border-primary/20 hover:border-primary/40">
-                <CardContent className="pt-6">
-                  <h3 className="font-semibold mb-1">Leistungen definieren</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Preise pro Einheit und Material-Verknüpfungen
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
+            {config.quickActions.map((action) => (
+              <Link key={action.href} href={action.href}>
+                <Card className="hover:shadow-md transition-shadow cursor-pointer border-primary/20 hover:border-primary/40">
+                  <CardContent className="pt-6">
+                    <h3 className="font-semibold mb-1">{action.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {action.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
           </div>
         </div>
       </div>

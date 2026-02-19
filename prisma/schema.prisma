@@ -8,6 +8,15 @@ datasource db {
 }
 
 // ═══════════════════════════════════════════
+// BRANCHEN
+// ═══════════════════════════════════════════
+
+enum Branche {
+  MALER
+  SHOP
+}
+
+// ═══════════════════════════════════════════
 // TENANT / FIRMA
 // ═══════════════════════════════════════════
 
@@ -42,6 +51,8 @@ model Firma {
 
   googleReviewUrl String?
 
+  branche         Branche  @default(MALER)
+
   users           User[]
   kunden          Kunde[]
   materialien     Material[]
@@ -52,6 +63,7 @@ model Firma {
   textVorlagen    TextVorlage[]
   angebote        Angebot[]
   kalkRegeln      KalkulationsRegeln?
+  produkte        Produkt[]
 }
 
 // ═══════════════════════════════════════════
@@ -184,6 +196,31 @@ enum LeistungsKat {
   TAPEZIEREN
   TROCKENBAU
   SONSTIGES
+}
+
+// ═══════════════════════════════════════════
+// PRODUKTE (SHOP-BRANCHE)
+// ═══════════════════════════════════════════
+
+model Produkt {
+  id              String   @id @default(cuid())
+  firmaId         String
+  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  kategorie       String
+  artikelNr       String?
+  beschreibung    String?
+
+  ekPreis         Float
+  vkPreis         Float
+  einheit         String   @default("Stk.")
+
+  aktiv           Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([firmaId, name])
 }
 
 // ═══════════════════════════════════════════
@@ -408,6 +445,7 @@ enum PositionsTyp {
   ZUSCHLAG
   RABATT
   ANFAHRT
+  PRODUKT
 }
 
 // ═══════════════════════════════════════════

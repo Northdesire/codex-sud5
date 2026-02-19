@@ -24,7 +24,7 @@ import { toast } from "sonner";
 
 interface ExtractedItem {
   name: string;
-  typ: "MATERIAL" | "LEISTUNG";
+  typ?: "MATERIAL" | "LEISTUNG" | "PRODUKT";
   kategorie: string;
   leistungsKat?: string | null;
   ekPreis: number;
@@ -35,6 +35,7 @@ interface ExtractedItem {
   anstriche?: number | null;
   lieferant?: string | null;
   artikelNr?: string | null;
+  beschreibung?: string | null;
   selected: boolean;
 }
 
@@ -43,8 +44,8 @@ function euro(n: number): string {
 }
 
 interface AICatalogUploadProps {
-  /** "material" zeigt nur Materialien, "leistung" nur Leistungen, "all" zeigt beide */
-  filterTyp?: "material" | "leistung" | "all";
+  /** "material" zeigt nur Materialien, "leistung" nur Leistungen, "produkt" für Shop-Produkte, "all" zeigt beide */
+  filterTyp?: "material" | "leistung" | "produkt" | "all";
   /** Callback nach erfolgreichem Import — z.B. Tabelle neu laden */
   onImported?: () => void;
 }
@@ -86,11 +87,14 @@ export function AICatalogUpload({ filterTyp = "all", onImported }: AICatalogUplo
         selected: true,
       }));
 
-      // Filter by type if needed
+      // Filter by type if needed (Shop products don't have typ field)
       if (filterTyp === "material") {
         produkte = produkte.filter((p) => p.typ === "MATERIAL");
       } else if (filterTyp === "leistung") {
         produkte = produkte.filter((p) => p.typ === "LEISTUNG");
+      } else if (filterTyp === "produkt") {
+        // Shop mode: all items are products, mark them
+        produkte = produkte.map((p) => ({ ...p, typ: "PRODUKT" as const }));
       }
 
       setItems(produkte);
@@ -129,6 +133,7 @@ export function AICatalogUpload({ filterTyp = "all", onImported }: AICatalogUplo
       setImported(true);
 
       const parts: string[] = [];
+      if (result.produktCount > 0) parts.push(`${result.produktCount} Produkte`);
       if (result.materialCount > 0) parts.push(`${result.materialCount} Materialien`);
       if (result.leistungCount > 0) parts.push(`${result.leistungCount} Leistungen`);
       if (result.skipCount > 0) parts.push(`${result.skipCount} übersprungen`);
@@ -153,6 +158,7 @@ export function AICatalogUpload({ filterTyp = "all", onImported }: AICatalogUplo
   }
 
   const selectedCount = items.filter((i) => i.selected).length;
+  const produkteCount = items.filter((i) => i.typ === "PRODUKT" && i.selected).length;
   const materialCount = items.filter((i) => i.typ === "MATERIAL" && i.selected).length;
   const leistungCount = items.filter((i) => i.typ === "LEISTUNG" && i.selected).length;
 
@@ -212,7 +218,7 @@ export function AICatalogUpload({ filterTyp = "all", onImported }: AICatalogUplo
               </div>
               <h3 className="font-semibold mb-1">Preisliste, Rechnung oder Katalog hochladen</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                AI erkennt automatisch {filterTyp === "material" ? "Materialien" : filterTyp === "leistung" ? "Leistungen" : "Materialien & Leistungen"} mit Preisen
+                AI erkennt automatisch {filterTyp === "produkt" ? "Produkte" : filterTyp === "material" ? "Materialien" : filterTyp === "leistung" ? "Leistungen" : "Materialien & Leistungen"} mit Preisen
               </p>
               <div className="flex justify-center gap-2 text-xs">
                 <Badge variant="outline">PDF</Badge>
@@ -253,6 +259,11 @@ export function AICatalogUpload({ filterTyp = "all", onImported }: AICatalogUplo
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 text-sm">
                   <span className="font-medium">{items.length} erkannt</span>
+                  {produkteCount > 0 && (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Package className="h-3 w-3" /> {produkteCount} Prod.
+                    </span>
+                  )}
                   {materialCount > 0 && (
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Package className="h-3 w-3" /> {materialCount} Mat.
@@ -284,24 +295,26 @@ export function AICatalogUpload({ filterTyp = "all", onImported }: AICatalogUplo
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium truncate">{item.name}</p>
-                        <Badge
-                          variant={item.typ === "MATERIAL" ? "secondary" : "outline"}
-                          className="text-[10px] shrink-0"
-                        >
-                          {item.typ === "MATERIAL" ? "Material" : "Leistung"}
-                        </Badge>
+                        {item.typ && item.typ !== "PRODUKT" && (
+                          <Badge
+                            variant={item.typ === "MATERIAL" ? "secondary" : "outline"}
+                            className="text-[10px] shrink-0"
+                          >
+                            {item.typ === "MATERIAL" ? "Material" : "Leistung"}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{item.kategorie || item.leistungsKat}</span>
                         {item.lieferant && <span>| {item.lieferant}</span>}
+                        {item.artikelNr && <span>| {item.artikelNr}</span>}
                         {item.ergiebigkeit && <span>| {item.ergiebigkeit} m²/{item.einheit}</span>}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      {item.typ === "MATERIAL" ? (
-                        <p className="text-sm font-mono">{euro(item.vkPreis)}/{item.einheit}</p>
-                      ) : (
-                        <p className="text-sm font-mono">{euro(item.preisProEinheit || item.vkPreis)}/{item.einheit}</p>
+                      <p className="text-sm font-mono">{euro(item.vkPreis)}/{item.einheit}</p>
+                      {item.ekPreis > 0 && item.ekPreis !== item.vkPreis && (
+                        <p className="text-[10px] text-muted-foreground font-mono">EK {euro(item.ekPreis)}</p>
                       )}
                     </div>
                   </div>

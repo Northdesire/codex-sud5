@@ -1,9 +1,72 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// ═══════════════════════════════════════════
+// SHOP CATALOG EXTRACTION
+// ═══════════════════════════════════════════
+
+const SHOP_CATALOG_PROMPT = `Du bist ein Assistent für ein deutsches Shop/E-Commerce-Unternehmen. Du analysierst Preislisten, Kataloge, Rechnungen, Bestellungen und Fotos davon und extrahierst strukturierte Produktdaten.
+
+## Für jedes Produkt extrahieren:
+
+1. **name**: Vollständiger Produktname (Marke + Modell + Variante)
+2. **kategorie**: Frei wählbare Kategorie (z.B. "Computer", "Zubehör", "Bürobedarf", "Elektronik", "Software", etc.)
+3. **ekPreis**: Einkaufspreis netto. Bei Staffelpreisen den günstigsten. 0 wenn unbekannt
+4. **vkPreis**: Verkaufspreis. Wenn nur EK: EK × 1.3 (30% Aufschlag). Wenn nur ein Preis: diesen nehmen
+5. **einheit**: "Stk.", "kg", "m", "Paar", "Set", "Rolle", "Karton", etc.
+6. **artikelNr**: Artikelnummer/Bestellnummer falls vorhanden
+7. **beschreibung**: Kurze Beschreibung falls erkennbar
+
+## Regeln:
+- Extrahiere ALLE erkennbaren Produkte — lieber zu viele als zu wenige
+- Preise als Dezimalzahlen mit Punkt: 12.50 (nicht "12,50 €")
+- Deutsche Preisformate erkennen: "12,50" → 12.50, "1.250,00" → 1250.00
+- Bei Fotos/Scans: auch unscharfe oder teilweise lesbare Texte bestmöglich interpretieren
+- Gruppiere ähnliche Produkte in sinnvolle Kategorien
+- zusammenfassung: Kurze Zusammenfassung was das Dokument enthält (1-2 Sätze)`;
+
+const SHOP_CATALOG_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "shop_catalog_extraction",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        produkte: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              kategorie: { type: "string" },
+              ekPreis: { type: "number" },
+              vkPreis: { type: "number" },
+              einheit: { type: "string" },
+              artikelNr: { type: ["string", "null"] },
+              beschreibung: { type: ["string", "null"] },
+            },
+            required: ["name", "kategorie", "ekPreis", "vkPreis", "einheit", "artikelNr", "beschreibung"],
+            additionalProperties: false,
+          },
+        },
+        zusammenfassung: { type: "string" },
+      },
+      required: ["produkte", "zusammenfassung"],
+      additionalProperties: false,
+    },
+  },
+};
+
+// ═══════════════════════════════════════════
+// MALER CATALOG EXTRACTION (original)
+// ═══════════════════════════════════════════
 
 const SYSTEM_PROMPT = `Du bist ein erfahrener Einkäufer in einem deutschen Malerbetrieb. Du kennst alle gängigen Hersteller (Caparol, Brillux, Sto, Knauf, Sikkens, Dulux, Alpina, Schöner Wohnen, Baufan, Pufas, Metylan) und ihre Produktlinien.
 
@@ -128,6 +191,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // Detect branche from user's firma
+    let branche = "MALER";
+    try {
+      const user = await requireUser();
+      const firma = await prisma.firma.findUnique({
+        where: { id: user.firmaId },
+        select: { branche: true },
+      });
+      branche = firma?.branche ?? "MALER";
+    } catch {
+      // Fallback to MALER if auth fails
+    }
+
+    const isShop = branche === "SHOP";
+    const systemPrompt = isShop ? SHOP_CATALOG_PROMPT : SYSTEM_PROMPT;
+    const responseFormat = isShop ? SHOP_CATALOG_RESPONSE_FORMAT : RESPONSE_FORMAT;
+    const userPromptPrefix = isShop
+      ? "Extrahiere alle Produkte aus diesem Dokument"
+      : "Extrahiere alle Produkte und Leistungen aus diesem Dokument";
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const textInput = formData.get("text") as string | null;
@@ -163,16 +246,16 @@ export async function POST(request: Request) {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: systemPrompt },
             {
               role: "user",
               content: [
-                { type: "text", text: "Extrahiere alle Produkte und Leistungen aus diesem Dokument/Bild:" },
+                { type: "text", text: `${userPromptPrefix}/Bild:` },
                 { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
               ],
             },
           ],
-          response_format: RESPONSE_FORMAT,
+          response_format: responseFormat,
           temperature: 0.1,
           max_tokens: 8000,
         });
@@ -205,13 +288,13 @@ export async function POST(request: Request) {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: systemPrompt },
             {
               role: "user",
-              content: `Extrahiere alle Produkte und Leistungen aus diesem Dokumentabschnitt:\n\n${chunk}`,
+              content: `${userPromptPrefix}abschnitt:\n\n${chunk}`,
             },
           ],
-          response_format: RESPONSE_FORMAT,
+          response_format: responseFormat,
           temperature: 0.1,
           max_tokens: 8000,
         });
@@ -247,13 +330,13 @@ export async function POST(request: Request) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Extrahiere alle Produkte und Leistungen aus diesem Dokument:\n\n${extractedText}`,
+          content: `${userPromptPrefix}:\n\n${extractedText}`,
         },
       ],
-      response_format: RESPONSE_FORMAT,
+      response_format: responseFormat,
       temperature: 0.1,
       max_tokens: 8000,
     });

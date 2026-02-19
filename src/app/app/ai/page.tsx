@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Brain, ClipboardPaste, Mic, MicOff, Loader2, Check, ChevronRight,
-  User, Ruler, Paintbrush, Camera, ImageIcon, X,
+  User, Ruler, Paintbrush, Camera, ImageIcon, X, Package,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { Branche } from "@/lib/branche-config";
 
-const DEMO_TEXT = `Hallo Herr Schneider,
+const DEMO_TEXT_MALER = `Hallo Herr Schneider,
 
 wir haben eine 3-Zimmer-Wohnung in der Gartenstraße 8, 26721 Emden und würden gerne alle Räume streichen lassen.
 
@@ -30,6 +31,23 @@ Mit freundlichen Grüßen
 Familie Müller
 Tel: 0176 1234567
 mueller@email.de`;
+
+const DEMO_TEXT_SHOP = `Hallo,
+
+wir benötigen ein Angebot für folgende Artikel:
+
+- 5x Laptop Dell XPS 15
+- 10x USB-C Kabel 2m
+- 2x Monitor 27 Zoll 4K
+- 3x Tastatur Logitech MX Keys
+- 1x Docking Station USB-C
+
+Bitte mit Mengenrabatt wenn möglich.
+
+Firma TechStart GmbH
+Berliner Str. 42, 10115 Berlin
+Tel: 030 12345678
+bestellung@techstart.de`;
 
 interface ArbeitsbereichArbeiten {
   waendeStreichen: boolean;
@@ -53,6 +71,13 @@ interface ArbeitsbereichParsed {
   arbeiten: ArbeitsbereichArbeiten;
 }
 
+interface ShopProduktParsed {
+  name: string;
+  menge: number;
+  einheit: string;
+  preis?: number;
+}
+
 interface ParsedResult {
   kunde: {
     name: string;
@@ -62,9 +87,13 @@ interface ParsedResult {
     email: string;
     telefon: string;
   };
-  arbeitsbereiche: ArbeitsbereichParsed[];
-  qualitaet: "standard" | "premium";
-  extras: Array<string | { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }>;
+  // Maler-spezifisch
+  arbeitsbereiche?: ArbeitsbereichParsed[];
+  qualitaet?: "standard" | "premium";
+  extras?: Array<string | { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }>;
+  // Shop-spezifisch
+  produkte?: ShopProduktParsed[];
+  // Gemeinsam
   confidence: { kunde: number; raeume: number; optionen: number };
 }
 
@@ -90,7 +119,7 @@ function berechneWandflaeche(b: ArbeitsbereichParsed) {
   );
 }
 
-const ANALYSE_SCHRITTE = [
+const ANALYSE_SCHRITTE_MALER = [
   { icon: "📖", text: "Text wird gelesen..." },
   { icon: "👤", text: "Kundendaten extrahieren..." },
   { icon: "📐", text: "Bereiche & Maße erkennen..." },
@@ -98,8 +127,16 @@ const ANALYSE_SCHRITTE = [
   { icon: "✅", text: "Fertig!" },
 ];
 
+const ANALYSE_SCHRITTE_SHOP = [
+  { icon: "📖", text: "Text wird gelesen..." },
+  { icon: "👤", text: "Kundendaten extrahieren..." },
+  { icon: "📦", text: "Produkte & Mengen erkennen..." },
+  { icon: "✅", text: "Fertig!" },
+];
+
 export default function AIEingabePage() {
   const router = useRouter();
+  const [branche, setBranche] = useState<Branche>("MALER");
   const [modus, setModus] = useState<"wahl" | "text" | "sprache">("wahl");
   const [text, setText] = useState("");
   const [analysiert, setAnalysiert] = useState(false);
@@ -112,6 +149,19 @@ export default function AIEingabePage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const isShop = branche === "SHOP";
+  const ANALYSE_SCHRITTE = isShop ? ANALYSE_SCHRITTE_SHOP : ANALYSE_SCHRITTE_MALER;
+  const DEMO_TEXT = isShop ? DEMO_TEXT_SHOP : DEMO_TEXT_MALER;
+
+  useEffect(() => {
+    fetch("/api/firma/branche")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.branche) setBranche(data.branche);
+      })
+      .catch(() => {});
+  }, []);
 
   function handleImageSelect(file: File) {
     setImage(file);
@@ -147,6 +197,7 @@ export default function AIEingabePage() {
         const formData = new FormData();
         formData.append("image", image);
         if (text.trim()) formData.append("text", text);
+        formData.append("branche", branche);
         res = await fetch("/api/ai/parse", {
           method: "POST",
           body: formData,
@@ -155,7 +206,7 @@ export default function AIEingabePage() {
         res = await fetch("/api/ai/parse", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, branche }),
         });
       }
 
@@ -176,41 +227,52 @@ export default function AIEingabePage() {
         }
       }
 
-      // Normalize: handle both old format (raeume+optionen) and new format (arbeitsbereiche+qualitaet)
-      const normalized: ParsedResult = {
-        kunde: data.kunde,
-        arbeitsbereiche: data.arbeitsbereiche || [],
-        qualitaet: data.qualitaet || data.optionen?.qualitaet || "standard",
-        extras: data.extras || [],
-        confidence: data.confidence,
-      };
+      if (isShop) {
+        // Shop-Ergebnis: produkte-Array
+        const normalized: ParsedResult = {
+          kunde: data.kunde,
+          produkte: data.produkte || [],
+          confidence: data.confidence,
+        };
+        setErgebnis(normalized);
+      } else {
+        // Maler-Ergebnis: arbeitsbereiche
+        const normalized: ParsedResult = {
+          kunde: data.kunde,
+          arbeitsbereiche: data.arbeitsbereiche || [],
+          qualitaet: data.qualitaet || data.optionen?.qualitaet || "standard",
+          extras: data.extras || [],
+          confidence: data.confidence,
+        };
 
-      // Convert old format if needed
-      if ((!normalized.arbeitsbereiche || normalized.arbeitsbereiche.length === 0) && Array.isArray(data.raeume)) {
-        const decke = data.optionen?.decke || false;
-        const spachteln = data.optionen?.spachteln || false;
-        normalized.arbeitsbereiche = data.raeume.map((r: { name: string; laenge: number; breite: number; hoehe: number; fenster: number; tueren: number }) => ({
-          name: r.name,
-          typ: "RAUM" as const,
-          laenge: r.laenge,
-          breite: r.breite,
-          hoehe: r.hoehe,
-          fenster: r.fenster ?? 1,
-          tueren: r.tueren ?? 1,
-          wandflaeche: 0,
-          deckenflaeche: 0,
-          arbeiten: {
-            waendeStreichen: true,
-            deckeStreichen: decke,
-            grundierung: true,
-            spachteln,
-            tapeteEntfernen: false,
-            tapezieren: false,
-          },
-        }));
+        // Convert old format if needed
+        if ((!normalized.arbeitsbereiche || normalized.arbeitsbereiche.length === 0) && Array.isArray(data.raeume)) {
+          const decke = data.optionen?.decke || false;
+          const spachteln = data.optionen?.spachteln || false;
+          normalized.arbeitsbereiche = data.raeume.map((r: { name: string; laenge: number; breite: number; hoehe: number; fenster: number; tueren: number }) => ({
+            name: r.name,
+            typ: "RAUM" as const,
+            laenge: r.laenge,
+            breite: r.breite,
+            hoehe: r.hoehe,
+            fenster: r.fenster ?? 1,
+            tueren: r.tueren ?? 1,
+            wandflaeche: 0,
+            deckenflaeche: 0,
+            arbeiten: {
+              waendeStreichen: true,
+              deckeStreichen: decke,
+              grundierung: true,
+              spachteln,
+              tapeteEntfernen: false,
+              tapezieren: false,
+            },
+          }));
+        }
+
+        setErgebnis(normalized);
       }
 
-      setErgebnis(normalized);
       setAnalysierSchritt(ANALYSE_SCHRITTE.length - 1);
       setAnalysiert(true);
     } catch (err) {
@@ -225,7 +287,11 @@ export default function AIEingabePage() {
     if (!ergebnis) return;
     sessionStorage.setItem("ai-ergebnis", JSON.stringify(ergebnis));
     sessionStorage.setItem("ai-originaltext", text);
-    router.push("/app/formular");
+    if (isShop) {
+      router.push("/app/shop-formular");
+    } else {
+      router.push("/app/formular");
+    }
   }
 
   async function handleSprache() {
@@ -297,7 +363,9 @@ export default function AIEingabePage() {
         <div>
           <h1 className="text-xl font-bold">AI-Eingabe</h1>
           <p className="text-sm text-muted-foreground">
-            Wie möchtest du die Anfrage eingeben?
+            {isShop
+              ? "Produktanfrage eingeben — AI erkennt Produkte und Mengen"
+              : "Wie möchtest du die Anfrage eingeben?"}
           </p>
         </div>
 
@@ -313,7 +381,9 @@ export default function AIEingabePage() {
               <div className="flex-1">
                 <h2 className="font-semibold">Text einfügen</h2>
                 <p className="text-sm text-muted-foreground">
-                  E-Mail, WhatsApp oder Notiz reinpasten
+                  {isShop
+                    ? "Bestellung, Anfrage oder Produktliste reinpasten"
+                    : "E-Mail, WhatsApp oder Notiz reinpasten"}
                 </p>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -355,12 +425,35 @@ export default function AIEingabePage() {
               <div className="flex-1">
                 <h2 className="font-semibold">Foto / Screenshot</h2>
                 <p className="text-sm text-muted-foreground">
-                  Handschriftliche Notiz, WhatsApp, E-Mail
+                  {isShop
+                    ? "Screenshot einer Bestellung oder Preisliste"
+                    : "Handschriftliche Notiz, WhatsApp, E-Mail"}
                 </p>
               </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </div>
           </button>
+
+          {/* Shop: Manuell-Button */}
+          {isShop && (
+            <button
+              onClick={() => router.push("/app/shop-formular")}
+              className="w-full rounded-2xl border-2 border-primary/20 p-5 text-left active:scale-[0.98] transition-transform hover:border-primary/40"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Package className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="font-semibold">Manuell erstellen</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Produkte direkt aus dem Katalog wählen
+                  </p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </button>
+          )}
         </div>
       </div>
     );
@@ -382,7 +475,9 @@ export default function AIEingabePage() {
             <p className="text-sm text-muted-foreground">
               {transcribing
                 ? "Whisper transkribiert deine Sprache"
-                : "Kundenanfrage einfügen oder diktieren"}
+                : isShop
+                  ? "Bestellung oder Produktanfrage einfügen"
+                  : "Kundenanfrage einfügen oder diktieren"}
             </p>
           </div>
           <button
@@ -438,7 +533,13 @@ export default function AIEingabePage() {
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={image ? "Optional: zusätzliche Infos zum Foto..." : "Hier den Text der Kundenanfrage einfügen (E-Mail, WhatsApp, Notiz)..."}
+          placeholder={
+            image
+              ? "Optional: zusätzliche Infos zum Foto..."
+              : isShop
+                ? "Hier die Bestellung oder Produktanfrage einfügen..."
+                : "Hier den Text der Kundenanfrage einfügen (E-Mail, WhatsApp, Notiz)..."
+          }
           rows={image ? 4 : 10}
           className="text-base"
         />
@@ -625,84 +726,123 @@ export default function AIEingabePage() {
         </CardContent>
       </Card>
 
-      {/* Arbeitsbereiche */}
-      <Card>
-        <CardContent className="pt-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Ruler className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm">Arbeitsbereiche</h3>
-            <Badge variant="outline" className="ml-auto text-xs">
-              {ergebnis.confidence.raeume}%
-            </Badge>
-          </div>
-          <div className="space-y-2">
-            {ergebnis.arbeitsbereiche.map((bereich, i) => {
-              const wandfl = berechneWandflaeche(bereich);
-              return (
+      {/* Shop: Produkte */}
+      {isShop && ergebnis.produkte && (
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Package className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">Erkannte Produkte</h3>
+              <Badge variant="outline" className="ml-auto text-xs">
+                {ergebnis.confidence.raeume}%
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {ergebnis.produkte.map((produkt, i) => (
                 <div
                   key={i}
                   className="rounded-lg bg-muted/50 px-3 py-2"
                 >
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm">{bereich.name}</p>
+                    <p className="font-medium text-sm">{produkt.name}</p>
                     <p className="text-xs font-mono text-muted-foreground">
-                      ~{wandfl.toFixed(0)} m²
+                      {produkt.menge}x {produkt.einheit}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {bereich.typ === "RAUM"
-                      ? `${bereich.laenge} x ${bereich.breite} m, H ${bereich.hoehe} m | ${bereich.fenster}F, ${bereich.tueren}T`
-                      : `${bereich.wandflaeche} m² Wand${bereich.deckenflaeche > 0 ? `, ${bereich.deckenflaeche} m² Decke` : ""}`
-                    }
-                  </p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {(Object.keys(ARBEIT_LABELS) as (keyof ArbeitsbereichArbeiten)[]).map((key) =>
-                      bereich.arbeiten[key] ? (
-                        <span
-                          key={key}
-                          className="inline-block rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px]"
-                        >
-                          {ARBEIT_LABELS[key]}
-                        </span>
-                      ) : null
-                    )}
-                  </div>
+                  {produkt.preis != null && produkt.preis > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Preis: {produkt.preis.toFixed(2)} EUR
+                    </p>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Qualität + Extras */}
-      <Card>
-        <CardContent className="pt-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Paintbrush className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm">Optionen</h3>
-            <Badge variant="outline" className="ml-auto text-xs">
-              {ergebnis.confidence.optionen}%
-            </Badge>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant={ergebnis.qualitaet === "premium" ? "default" : "secondary"}>
-              {ergebnis.qualitaet === "premium" ? "Premium" : "Standard"}
-            </Badge>
-          </div>
-          {ergebnis.extras.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground mb-1">Extras:</p>
-              {ergebnis.extras.map((extra, i) => (
-                <Badge key={i} variant="outline" className="mr-1 mb-1">
-                  {typeof extra === "string"
-                    ? extra
-                    : `${extra.bezeichnung} (${extra.schaetzMenge} ${extra.einheit})`}
-                </Badge>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Maler: Arbeitsbereiche */}
+      {!isShop && ergebnis.arbeitsbereiche && (
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Ruler className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">Arbeitsbereiche</h3>
+              <Badge variant="outline" className="ml-auto text-xs">
+                {ergebnis.confidence.raeume}%
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {ergebnis.arbeitsbereiche.map((bereich, i) => {
+                const wandfl = berechneWandflaeche(bereich);
+                return (
+                  <div
+                    key={i}
+                    className="rounded-lg bg-muted/50 px-3 py-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-sm">{bereich.name}</p>
+                      <p className="text-xs font-mono text-muted-foreground">
+                        ~{wandfl.toFixed(0)} m²
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {bereich.typ === "RAUM"
+                        ? `${bereich.laenge} x ${bereich.breite} m, H ${bereich.hoehe} m | ${bereich.fenster}F, ${bereich.tueren}T`
+                        : `${bereich.wandflaeche} m² Wand${bereich.deckenflaeche > 0 ? `, ${bereich.deckenflaeche} m² Decke` : ""}`
+                      }
+                    </p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(Object.keys(ARBEIT_LABELS) as (keyof ArbeitsbereichArbeiten)[]).map((key) =>
+                        bereich.arbeiten[key] ? (
+                          <span
+                            key={key}
+                            className="inline-block rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px]"
+                          >
+                            {ARBEIT_LABELS[key]}
+                          </span>
+                        ) : null
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Maler: Qualität + Extras */}
+      {!isShop && (
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Paintbrush className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">Optionen</h3>
+              <Badge variant="outline" className="ml-auto text-xs">
+                {ergebnis.confidence.optionen}%
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={ergebnis.qualitaet === "premium" ? "default" : "secondary"}>
+                {ergebnis.qualitaet === "premium" ? "Premium" : "Standard"}
+              </Badge>
+            </div>
+            {ergebnis.extras && ergebnis.extras.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground mb-1">Extras:</p>
+                {ergebnis.extras.map((extra, i) => (
+                  <Badge key={i} variant="outline" className="mr-1 mb-1">
+                    {typeof extra === "string"
+                      ? extra
+                      : `${extra.bezeichnung} (${extra.schaetzMenge} ${extra.einheit})`}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Aktionen */}
       <div className="flex gap-3">

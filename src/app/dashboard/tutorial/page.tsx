@@ -6,97 +6,32 @@ import { Header } from "@/components/dashboard/header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Building2,
-  ClipboardList,
-  Paintbrush,
-  Calculator,
-  Sparkles,
-  CheckCircle2,
-  Circle,
-  ArrowRight,
-} from "lucide-react";
-import { Loader2 } from "lucide-react";
+import { CheckCircle2, Circle, ArrowRight, Loader2 } from "lucide-react";
+import { BRANCHE_CONFIG, type Branche, type TutorialStep } from "@/lib/branche-config";
 
 interface SetupStatus {
+  branche?: string;
   hasFirma: boolean;
   hasLeistungen: boolean;
   hasMaterial: boolean;
   hasKalkRegeln: boolean;
   hasAngebote: boolean;
+  hasProdukte: boolean;
+  [key: string]: unknown;
 }
-
-const SCHRITTE = [
-  {
-    key: "hasFirma" as const,
-    nr: 1,
-    title: "Firmendaten",
-    icon: Building2,
-    href: "/dashboard/firma",
-    warum:
-      "Deine Firmendaten erscheinen auf jedem Angebot: Briefkopf, Fusszeile, Bankverbindung.",
-    beispiel:
-      "Firmenname, Adresse, Telefon, IBAN, Logo hochladen.",
-    color: "text-blue-600",
-  },
-  {
-    key: "hasMaterial" as const,
-    nr: 2,
-    title: "Material & Preise",
-    icon: Paintbrush,
-    href: "/dashboard/material",
-    warum:
-      "Materialien werden zuerst angelegt, weil Leistungen darauf verweisen. Jede Farbe, Grundierung oder Spachtel bekommt einen EK- und VK-Preis und eine Ergiebigkeit (m² pro Liter). Das Angebot berechnet daraus automatisch den Materialbedarf.",
-    beispiel:
-      'Lege z.B. an: "Caparol CapaMaxx" (Kategorie: Wandfarbe, VK 18,90 €/Liter, Ergiebigkeit 7 m²/Liter) und "Tiefengrund" (Kategorie: Grundierung, VK 8,50 €/Liter).',
-    color: "text-emerald-600",
-  },
-  {
-    key: "hasLeistungen" as const,
-    nr: 3,
-    title: "Leistungen anlegen",
-    icon: ClipboardList,
-    href: "/dashboard/leistungen",
-    warum:
-      "Leistungen sind deine Arbeitspreise pro m². Jede Leistung kann mit einer Material-Kategorie verknüpft werden — z.B. 'Wände streichen' mit Wandfarbe. So weiss die Kalkulation, welches Material automatisch berechnet wird. Ohne Leistung = kein Arbeitspreis auf dem Angebot.",
-    beispiel:
-      'Lege z.B. an: "Wände streichen Standard" (Kategorie: Streichen, 8,50 €/m², Material: Wandfarbe) und "Wände streichen Premium" (12 €/m², Material: Wandfarbe). Für Vorarbeiten: "Grundierung" (3 €/m², Material: Grundierung).',
-    color: "text-amber-600",
-  },
-  {
-    key: "hasKalkRegeln" as const,
-    nr: 4,
-    title: "Kalkulationsregeln",
-    icon: Calculator,
-    href: "/dashboard/kalkulation",
-    warum:
-      "Hier stellst du ein, wie die Kalkulation rechnet: Wieviel Verschnitt aufgeschlagen wird, wieviele Anstriche Standard sind und wie hoch die Anfahrtspauschale ist. Diese Werte gelten für alle Angebote.",
-    beispiel:
-      "Verschnitt 10% (= 10% mehr Material), 2 Anstriche, Anfahrt klein 35 € / gross 55 €, Fenster-Abzug 1,5 m² pro Fenster.",
-    color: "text-purple-600",
-  },
-  {
-    key: "hasAngebote" as const,
-    nr: 5,
-    title: "Erstes Angebot erstellen",
-    icon: Sparkles,
-    href: "/app/ai",
-    warum:
-      "Alles testen: AI-Eingabe oder Formular ausfüllen und das erste Angebot generieren.",
-    beispiel:
-      'Text eingeben wie: "3 Zimmer streichen, Wohnzimmer 5x4m, Schlafzimmer 4x3.5m".',
-    color: "text-rose-600",
-  },
-];
 
 export default function TutorialPage() {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [branche, setBranche] = useState<Branche>("MALER");
 
   useEffect(() => {
     fetch("/api/setup-status")
       .then((r) => r.json())
-      .then((data) => setStatus(data))
+      .then((data) => {
+        setStatus(data);
+        if (data.branche) setBranche(data.branche as Branche);
+      })
       .catch(() =>
         setStatus({
           hasFirma: false,
@@ -104,20 +39,27 @@ export default function TutorialPage() {
           hasMaterial: false,
           hasKalkRegeln: false,
           hasAngebote: false,
+          hasProdukte: false,
         })
       )
       .finally(() => setLoading(false));
   }, []);
 
-  const doneCount = status
-    ? SCHRITTE.filter((s) => status[s.key]).length
-    : 0;
+  const config = BRANCHE_CONFIG[branche];
+  const schritte = config.tutorialSteps;
+
+  const isDone = (step: TutorialStep) => {
+    if (!status) return false;
+    return !!(status as Record<string, unknown>)[step.key];
+  };
+
+  const doneCount = status ? schritte.filter((s) => isDone(s)).length : 0;
 
   return (
     <>
       <Header
         title="Einrichtungs-Guide"
-        description="In 5 Schritten zum ersten Angebot"
+        description={`In ${schritte.length} Schritten zum ersten Angebot`}
       />
       <div className="p-8 max-w-3xl space-y-6">
         {/* Fortschrittsbalken */}
@@ -131,27 +73,27 @@ export default function TutorialPage() {
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium">Fortschritt</span>
                 <span className="text-muted-foreground">
-                  {doneCount} von {SCHRITTE.length} erledigt
+                  {doneCount} von {schritte.length} erledigt
                 </span>
               </div>
               <div className="h-2 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all duration-500"
                   style={{
-                    width: `${(doneCount / SCHRITTE.length) * 100}%`,
+                    width: `${(doneCount / schritte.length) * 100}%`,
                   }}
                 />
               </div>
-              <div className="flex gap-1.5">
-                {SCHRITTE.map((s) => {
-                  const done = status?.[s.key] ?? false;
+              <div className="flex gap-1.5 flex-wrap">
+                {schritte.map((s) => {
+                  const done = isDone(s);
                   return (
                     <Badge
                       key={s.key}
                       variant={done ? "default" : "outline"}
                       className="text-xs"
                     >
-                      {done ? "✓" : "○"} {s.title}
+                      {done ? "\u2713" : "\u25CB"} {s.title}
                     </Badge>
                   );
                 })}
@@ -160,8 +102,8 @@ export default function TutorialPage() {
 
             {/* Schritte */}
             <div className="space-y-4">
-              {SCHRITTE.map((schritt) => {
-                const done = status?.[schritt.key] ?? false;
+              {schritte.map((schritt) => {
+                const done = isDone(schritt);
                 return (
                   <Card
                     key={schritt.key}

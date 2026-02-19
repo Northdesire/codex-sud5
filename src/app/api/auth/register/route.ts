@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, firmenname, email, password } = body;
+    const { name, firmenname, email, branche } = body;
 
     if (!name || !firmenname || !email) {
       return NextResponse.json(
@@ -22,7 +22,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Firma + User + Kalkulationsregeln in einer Transaktion erstellen
+    const selectedBranche = branche === "SHOP" ? "SHOP" : "MALER";
+
+    // Firma + User + (ggf. Kalkulationsregeln) in einer Transaktion erstellen
     const result = await prisma.$transaction(async (tx) => {
       const firma = await tx.firma.create({
         data: {
@@ -33,6 +35,7 @@ export async function POST(request: Request) {
           ort: "",
           telefon: "",
           email,
+          branche: selectedBranche,
         },
       });
 
@@ -46,10 +49,12 @@ export async function POST(request: Request) {
         },
       });
 
-      // Standard-Kalkulationsregeln erstellen
-      await tx.kalkulationsRegeln.create({
-        data: { firmaId: firma.id },
-      });
+      // Nur für MALER: Standard-Kalkulationsregeln erstellen
+      if (selectedBranche === "MALER") {
+        await tx.kalkulationsRegeln.create({
+          data: { firmaId: firma.id },
+        });
+      }
 
       return { firma, user };
     });

@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 
 interface ImportItem {
   name: string;
-  typ: "MATERIAL" | "LEISTUNG";
+  typ?: "MATERIAL" | "LEISTUNG" | "PRODUKT";
   kategorie: string;
   leistungsKat?: string | null;
   ekPreis: number;
@@ -15,6 +15,7 @@ interface ImportItem {
   anstriche?: number | null;
   lieferant?: string | null;
   artikelNr?: string | null;
+  beschreibung?: string | null;
 }
 
 export async function POST(request: Request) {
@@ -29,6 +30,62 @@ export async function POST(request: Request) {
       );
     }
 
+    // Detect branche
+    const firma = await prisma.firma.findUnique({
+      where: { id: user.firmaId },
+      select: { branche: true },
+    });
+    const branche = firma?.branche ?? "MALER";
+
+    // For SHOP branche, treat all items as Produkt
+    if (branche === "SHOP") {
+      let produktCount = 0;
+      let skipCount = 0;
+
+      for (const item of items) {
+        try {
+          await prisma.produkt.upsert({
+            where: {
+              firmaId_name: {
+                firmaId: user.firmaId,
+                name: item.name,
+              },
+            },
+            update: {
+              kategorie: item.kategorie,
+              ekPreis: item.ekPreis,
+              vkPreis: item.vkPreis,
+              einheit: item.einheit,
+              artikelNr: item.artikelNr || null,
+              beschreibung: item.beschreibung || null,
+            },
+            create: {
+              firmaId: user.firmaId,
+              name: item.name,
+              kategorie: item.kategorie,
+              ekPreis: item.ekPreis,
+              vkPreis: item.vkPreis,
+              einheit: item.einheit,
+              artikelNr: item.artikelNr || null,
+              beschreibung: item.beschreibung || null,
+            },
+          });
+          produktCount++;
+        } catch {
+          skipCount++;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        produktCount,
+        materialCount: 0,
+        leistungCount: 0,
+        skipCount,
+      });
+    }
+
+    // MALER branche: original logic
     const materialien = items.filter((i) => i.typ === "MATERIAL");
     const leistungen = items.filter((i) => i.typ === "LEISTUNG");
 
@@ -107,6 +164,7 @@ export async function POST(request: Request) {
       success: true,
       materialCount,
       leistungCount,
+      produktCount: 0,
       skipCount,
     });
   } catch (error) {
