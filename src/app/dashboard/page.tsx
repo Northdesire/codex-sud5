@@ -47,8 +47,8 @@ export default async function DashboardPage() {
 
   const setupChecks = [
     { label: "Firmendaten", done: hasFirma },
-    { label: "Leistungen", done: leistungenCount > 0 },
     { label: "Material", done: materialCount > 0 },
+    { label: "Leistungen", done: leistungenCount > 0 },
     { label: "Kalkulation", done: hasKalkRegeln },
     { label: "Angebot", done: angeboteCount > 0 },
   ];

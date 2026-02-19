@@ -40,28 +40,28 @@ const SCHRITTE = [
     color: "text-blue-600",
   },
   {
-    key: "hasLeistungen" as const,
-    nr: 2,
-    title: "Leistungen anlegen",
-    icon: ClipboardList,
-    href: "/dashboard/leistungen",
-    warum:
-      "Die Kalkulation braucht Preise pro Arbeit. Ohne Leistung = kein Preis auf dem Angebot.",
-    beispiel:
-      'z.B. "Wände streichen Standard" (8,50 €/m²), "Wände streichen Premium" (12 €/m²), "Grundierung" (3 €/m²).',
-    color: "text-amber-600",
-  },
-  {
     key: "hasMaterial" as const,
-    nr: 3,
+    nr: 2,
     title: "Material & Preise",
     icon: Paintbrush,
     href: "/dashboard/material",
     warum:
-      "Automatische Materialberechnung: Farbe, Grundierung, Spachtel. EK/VK-Preise für Margen-Überblick.",
+      "Materialien werden zuerst angelegt, weil Leistungen darauf verweisen. Jede Farbe, Grundierung oder Spachtel bekommt einen EK- und VK-Preis und eine Ergiebigkeit (m² pro Liter). Das Angebot berechnet daraus automatisch den Materialbedarf.",
     beispiel:
-      'z.B. "Caparol CapaMaxx" (VK 18,90 €/Liter, Ergiebigkeit 7 m²/Liter).',
+      'Lege z.B. an: "Caparol CapaMaxx" (Kategorie: Wandfarbe, VK 18,90 €/Liter, Ergiebigkeit 7 m²/Liter) und "Tiefengrund" (Kategorie: Grundierung, VK 8,50 €/Liter).',
     color: "text-emerald-600",
+  },
+  {
+    key: "hasLeistungen" as const,
+    nr: 3,
+    title: "Leistungen anlegen",
+    icon: ClipboardList,
+    href: "/dashboard/leistungen",
+    warum:
+      "Leistungen sind deine Arbeitspreise pro m². Jede Leistung kann mit einer Material-Kategorie verknüpft werden — z.B. 'Wände streichen' mit Wandfarbe. So weiss die Kalkulation, welches Material automatisch berechnet wird. Ohne Leistung = kein Arbeitspreis auf dem Angebot.",
+    beispiel:
+      'Lege z.B. an: "Wände streichen Standard" (Kategorie: Streichen, 8,50 €/m², Material: Wandfarbe) und "Wände streichen Premium" (12 €/m², Material: Wandfarbe). Für Vorarbeiten: "Grundierung" (3 €/m², Material: Grundierung).',
+    color: "text-amber-600",
   },
   {
     key: "hasKalkRegeln" as const,
@@ -70,9 +70,9 @@ const SCHRITTE = [
     icon: Calculator,
     href: "/dashboard/kalkulation",
     warum:
-      "Verschnitt, Anstriche, Anfahrt, Flächen-Abzüge pro Fenster/Tür konfigurieren.",
+      "Hier stellst du ein, wie die Kalkulation rechnet: Wieviel Verschnitt aufgeschlagen wird, wieviele Anstriche Standard sind und wie hoch die Anfahrtspauschale ist. Diese Werte gelten für alle Angebote.",
     beispiel:
-      "Verschnitt 10%, 2 Anstriche, Anfahrt klein 35 €, Fenster-Abzug 1,5 m².",
+      "Verschnitt 10% (= 10% mehr Material), 2 Anstriche, Anfahrt klein 35 € / gross 55 €, Fenster-Abzug 1,5 m² pro Fenster.",
     color: "text-purple-600",
   },
   {
