@@ -94,7 +94,7 @@ export default function ShopFormularPage() {
     if (produkte.length === 0) return;
     setPositionen((prev) =>
       prev.map((pos) => {
-        if (pos.produktId || pos.einzelpreis > 0) return pos;
+        if (pos.produktId) return pos;
         // Versuche Produkt im Katalog zu finden
         const match = produkte.find(
           (p) => p.name.toLowerCase().includes(pos.name.toLowerCase()) ||
@@ -123,6 +123,20 @@ export default function ShopFormularPage() {
         name: "",
         menge: 1,
         einheit: "Stk.",
+        einzelpreis: 0,
+      },
+    ]);
+  }
+
+  function addVersand() {
+    setPositionen([
+      ...positionen,
+      {
+        id: `versand_${Date.now()}`,
+        produktId: null,
+        name: "Versandkosten",
+        menge: 1,
+        einheit: "pauschal",
         einzelpreis: 0,
       },
     ]);
@@ -343,16 +357,22 @@ export default function ShopFormularPage() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">Positionen</CardTitle>
-            <Button variant="outline" size="sm" onClick={addPosition}>
-              <Plus className="h-4 w-4 mr-1" />
-              Zeile
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={addPosition}>
+                <Plus className="h-4 w-4 mr-1" />
+                Produkt
+              </Button>
+              <Button variant="outline" size="sm" onClick={addVersand}>
+                <Plus className="h-4 w-4 mr-1" />
+                Versand
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {positionen.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Noch keine Positionen. Klicke auf &ldquo;+ Zeile&rdquo; oder nutze die AI-Eingabe.
+              Noch keine Positionen. Klicke auf &ldquo;+ Produkt&rdquo; oder nutze die AI-Eingabe.
             </p>
           )}
 
@@ -375,7 +395,7 @@ export default function ShopFormularPage() {
                         }}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                       >
-                        <option value="custom">-- Eigene Eingabe --</option>
+                        <option value="custom">-- Freie Position --</option>
                         {produkte.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name} ({formatEuro(p.vkPreis)}/{p.einheit})

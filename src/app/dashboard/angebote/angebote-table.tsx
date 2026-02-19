@@ -297,16 +297,21 @@ export function AngeboteTable() {
     });
   }
 
+  function isShopAngebot(positionen: Position[]) {
+    return positionen.some((p) => p.typ === "PRODUKT");
+  }
+
   function addPosition() {
     const maxPosNr = editPositionen.reduce((max, p) => Math.max(max, p.posNr), 0);
+    const isShop = isShopAngebot(editPositionen);
     setEditPositionen((prev) => [
       ...prev,
       {
         posNr: maxPosNr + 1,
-        typ: "LEISTUNG",
+        typ: isShop ? "PRODUKT" : "LEISTUNG",
         bezeichnung: "",
         menge: 1,
-        einheit: "m²",
+        einheit: isShop ? "Stk." : "m²",
         einzelpreis: 0,
         gesamtpreis: 0,
       },
@@ -322,14 +327,17 @@ export function AngeboteTable() {
     setEditSaving(true);
 
     // Recalculate totals
+    const isShop = isShopAngebot(editPositionen);
     const leistungen = editPositionen.filter((p) => p.typ === "LEISTUNG");
     const materialien = editPositionen.filter((p) => p.typ === "MATERIAL");
+    const produktePos = editPositionen.filter((p) => p.typ === "PRODUKT" || p.typ === "VERSAND");
     const zuschlaege = editPositionen.filter((p) => p.typ === "ZUSCHLAG");
     const rabatte = editPositionen.filter((p) => p.typ === "RABATT");
     const anfahrtPos = editPositionen.find((p) => p.typ === "ANFAHRT");
 
-    const arbeitsNetto = leistungen.reduce((s, p) => s + p.gesamtpreis, 0);
-    const materialNetto = materialien.reduce((s, p) => s + p.gesamtpreis, 0);
+    const produkteNetto = produktePos.reduce((s, p) => s + p.gesamtpreis, 0);
+    const arbeitsNetto = isShop ? produkteNetto : leistungen.reduce((s, p) => s + p.gesamtpreis, 0);
+    const materialNetto = isShop ? 0 : materialien.reduce((s, p) => s + p.gesamtpreis, 0);
     const zuschlagNetto = zuschlaege.reduce((s, p) => s + p.gesamtpreis, 0);
     const rabattNetto = rabatte.reduce((s, p) => s + Math.abs(p.gesamtpreis), 0);
     const anfahrt = anfahrtPos?.gesamtpreis || 0;
@@ -703,11 +711,20 @@ export function AngeboteTable() {
                         value={pos.typ}
                         onChange={(e) => updatePosition(i, "typ", e.target.value)}
                       >
-                        <option value="LEISTUNG">Leist.</option>
-                        <option value="MATERIAL">Mat.</option>
-                        <option value="ZUSCHLAG">Zuschl.</option>
-                        <option value="RABATT">Rabatt</option>
-                        <option value="ANFAHRT">Anf.</option>
+                        {isShopAngebot(editPositionen) ? (
+                          <>
+                            <option value="PRODUKT">Produkt</option>
+                            <option value="VERSAND">Versand</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="LEISTUNG">Leist.</option>
+                            <option value="MATERIAL">Mat.</option>
+                            <option value="ZUSCHLAG">Zuschl.</option>
+                            <option value="RABATT">Rabatt</option>
+                            <option value="ANFAHRT">Anf.</option>
+                          </>
+                        )}
                       </select>
                       <Input
                         className="h-8 text-xs"

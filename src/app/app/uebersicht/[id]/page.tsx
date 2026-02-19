@@ -179,38 +179,55 @@ export default function AngebotDetailPage() {
 
   function handleBearbeiten() {
     if (!data) return;
-    // Angebotsdaten in Formular-Format konvertieren und laden
-    const formularDaten = {
-      kunde: {
-        name: data.kundeName,
-        strasse: data.kundeStrasse || "",
-        plz: data.kundePlz || "",
-        ort: data.kundeOrt || "",
-        email: data.kundeEmail || "",
-        telefon: data.kundeTelefon || "",
-      },
-      arbeitsbereiche: [] as Array<Record<string, unknown>>,
-      qualitaet: "standard",
-      extras: [] as Array<Record<string, unknown>>,
+    const isShopAngebot = data.positionen.some((p) => p.typ === "PRODUKT");
+    const kundeData = {
+      name: data.kundeName,
+      strasse: data.kundeStrasse || "",
+      plz: data.kundePlz || "",
+      ort: data.kundeOrt || "",
+      email: data.kundeEmail || "",
+      telefon: data.kundeTelefon || "",
     };
-    sessionStorage.setItem("ai-ergebnis", JSON.stringify(formularDaten));
-    // Kalkulation auch laden damit Angebot-Seite die Positionen hat
-    sessionStorage.setItem("kalkulation", JSON.stringify({
-      raeume: [],
-      positionen: data.positionen,
-      materialNetto: data.materialNetto,
-      arbeitsNetto: data.arbeitsNetto,
-      anfahrt: data.anfahrt,
-      zuschlagNetto: 0,
-      rabattNetto: 0,
-      netto: data.netto,
-      mwstSatz: data.mwstSatz ?? data.firma?.mwstSatz ?? 19,
-      mwstBetrag: data.mwstBetrag,
-      brutto: data.brutto,
-      kunde: formularDaten.kunde,
-      firma: data.firma,
-    }));
-    router.push("/app/formular");
+
+    if (isShopAngebot) {
+      // Shop: Positionen als Produkte ins shop-formular laden
+      const shopDaten = {
+        kunde: kundeData,
+        produkte: data.positionen.map((p) => ({
+          name: p.bezeichnung,
+          menge: p.menge,
+          einheit: p.einheit,
+          preis: p.einzelpreis,
+        })),
+      };
+      sessionStorage.setItem("ai-ergebnis", JSON.stringify(shopDaten));
+      router.push("/app/shop-formular");
+    } else {
+      // Maler: Original-Flow
+      const formularDaten = {
+        kunde: kundeData,
+        arbeitsbereiche: [] as Array<Record<string, unknown>>,
+        qualitaet: "standard",
+        extras: [] as Array<Record<string, unknown>>,
+      };
+      sessionStorage.setItem("ai-ergebnis", JSON.stringify(formularDaten));
+      sessionStorage.setItem("kalkulation", JSON.stringify({
+        raeume: [],
+        positionen: data.positionen,
+        materialNetto: data.materialNetto,
+        arbeitsNetto: data.arbeitsNetto,
+        anfahrt: data.anfahrt,
+        zuschlagNetto: 0,
+        rabattNetto: 0,
+        netto: data.netto,
+        mwstSatz: data.mwstSatz ?? data.firma?.mwstSatz ?? 19,
+        mwstBetrag: data.mwstBetrag,
+        brutto: data.brutto,
+        kunde: kundeData,
+        firma: data.firma,
+      }));
+      router.push("/app/formular");
+    }
   }
 
   async function handleDuplizieren() {
@@ -250,8 +267,10 @@ export default function AngebotDetailPage() {
   }
 
   const cfg = statusConfig[data.status] || statusConfig.ENTWURF;
+  const isShop = data.positionen.some((p) => p.typ === "PRODUKT");
   const leistungen = data.positionen.filter((p) => p.typ === "LEISTUNG");
   const materialien = data.positionen.filter((p) => p.typ === "MATERIAL");
+  const produktPositionen = data.positionen.filter((p) => p.typ === "PRODUKT" || p.typ === "VERSAND");
   const anfahrtPos = data.positionen.find((p) => p.typ === "ANFAHRT");
   const mwstSatz = data.mwstSatz ?? data.firma?.mwstSatz ?? 19;
 
@@ -294,8 +313,35 @@ export default function AngebotDetailPage() {
 
           <Separator />
 
-          {/* Leistungen */}
-          {leistungen.length > 0 && (
+          {/* Shop: Produkte */}
+          {isShop && produktPositionen.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Produkte
+              </p>
+              <div className="space-y-1">
+                {produktPositionen.map((p) => (
+                  <div
+                    key={p.posNr}
+                    className="flex justify-between text-sm py-1"
+                  >
+                    <div>
+                      <p>{p.bezeichnung}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.menge} {p.einheit} × {formatEuro(p.einzelpreis)}
+                      </p>
+                    </div>
+                    <p className="font-mono font-medium shrink-0 ml-4">
+                      {formatEuro(p.gesamtpreis)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Maler: Leistungen */}
+          {!isShop && leistungen.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Arbeitsleistungen
@@ -322,8 +368,8 @@ export default function AngebotDetailPage() {
             </div>
           )}
 
-          {/* Material */}
-          {materialien.length > 0 && (
+          {/* Maler: Material */}
+          {!isShop && materialien.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Material
@@ -349,8 +395,8 @@ export default function AngebotDetailPage() {
             </div>
           )}
 
-          {/* Anfahrt */}
-          {anfahrtPos && (
+          {/* Maler: Anfahrt */}
+          {!isShop && anfahrtPos && (
             <div className="flex justify-between text-sm">
               <p>Anfahrtspauschale</p>
               <p className="font-mono font-medium">

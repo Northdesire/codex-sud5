@@ -178,7 +178,6 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/dashboard/firma", label: "Firmendaten", icon: Building2 },
       { href: "/dashboard/kunden", label: "Kunden", icon: Users },
       { href: "/dashboard/produkte", label: "Produkte", icon: Package },
-      { href: "/dashboard/zuschlaege", label: "Zuschläge & Rabatte", icon: Percent },
       { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
       { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
       { href: "/dashboard/import", label: "AI-Import", icon: Sparkles },
