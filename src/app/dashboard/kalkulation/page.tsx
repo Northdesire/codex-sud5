@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { HelpTour } from "@/components/dashboard/help-tour";
 
 interface KalkRegeln {
   verschnittFaktor: number;
@@ -100,6 +101,13 @@ export default function KalkulationPage() {
         description="Material-Berechnung, Anfahrt und Flächen-Formeln"
         actions={
           <div className="flex gap-2">
+            <HelpTour
+              steps={[
+                { element: "[data-tour='material-berechnung']", popover: { title: "Material-Berechnung", description: "Verschnitt-Faktor wird auf den Materialbedarf aufgeschlagen. Standard-Anstriche gelten wenn das Material keine eigene Angabe hat." } },
+                { element: "[data-tour='anfahrt']", popover: { title: "Anfahrtspauschale", description: "Wird automatisch auf jedes Angebot addiert. Ab der Schwelle (Raumanzahl) gilt die Groß-Pauschale." } },
+                { element: "[data-tour='abzuege']", popover: { title: "Flächen-Abzüge", description: "Pro Fenster/Tür wird diese m²-Zahl von der Wandfläche abgezogen. Standard: 1,5 m² pro Fenster, 2 m² pro Tür." } },
+              ]}
+            />
             <Button variant="outline" size="sm" onClick={() => setRegeln(DEFAULTS)}>
               <RotateCcw className="h-4 w-4 mr-1" /> Defaults
             </Button>
@@ -112,7 +120,7 @@ export default function KalkulationPage() {
       />
       <div className="p-8 max-w-4xl space-y-6">
         {/* Material-Berechnung */}
-        <Card>
+        <Card data-tour="material-berechnung">
           <CardHeader>
             <CardTitle className="text-base">Material-Berechnung</CardTitle>
           </CardHeader>
@@ -194,7 +202,7 @@ export default function KalkulationPage() {
         </Card>
 
         {/* Anfahrt */}
-        <Card>
+        <Card data-tour="anfahrt">
           <CardHeader>
             <CardTitle className="text-base">Anfahrtspauschale</CardTitle>
           </CardHeader>
@@ -238,7 +246,7 @@ export default function KalkulationPage() {
         </Card>
 
         {/* Flächen-Abzüge */}
-        <Card>
+        <Card data-tour="abzuege">
           <CardHeader>
             <CardTitle className="text-base">Flächen-Abzüge</CardTitle>
           </CardHeader>

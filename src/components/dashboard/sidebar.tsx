@@ -15,6 +15,7 @@ import {
   FileText,
   FileSpreadsheet,
   Sparkles,
+  GraduationCap,
   LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
   { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
   { href: "/dashboard/import", label: "AI-Import", icon: Sparkles },
+  { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: GraduationCap },
 ];
 
 export function Sidebar() {

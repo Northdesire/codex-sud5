@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, CheckSquare, X } from "lucide-react";
 import { AICatalogUpload } from "@/components/dashboard/ai-catalog-upload";
+import { HelpTour } from "@/components/dashboard/help-tour";
 
 const LEISTUNGS_KATEGORIEN = [
   { value: "STREICHEN", label: "Streichen" },
@@ -217,8 +218,15 @@ export default function LeistungenPage() {
         description="Preise pro Einheit, Material-Verknüpfungen und Zeitkalkulation"
         actions={
           <div className="flex gap-2">
+            <HelpTour
+              steps={[
+                { element: "[data-tour='filter']", popover: { title: "Kategorie-Filter", description: "Filtere nach Kategorie: STREICHEN für Wände/Decke, VORBEREITUNG für Grundierung/Spachteln, TAPEZIEREN für Tapezierarbeiten." } },
+                { element: "[data-tour='neue-leistung']", popover: { title: "Neue Leistung", description: "Erstelle eine neue Leistung mit Name, Preis pro m² und Kategorie. Tipp: Lege Standard- und Premium-Varianten an (z.B. 'Wände streichen Standard' und 'Wände streichen Premium')." } },
+                { element: "[data-tour='tabelle']", popover: { title: "Leistungskatalog", description: "Alle Leistungen mit Preisen. Die Material-Verknüpfung bestimmt, welches Material automatisch berechnet wird." } },
+              ]}
+            />
             <AICatalogUpload filterTyp="leistung" onImported={loadData} />
-            <Button onClick={openNew}>
+            <Button data-tour="neue-leistung" onClick={openNew}>
               <Plus className="h-4 w-4 mr-2" />
               Neue Leistung
             </Button>
@@ -227,7 +235,7 @@ export default function LeistungenPage() {
       />
       <div className="p-8 space-y-4">
         {/* Filter */}
-        <div className="flex gap-2 flex-wrap">
+        <div data-tour="filter" className="flex gap-2 flex-wrap">
           <Button
             variant={filter === "ALLE" ? "default" : "outline"}
             size="sm"
@@ -294,7 +302,7 @@ export default function LeistungenPage() {
             </p>
           </div>
         ) : (
-          <div className="rounded-lg border bg-card">
+          <div data-tour="tabelle" className="rounded-lg border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>

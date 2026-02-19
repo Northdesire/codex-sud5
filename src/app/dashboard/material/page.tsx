@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Info, CheckSquare, X } from "lucide-react";
 import { AICatalogUpload } from "@/components/dashboard/ai-catalog-upload";
+import { HelpTour } from "@/components/dashboard/help-tour";
 
 const KATEGORIEN = [
   { value: "WANDFARBE", label: "Wandfarbe" },
@@ -223,8 +224,15 @@ export default function MaterialPage() {
         description="Einkaufs- und Verkaufspreise, Ergiebigkeit, Lieferanten"
         actions={
           <div className="flex gap-2">
+            <HelpTour
+              steps={[
+                { element: "[data-tour='filter']", popover: { title: "Kategorie-Filter", description: "WANDFARBE = für Streicharbeiten, GRUNDIERUNG = für Grundierarbeit, SPACHTEL = für Spachtelarbeiten, VERBRAUCH = Folie, Klebeband etc." } },
+                { element: "[data-tour='neues-material']", popover: { title: "Neues Material", description: "Erstelle ein Material mit EK- und VK-Preis. Der VK-Preis wird auf dem Angebot berechnet." } },
+                { element: "[data-tour='tabelle']", popover: { title: "Material-Katalog", description: "Ergiebigkeit = m² pro Liter/kg. Je höher, desto weniger Material wird benötigt. Die Marge zeigt deinen Aufschlag." } },
+              ]}
+            />
             <AICatalogUpload filterTyp="material" onImported={loadData} />
-            <Button onClick={openNew}>
+            <Button data-tour="neues-material" onClick={openNew}>
               <Plus className="h-4 w-4 mr-2" />
               Neues Material
             </Button>
@@ -241,7 +249,7 @@ export default function MaterialPage() {
         </Alert>
 
         {/* Filter */}
-        <div className="flex gap-2 flex-wrap">
+        <div data-tour="filter" className="flex gap-2 flex-wrap">
           <Button
             variant={filter === "ALLE" ? "default" : "outline"}
             size="sm"
@@ -306,7 +314,7 @@ export default function MaterialPage() {
             <p className="text-sm mt-1">Klicke auf &ldquo;Neues Material&rdquo; um zu starten</p>
           </div>
         ) : (
-          <div className="rounded-lg border bg-card">
+          <div data-tour="tabelle" className="rounded-lg border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>

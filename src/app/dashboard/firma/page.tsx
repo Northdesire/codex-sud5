@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Save, Loader2, Upload, Trash2 } from "lucide-react";
+import { HelpTour } from "@/components/dashboard/help-tour";
 
 interface FirmaData {
   id: string;
@@ -107,19 +108,29 @@ export default function FirmaPage() {
         title="Firmendaten"
         description="Stammdaten, Bankverbindung und Angebotseinstellungen"
         actions={
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            Speichern
-          </Button>
+          <div className="flex gap-2">
+            <HelpTour
+              steps={[
+                { element: "[data-tour='logo']", popover: { title: "Firmenlogo", description: "Wird oben links im PDF-Angebot angezeigt. Max. 500 KB, am besten PNG mit transparentem Hintergrund." } },
+                { element: "[data-tour='stammdaten']", popover: { title: "Stammdaten", description: "Firmenname und Adresse erscheinen im Briefkopf jedes Angebots." } },
+                { element: "[data-tour='bank']", popover: { title: "Bankverbindung", description: "IBAN und Bankname erscheinen in der Fusszeile des Angebots." } },
+                { element: "[data-tour='einstellungen']", popover: { title: "Angebotseinstellungen", description: "MwSt-Satz, Zahlungsziel und Gültigkeit werden auf jedes neue Angebot angewendet." } },
+              ]}
+            />
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Speichern
+            </Button>
+          </div>
         }
       />
       <div className="p-8 max-w-4xl space-y-6">
         {/* Logo */}
-        <Card>
+        <Card data-tour="logo">
           <CardHeader>
             <CardTitle>Firmenlogo</CardTitle>
             <CardDescription>Wird im PDF-Header angezeigt (max. 500 KB)</CardDescription>
@@ -171,7 +182,7 @@ export default function FirmaPage() {
         </Card>
 
         {/* Stammdaten */}
-        <Card>
+        <Card data-tour="stammdaten">
           <CardHeader>
             <CardTitle>Stammdaten</CardTitle>
             <CardDescription>Firmierung und Kontaktdaten</CardDescription>
@@ -262,7 +273,7 @@ export default function FirmaPage() {
         </Card>
 
         {/* Steuer & Bank */}
-        <Card>
+        <Card data-tour="bank">
           <CardHeader>
             <CardTitle>Steuer & Bankverbindung</CardTitle>
             <CardDescription>Erscheint auf Angeboten und Rechnungen</CardDescription>
@@ -316,7 +327,7 @@ export default function FirmaPage() {
         </Card>
 
         {/* Angebotseinstellungen */}
-        <Card>
+        <Card data-tour="einstellungen">
           <CardHeader>
             <CardTitle>Angebotseinstellungen</CardTitle>
             <CardDescription>Standard-Werte für neue Angebote</CardDescription>

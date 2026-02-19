@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Rocket, Ruler, SquareIcon, ArrowLeft, Truck, X } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, Ruler, SquareIcon, ArrowLeft, Truck, X, AlertTriangle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -138,15 +138,26 @@ const ARBEIT_NAME_HINTS: Record<ArbeitKey, string[]> = {
   tapezieren: ["tapezier"],
 };
 
-function findPreis(leistungen: LeistungInfo[], arbeitKey: ArbeitKey): number | null {
+function findPreis(leistungen: LeistungInfo[], arbeitKey: ArbeitKey, qualitaet?: "standard" | "premium"): number | null {
   const kat = ARBEIT_KATEGORIE[arbeitKey];
   const hints = ARBEIT_NAME_HINTS[arbeitKey];
 
   for (const hint of hints) {
-    const match = leistungen.find(
+    const matches = leistungen.filter(
       (l) => l.kategorie === kat && l.name.toLowerCase().includes(hint)
     );
-    if (match) return match.preisProEinheit;
+    if (matches.length === 0) continue;
+    if (matches.length === 1 || !qualitaet) return matches[0].preisProEinheit;
+
+    // Prefer matching quality variant
+    if (qualitaet === "premium") {
+      const prem = matches.find((l) => l.name.toLowerCase().includes("premium"));
+      return (prem ?? matches[0]).preisProEinheit;
+    }
+    const std =
+      matches.find((l) => l.name.toLowerCase().includes("standard")) ??
+      matches.find((l) => !l.name.toLowerCase().includes("premium"));
+    return (std ?? matches[0]).preisProEinheit;
   }
 
   const fallback = leistungen.find((l) => l.kategorie === kat);
@@ -709,17 +720,21 @@ export default function FormularPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {(Object.keys(ARBEIT_LABELS) as ArbeitKey[]).map((key) => {
                       const aktiv = bereich.arbeiten[key];
-                      const preis = findPreis(leistungen, key);
+                      const preis = findPreis(leistungen, key, qualitaet);
+                      const missing = aktiv && preis === null;
                       return (
                         <button
                           key={key}
                           onClick={() => updateArbeiten(i, key, !aktiv)}
                           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs transition-colors border ${
-                            aktiv
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-background text-muted-foreground border-border hover:bg-muted"
+                            missing
+                              ? "bg-amber-100 text-amber-800 border-amber-300"
+                              : aktiv
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background text-muted-foreground border-border hover:bg-muted"
                           }`}
                         >
+                          {missing && <AlertTriangle className="h-3 w-3" />}
                           {ARBEIT_LABELS[key]}
                           {preis !== null && (
                             <span className={aktiv ? "opacity-80" : "opacity-60"}>
@@ -730,6 +745,13 @@ export default function FormularPage() {
                       );
                     })}
                   </div>
+                  {(Object.keys(ARBEIT_LABELS) as ArbeitKey[]).some(
+                    (key) => bereich.arbeiten[key] && findPreis(leistungen, key, qualitaet) === null
+                  ) && (
+                    <p className="text-xs text-amber-700 mt-1">
+                      Einige Arbeiten haben keine passende Leistung im Katalog. Bitte im Dashboard unter Leistungen anlegen.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

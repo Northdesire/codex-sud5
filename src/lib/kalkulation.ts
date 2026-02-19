@@ -572,10 +572,28 @@ interface BereichBerechnung {
   deckenflaeche: number;
 }
 
-function findLeistungByNameMatch(leistungen: LeistungInfo[], kategorie: string, namePattern: string): LeistungInfo | undefined {
+function findLeistungByNameMatch(
+  leistungen: LeistungInfo[],
+  kategorie: string,
+  namePattern: string,
+  qualitaet?: "standard" | "premium",
+): LeistungInfo | undefined {
   const lower = namePattern.toLowerCase();
-  return leistungen.find(
+  const matches = leistungen.filter(
     (l) => l.kategorie === kategorie && l.name.toLowerCase().includes(lower)
+  );
+  if (matches.length === 0) return undefined;
+  if (matches.length === 1 || !qualitaet) return matches[0];
+
+  // Prefer matching quality variant
+  if (qualitaet === "premium") {
+    return matches.find((l) => l.name.toLowerCase().includes("premium")) ?? matches[0];
+  }
+  // Standard: prefer "standard" in name, or one without "premium"
+  return (
+    matches.find((l) => l.name.toLowerCase().includes("standard")) ??
+    matches.find((l) => !l.name.toLowerCase().includes("premium")) ??
+    matches[0]
   );
 }
 
@@ -625,32 +643,32 @@ export function kalkuliereV2(
     };
   });
 
-  // Leistungen finden
+  // Leistungen finden (qualitätsabhängig)
   const wandLeistung =
-    findLeistungByNameMatch(leistungen, "STREICHEN", "wand") ??
-    findLeistungByNameMatch(leistungen, "STREICHEN", "wänd") ??
+    findLeistungByNameMatch(leistungen, "STREICHEN", "wand", qualitaet) ??
+    findLeistungByNameMatch(leistungen, "STREICHEN", "wänd", qualitaet) ??
     leistungen.find((l) => l.kategorie === "STREICHEN" && l.materialKat === "WANDFARBE") ??
     leistungen.find((l) => l.kategorie === "STREICHEN");
 
   const deckenLeistung =
-    findLeistungByNameMatch(leistungen, "STREICHEN", "decke") ??
+    findLeistungByNameMatch(leistungen, "STREICHEN", "decke", qualitaet) ??
     wandLeistung; // Fallback auf Wandleistung
 
   const grundierungLeistung =
-    findLeistungByNameMatch(leistungen, "VORBEREITUNG", "grundier") ??
+    findLeistungByNameMatch(leistungen, "VORBEREITUNG", "grundier", qualitaet) ??
     leistungen.find((l) => l.kategorie === "VORBEREITUNG");
 
   const spachtelLeistung =
-    findLeistungByNameMatch(leistungen, "VORBEREITUNG", "spachtel") ??
+    findLeistungByNameMatch(leistungen, "VORBEREITUNG", "spachtel", qualitaet) ??
     leistungen.find((l) => l.kategorie === "VORBEREITUNG" && l.materialKat === "SPACHTEL");
 
   const tapeteEntfernenLeistung =
-    findLeistungByNameMatch(leistungen, "TAPEZIEREN", "tapete entfern") ??
-    findLeistungByNameMatch(leistungen, "VORBEREITUNG", "tapete entfern") ??
-    findLeistungByNameMatch(leistungen, "TAPEZIEREN", "entfern");
+    findLeistungByNameMatch(leistungen, "TAPEZIEREN", "tapete entfern", qualitaet) ??
+    findLeistungByNameMatch(leistungen, "VORBEREITUNG", "tapete entfern", qualitaet) ??
+    findLeistungByNameMatch(leistungen, "TAPEZIEREN", "entfern", qualitaet);
 
   const tapezierenLeistung =
-    findLeistungByNameMatch(leistungen, "TAPEZIEREN", "tapezier");
+    findLeistungByNameMatch(leistungen, "TAPEZIEREN", "tapezier", qualitaet);
 
   // Gesamtflächen für Material-Berechnung
   let gesamtStreichWand = 0;

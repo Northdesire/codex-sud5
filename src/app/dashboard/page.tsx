@@ -3,7 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Header } from "@/components/dashboard/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Paintbrush, ClipboardList, FileSpreadsheet } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Users, Paintbrush, ClipboardList, FileSpreadsheet, GraduationCap } from "lucide-react";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -22,18 +23,37 @@ export default async function DashboardPage() {
   let materialCount = 0;
   let leistungenCount = 0;
   let angeboteCount = 0;
+  let hasKalkRegeln = false;
+  let hasFirma = false;
 
   try {
-    [kundenCount, materialCount, leistungenCount, angeboteCount] =
-      await Promise.all([
-        prisma.kunde.count({ where: { firmaId: user.firmaId } }),
-        prisma.material.count({ where: { firmaId: user.firmaId } }),
-        prisma.leistung.count({ where: { firmaId: user.firmaId } }),
-        prisma.angebot.count({ where: { firmaId: user.firmaId } }),
-      ]);
+    const [kc, mc, lc, ac, kalkRegeln, firma] = await Promise.all([
+      prisma.kunde.count({ where: { firmaId: user.firmaId } }),
+      prisma.material.count({ where: { firmaId: user.firmaId } }),
+      prisma.leistung.count({ where: { firmaId: user.firmaId } }),
+      prisma.angebot.count({ where: { firmaId: user.firmaId } }),
+      prisma.kalkulationsRegeln.findUnique({ where: { firmaId: user.firmaId } }),
+      prisma.firma.findUnique({ where: { id: user.firmaId }, select: { firmenname: true, strasse: true } }),
+    ]);
+    kundenCount = kc;
+    materialCount = mc;
+    leistungenCount = lc;
+    angeboteCount = ac;
+    hasKalkRegeln = !!kalkRegeln;
+    hasFirma = !!(firma?.firmenname && firma?.strasse);
   } catch (error) {
     console.error("Dashboard DB-Fehler:", error);
   }
+
+  const setupChecks = [
+    { label: "Firmendaten", done: hasFirma },
+    { label: "Leistungen", done: leistungenCount > 0 },
+    { label: "Material", done: materialCount > 0 },
+    { label: "Kalkulation", done: hasKalkRegeln },
+    { label: "Angebot", done: angeboteCount > 0 },
+  ];
+  const setupDone = setupChecks.filter((c) => c.done).length;
+  const allDone = setupDone === setupChecks.length;
 
   const stats = [
     {
@@ -73,6 +93,47 @@ export default async function DashboardPage() {
         description={user.firma?.firmenname ?? ""}
       />
       <div className="p-8 space-y-8">
+        {/* Setup-Fortschritt */}
+        {!allDone && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="pt-5 pb-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold">Einrichtung</h3>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {setupDone} von {setupChecks.length} erledigt
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${(setupDone / setupChecks.length) * 100}%` }}
+                />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {setupChecks.map((c) => (
+                  <Badge
+                    key={c.label}
+                    variant={c.done ? "default" : "outline"}
+                    className="text-xs"
+                  >
+                    {c.done ? "✓" : "○"} {c.label}
+                  </Badge>
+                ))}
+              </div>
+              <Link
+                href="/dashboard/tutorial"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                <GraduationCap className="h-4 w-4" />
+                Tutorial starten
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((stat) => (
