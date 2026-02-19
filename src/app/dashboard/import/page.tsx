@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Header } from "@/components/dashboard/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,7 @@ import { toast } from "sonner";
 
 interface ExtractedItem {
   name: string;
-  typ: "MATERIAL" | "LEISTUNG";
+  typ: "MATERIAL" | "LEISTUNG" | "PRODUKT";
   kategorie: string;
   leistungsKat?: string | null;
   ekPreis: number;
@@ -42,6 +42,16 @@ export default function ImportPage() {
   const [items, setItems] = useState<ExtractedItem[]>([]);
   const [summary, setSummary] = useState("");
   const [fileName, setFileName] = useState("");
+  const [branche, setBranche] = useState("MALER");
+
+  useEffect(() => {
+    fetch("/api/firma/branche")
+      .then((r) => r.json())
+      .then((data) => { if (data.branche) setBranche(data.branche); })
+      .catch(() => {});
+  }, []);
+
+  const isShop = branche === "SHOP";
 
   async function handleFileUpload(file: File) {
     setFileName(file.name);
@@ -69,6 +79,7 @@ export default function ImportPage() {
         (data.produkte || []).map((p: ExtractedItem) => ({
           ...p,
           selected: true,
+          ...(isShop ? { typ: "PRODUKT" as const } : {}),
         }))
       );
       setSummary(data.zusammenfassung || "");
@@ -108,7 +119,9 @@ export default function ImportPage() {
       const result = await res.json();
       setImported(true);
       toast.success(
-        `${result.materialCount} Materialien + ${result.leistungCount} Leistungen importiert${result.skipCount > 0 ? ` (${result.skipCount} übersprungen)` : ""}`
+        isShop
+          ? `${(result.produktCount || (result.materialCount ?? 0) + (result.leistungCount ?? 0))} Produkte importiert${result.skipCount > 0 ? ` (${result.skipCount} übersprungen)` : ""}`
+          : `${result.materialCount} Materialien + ${result.leistungCount} Leistungen importiert${result.skipCount > 0 ? ` (${result.skipCount} übersprungen)` : ""}`
       );
     } catch (error) {
       console.error("Import Fehler:", error);
@@ -141,7 +154,7 @@ export default function ImportPage() {
     <>
       <Header
         title="AI-Import"
-        description="Lade Preislisten, Kataloge oder Fotos hoch — AI extrahiert Materialien & Leistungen"
+        description={isShop ? "Lade Preislisten, Kataloge oder Fotos hoch — AI extrahiert Produkte & Preise" : "Lade Preislisten, Kataloge oder Fotos hoch — AI extrahiert Materialien & Leistungen"}
       />
       <div className="p-8 max-w-4xl space-y-6">
         {/* Upload-Bereich */}
@@ -233,14 +246,23 @@ export default function ImportPage() {
                     {items.length} erkannt
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Package className="h-3 w-3" />
-                  {materialCount} Mat.
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Wrench className="h-3 w-3" />
-                  {leistungCount} Leist.
-                </div>
+                {isShop ? (
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Package className="h-3 w-3" />
+                    {items.filter((i) => i.selected).length} Prod.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Package className="h-3 w-3" />
+                      {materialCount} Mat.
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Wrench className="h-3 w-3" />
+                      {leistungCount} Leist.
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -264,7 +286,7 @@ export default function ImportPage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">
-                  Erkannte Produkte & Leistungen
+                  {isShop ? "Erkannte Produkte" : "Erkannte Produkte & Leistungen"}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -285,13 +307,13 @@ export default function ImportPage() {
                           </p>
                           <Badge
                             variant={
-                              item.typ === "MATERIAL"
+                              item.typ === "MATERIAL" || item.typ === "PRODUKT"
                                 ? "secondary"
                                 : "outline"
                             }
                             className="text-[10px] shrink-0"
                           >
-                            {item.typ === "MATERIAL" ? "Material" : "Leistung"}
+                            {item.typ === "PRODUKT" ? "Produkt" : item.typ === "MATERIAL" ? "Material" : "Leistung"}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
@@ -303,7 +325,7 @@ export default function ImportPage() {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        {item.typ === "MATERIAL" ? (
+                        {item.typ === "MATERIAL" || item.typ === "PRODUKT" ? (
                           <>
                             <p className="text-sm font-mono font-medium">
                               {item.vkPreis.toFixed(2)} €

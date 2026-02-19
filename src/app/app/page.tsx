@@ -8,10 +8,12 @@ export default async function AppHome() {
   let angeboteCount = 0;
   let quote = 0;
   let volumen = 0;
+  let branche = "MALER";
 
   try {
     const user = await getCurrentUser();
     if (user) {
+      branche = (user as unknown as { firma?: { branche?: string } }).firma?.branche ?? "MALER";
       const now = new Date();
       const monatsStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -49,6 +51,8 @@ export default async function AppHome() {
     // Stats-Fehler ignorieren, Seite trotzdem laden
   }
 
+  const isShop = branche === "SHOP";
+
   return (
     <div className="px-5 pt-8 space-y-6">
       {/* Header */}
@@ -83,12 +87,12 @@ export default async function AppHome() {
         </Link>
 
         <div className="grid grid-cols-2 gap-3">
-          <Link href="/app/formular">
+          <Link href={isShop ? "/app/shop-formular" : "/app/formular"}>
             <div className="rounded-2xl border p-4 active:scale-[0.98] transition-transform h-full">
               <FileText className="h-8 w-8 text-muted-foreground mb-2" />
               <h3 className="font-semibold text-sm">Manuelles Formular</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Klassische Eingabe
+                {isShop ? "Produkte & Preise eingeben" : "Klassische Eingabe"}
               </p>
             </div>
           </Link>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Plus, Trash2, Rocket, ArrowLeft, Save, Download } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, ArrowLeft, Save, Download, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
@@ -27,6 +27,7 @@ interface ShopPosition {
   menge: number;
   einheit: string;
   einzelpreis: number;
+  fromAi?: boolean;
 }
 
 interface Kunde {
@@ -79,6 +80,7 @@ export default function ShopFormularPage() {
               menge: p.menge || 1,
               einheit: p.einheit || "Stk.",
               einzelpreis: p.preis || 0,
+              fromAi: true,
             }))
           );
         }
@@ -376,8 +378,17 @@ export default function ShopFormularPage() {
             </p>
           )}
 
-          {positionen.map((pos) => (
-            <div key={pos.id} className="rounded-lg border p-3 space-y-2">
+          {positionen.map((pos) => {
+            const isUnmatchedAi = pos.fromAi && !pos.produktId;
+            const matchedProdukt = pos.produktId ? produkte.find((p) => p.id === pos.produktId) : null;
+            return (
+            <div key={pos.id} className={`rounded-lg border p-3 space-y-2 ${isUnmatchedAi ? "border-yellow-400 bg-yellow-50/50" : ""}`}>
+              {isUnmatchedAi && (
+                <div className="flex items-center gap-1.5 text-yellow-700 text-xs">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  Nicht im Katalog gefunden — bitte Preis prüfen
+                </div>
+              )}
               <div className="flex items-start gap-2">
                 <div className="flex-1 space-y-2">
                   {/* Produkt-Auswahl */}
@@ -395,7 +406,7 @@ export default function ShopFormularPage() {
                         }}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                       >
-                        <option value="custom">-- Freie Position --</option>
+                        <option value="custom">-- Nicht im Katalog --</option>
                         {produkte.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name} ({formatEuro(p.vkPreis)}/{p.einheit})
@@ -409,6 +420,9 @@ export default function ShopFormularPage() {
                         placeholder="Produktname"
                         className="h-9"
                       />
+                    )}
+                    {matchedProdukt?.artikelNr && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Art.-Nr.: {matchedProdukt.artikelNr}</p>
                     )}
                   </div>
 
@@ -475,7 +489,8 @@ export default function ShopFormularPage() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
