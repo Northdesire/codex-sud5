@@ -13,6 +13,7 @@ import {
   Sparkles,
   GraduationCap,
   Package,
+  Receipt,
 } from "lucide-react";
 
 export type Branche = "MALER" | "SHOP";
@@ -46,6 +47,7 @@ export interface BrancheConfig {
     hasLeistungen: boolean;
     hasProdukte: boolean;
     hasRaumvorlagen: boolean;
+    hasRechnungen: boolean;
   };
   registerPlaceholders: {
     firmenname: string;
@@ -144,6 +146,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       hasLeistungen: true,
       hasProdukte: false,
       hasRaumvorlagen: true,
+      hasRechnungen: false,
     },
     registerPlaceholders: {
       firmenname: "Malerbetrieb Schneider",
@@ -180,6 +183,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/dashboard/produkte", label: "Produkte", icon: Package },
       { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
       { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
+      { href: "/dashboard/rechnungen", label: "Rechnungen", icon: Receipt },
       { href: "/dashboard/import", label: "AI-Import", icon: Sparkles },
       { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: GraduationCap },
     ],
@@ -222,6 +226,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       hasLeistungen: false,
       hasProdukte: true,
       hasRaumvorlagen: false,
+      hasRechnungen: true,
     },
     registerPlaceholders: {
       firmenname: "Mein Shop GmbH",
@@ -236,6 +241,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { key: "kunden", label: "Kunden", icon: Users, href: "/dashboard/kunden", color: "text-blue-600" },
       { key: "produkte", label: "Produkte", icon: Package, href: "/dashboard/produkte", color: "text-emerald-600" },
       { key: "angebote", label: "Angebote", icon: FileSpreadsheet, href: "/dashboard/angebote", color: "text-purple-600" },
+      { key: "rechnungen", label: "Rechnungen", icon: Receipt, href: "/dashboard/rechnungen", color: "text-orange-600" },
     ],
     quickActions: [
       { href: "/dashboard/firma", title: "Firmendaten pflegen", description: "Logo, Kontaktdaten und Einstellungen hinterlegen" },

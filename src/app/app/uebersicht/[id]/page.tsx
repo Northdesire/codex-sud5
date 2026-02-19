@@ -15,6 +15,7 @@ import {
   Send,
   Pencil,
   Copy,
+  Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
@@ -83,6 +84,7 @@ export default function AngebotDetailPage() {
   const [updating, setUpdating] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [creatingRechnung, setCreatingRechnung] = useState(false);
 
   useEffect(() => {
     fetch(`/api/angebote/${id}`)
@@ -240,6 +242,34 @@ export default function AngebotDetailPage() {
       router.push(`/app/uebersicht/${result.id}`);
     } catch {
       toast.error("Fehler beim Duplizieren");
+    }
+  }
+
+  async function handleRechnungErstellen() {
+    if (!data || creatingRechnung) return;
+    setCreatingRechnung(true);
+    try {
+      const res = await fetch("/api/rechnungen/aus-angebot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ angebotId: id }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        if (res.status === 409 && err.rechnungId) {
+          toast.info("Rechnung existiert bereits");
+          router.push(`/app/rechnungen/${err.rechnungId}`);
+          return;
+        }
+        throw new Error(err.error || "Fehler beim Erstellen");
+      }
+      const result = await res.json();
+      toast.success(`Rechnung ${result.nummer} erstellt`);
+      router.push(`/app/rechnungen/${result.id}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Fehler beim Erstellen der Rechnung");
+    } finally {
+      setCreatingRechnung(false);
     }
   }
 
@@ -484,6 +514,21 @@ export default function AngebotDetailPage() {
               Abgelehnt
             </Button>
           </>
+        )}
+
+        {data.status === "ANGENOMMEN" && isShop && (
+          <Button
+            className="h-12 col-span-2 bg-green-600 hover:bg-green-700"
+            onClick={handleRechnungErstellen}
+            disabled={creatingRechnung}
+          >
+            {creatingRechnung ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Receipt className="h-4 w-4 mr-1" />
+            )}
+            Rechnung erstellen
+          </Button>
         )}
 
         <Button variant="outline" className="h-12" onClick={handleBearbeiten}>

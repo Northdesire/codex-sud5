@@ -43,6 +43,8 @@ import {
 const TYPEN = [
   { value: "ANGEBOT_INTRO", label: "Angebots-Einleitung", icon: FileText, color: "bg-blue-100 text-blue-700" },
   { value: "ANGEBOT_SCHLUSS", label: "Angebots-Schlusstext", icon: FileText, color: "bg-blue-100 text-blue-700" },
+  { value: "RECHNUNG_INTRO", label: "Rechnungs-Einleitung", icon: FileText, color: "bg-orange-100 text-orange-700" },
+  { value: "RECHNUNG_SCHLUSS", label: "Rechnungs-Schlusstext", icon: FileText, color: "bg-orange-100 text-orange-700" },
   { value: "FOLLOWUP_TAG3", label: "Follow-up (3 Tage)", icon: Mail, color: "bg-amber-100 text-amber-700" },
   { value: "FOLLOWUP_TAG7", label: "Follow-up (7 Tage)", icon: Mail, color: "bg-amber-100 text-amber-700" },
   { value: "FOLLOWUP_TAG12", label: "Follow-up (12 Tage)", icon: Mail, color: "bg-amber-100 text-amber-700" },
@@ -159,6 +161,9 @@ export default function TextvorlagenPage() {
   const angebotVorlagen = vorlagen.filter((v) =>
     v.typ === "ANGEBOT_INTRO" || v.typ === "ANGEBOT_SCHLUSS"
   );
+  const rechnungVorlagen = vorlagen.filter((v) =>
+    v.typ === "RECHNUNG_INTRO" || v.typ === "RECHNUNG_SCHLUSS"
+  );
   const followUpVorlagen = vorlagen.filter((v) =>
     v.typ.startsWith("FOLLOWUP_") || v.typ === "GOOGLE_BEWERTUNG"
   );
@@ -251,6 +256,11 @@ export default function TextvorlagenPage() {
               "Angebots-Texte",
               "Einleitung und Schlusstext im PDF",
               angebotVorlagen
+            )}
+            {renderVorlagenGroup(
+              "Rechnungs-Texte",
+              "Einleitung und Schlusstext in Rechnungs-PDFs",
+              rechnungVorlagen
             )}
             {renderVorlagenGroup(
               "Follow-up & Bewertung",

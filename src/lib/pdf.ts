@@ -507,3 +507,339 @@ export function generateAngebotPDFBuffer(data: PDFData): Buffer {
   const arrayBuffer = doc.output("arraybuffer");
   return Buffer.from(arrayBuffer);
 }
+
+// ═══════════════════════════════════════════
+// RECHNUNG PDF
+// ═══════════════════════════════════════════
+
+interface RechnungPDFData {
+  nummer: string;
+  datum: Date;
+  faelligAm: Date;
+  kunde: {
+    name: string;
+    strasse?: string;
+    plz?: string;
+    ort?: string;
+  };
+  firma: {
+    firmenname: string;
+    inhaberName: string;
+    inhaberTitel?: string | null;
+    strasse: string;
+    plz: string;
+    ort: string;
+    telefon: string;
+    email: string;
+    iban?: string | null;
+    bic?: string | null;
+    bankname?: string | null;
+    steuernummer?: string | null;
+    ustIdNr?: string | null;
+    agbText?: string | null;
+    logoUrl?: string | null;
+  } | null;
+  positionen: PDFPosition[];
+  einleitungsText?: string | null;
+  schlussText?: string | null;
+  netto: number;
+  mwstSatz: number;
+  mwstBetrag: number;
+  brutto: number;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildRechnungPDF(data: RechnungPDFData, JsPDF: any): InstanceType<typeof jsPDF> {
+  const doc: jsPDF = new JsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const mL = 25;
+  const mR = 20;
+  const contentW = pageWidth - mL - mR;
+  let y = 0;
+  let pageNum = 1;
+
+  function addPageNumber() {
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(150);
+    doc.text(`Seite ${pageNum}`, pageWidth / 2, pageHeight - 10, { align: "center" });
+    doc.setTextColor(0);
+  }
+
+  function checkPageBreak(needed: number) {
+    if (y + needed > pageHeight - 25) {
+      addPageNumber();
+      doc.addPage();
+      pageNum++;
+      y = 20;
+    }
+  }
+
+  // ═══ HEADER ═══
+  y = 15;
+  if (data.firma?.logoUrl) {
+    try {
+      doc.addImage(data.firma.logoUrl, "AUTO", pageWidth - mR - 40, 10, 40, 14);
+    } catch {
+      // Ignore logo errors
+    }
+  }
+
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 30, 30);
+  doc.text(data.firma?.firmenname || "Rechnung", mL, y);
+
+  if (data.firma) {
+    y += 5;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120);
+    const sub = [
+      data.firma.inhaberTitel
+        ? `${data.firma.inhaberTitel} ${data.firma.inhaberName}`
+        : data.firma.inhaberName,
+      `${data.firma.strasse}, ${data.firma.plz} ${data.firma.ort}`,
+    ].join(" \u2022 ");
+    doc.text(sub, mL, y);
+    y += 3.5;
+    doc.text(`Tel: ${data.firma.telefon} \u2022 ${data.firma.email}`, mL, y);
+  }
+
+  y += 4;
+  doc.setDrawColor(200);
+  doc.setLineWidth(0.4);
+  doc.line(mL, y, pageWidth - mR, y);
+
+  // ═══ ABSENDER-ZEILE ═══
+  y += 6;
+  doc.setFontSize(6);
+  doc.setTextColor(150);
+  doc.setFont("helvetica", "normal");
+  if (data.firma) {
+    doc.text(
+      `${data.firma.firmenname} \u2022 ${data.firma.strasse} \u2022 ${data.firma.plz} ${data.firma.ort}`,
+      mL, y
+    );
+  }
+
+  // ═══ KUNDENADRESSE ═══
+  y += 5;
+  doc.setTextColor(0);
+  doc.setFontSize(10);
+  doc.text(data.kunde.name, mL, y);
+  y += 4.5;
+  if (data.kunde.strasse) {
+    doc.text(data.kunde.strasse, mL, y);
+    y += 4.5;
+  }
+  if (data.kunde.plz || data.kunde.ort) {
+    doc.text(`${data.kunde.plz || ""} ${data.kunde.ort || ""}`.trim(), mL, y);
+    y += 4.5;
+  }
+
+  // ═══ DATUM-BLOCK (rechts) ═══
+  const datumBlockY = y - 9;
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Datum: ${datumDE(data.datum)}`, pageWidth - mR, datumBlockY, { align: "right" });
+  doc.text(`Zahlbar bis: ${datumDE(data.faelligAm)}`, pageWidth - mR, datumBlockY + 4, { align: "right" });
+
+  // ═══ BETREFF ═══
+  y += 6;
+  doc.setTextColor(0);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text(`Rechnung ${data.nummer}`, mL, y);
+  y += 8;
+
+  // ═══ EINLEITUNG ═══
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  const intro =
+    data.einleitungsText ||
+    "Sehr geehrte Damen und Herren,\nhiermit stellen wir Ihnen folgende Leistungen in Rechnung:";
+  const introLines = doc.splitTextToSize(intro, contentW);
+  doc.text(introLines, mL, y);
+  y += introLines.length * 4 + 4;
+
+  // ═══ POSITIONEN-TABELLE (flache Liste) ═══
+  const colPos = mL;
+  const colBez = mL + 9;
+  const colMenge = mL + contentW - 65;
+  const colEP = mL + contentW - 35;
+  const colGP = mL + contentW;
+
+  doc.setFillColor(240, 240, 240);
+  doc.rect(mL, y - 3.5, contentW, 6.5, "F");
+  doc.setFontSize(7.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(80);
+  doc.text("Pos.", colPos + 0.5, y);
+  doc.text("Bezeichnung", colBez, y);
+  doc.text("Menge", colMenge, y, { align: "right" });
+  doc.text("Einzelpreis", colEP, y, { align: "right" });
+  doc.text("Gesamtpreis", colGP, y, { align: "right" });
+  y += 4.5;
+
+  doc.setDrawColor(180);
+  doc.setLineWidth(0.2);
+  doc.line(mL, y, pageWidth - mR, y);
+  y += 3;
+
+  doc.setTextColor(0);
+
+  // Flat list — no grouping
+  data.positionen.forEach((p, index) => {
+    checkPageBreak(7);
+    if (index % 2 === 1) {
+      doc.setFillColor(248, 248, 248);
+      doc.rect(mL, y - 3, contentW, 5.5, "F");
+    }
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120);
+    doc.text(String(p.posNr).padStart(2, " "), colPos + 0.5, y);
+    doc.setTextColor(30);
+    doc.text(p.bezeichnung, colBez, y, { maxWidth: colMenge - colBez - 3 });
+    doc.setTextColor(80);
+    doc.text(
+      `${p.menge % 1 === 0 ? p.menge : p.menge.toFixed(1)} ${p.einheit}`,
+      colMenge, y, { align: "right" }
+    );
+    doc.text(euro(p.einzelpreis), colEP, y, { align: "right" });
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30);
+    doc.text(euro(p.gesamtpreis), colGP, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    y += 5;
+  });
+
+  // ═══ SUMMENBLOCK (flat: Netto, MwSt, Brutto) ═══
+  checkPageBreak(35);
+  y += 3;
+  const sumX = mL + contentW - 75;
+
+  doc.setDrawColor(180);
+  doc.setLineWidth(0.3);
+  doc.line(sumX, y, pageWidth - mR, y);
+  y += 5;
+
+  // Netto
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30);
+  doc.setFontSize(9);
+  doc.text("Nettobetrag:", sumX, y);
+  doc.text(euro(data.netto), colGP, y, { align: "right" });
+  y += 4.5;
+
+  // MwSt
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(80);
+  doc.text(`MwSt. ${data.mwstSatz}%:`, sumX, y);
+  doc.text(euro(data.mwstBetrag), colGP, y, { align: "right" });
+  y += 4;
+
+  // Brutto
+  doc.setDrawColor(30);
+  doc.setLineWidth(0.5);
+  doc.line(sumX, y, pageWidth - mR, y);
+  y += 5;
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0);
+  doc.text("Bruttobetrag:", sumX, y);
+  doc.text(euro(data.brutto), colGP, y, { align: "right" });
+  y += 10;
+
+  // ═══ SCHLUSSTEXT ═══
+  checkPageBreak(20);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(50);
+
+  const schluss =
+    data.schlussText ||
+    `Bitte überweisen Sie den Betrag bis zum ${datumDE(data.faelligAm)} auf das unten genannte Konto.`;
+  const schlussLines = doc.splitTextToSize(schluss, contentW);
+  doc.text(schlussLines, mL, y);
+  y += schlussLines.length * 4 + 6;
+
+  // Unterschrift
+  checkPageBreak(15);
+  doc.text("Mit freundlichen Grüßen", mL, y);
+  y += 8;
+  doc.setFont("helvetica", "bold");
+  doc.text(data.firma?.inhaberName || "", mL, y);
+  y += 10;
+
+  // ═══ FOOTER ═══
+  checkPageBreak(30);
+  doc.setDrawColor(200);
+  doc.setLineWidth(0.3);
+  doc.line(mL, y, pageWidth - mR, y);
+  y += 4;
+
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(130);
+
+  const footerLines: string[] = [];
+  footerLines.push(`Zahlbar bis: ${datumDE(data.faelligAm)}`);
+
+  if (data.firma?.iban) {
+    let bankLine = "Bankverbindung:";
+    if (data.firma.bankname) bankLine += ` ${data.firma.bankname}`;
+    bankLine += ` | IBAN: ${data.firma.iban}`;
+    if (data.firma.bic) bankLine += ` | BIC: ${data.firma.bic}`;
+    footerLines.push(bankLine);
+  }
+
+  if (data.firma?.steuernummer) {
+    let taxLine = `Steuernummer: ${data.firma.steuernummer}`;
+    if (data.firma.ustIdNr) taxLine += ` | USt-IdNr: ${data.firma.ustIdNr}`;
+    footerLines.push(taxLine);
+  }
+
+  for (const line of footerLines) {
+    doc.text(line, mL, y, { maxWidth: contentW });
+    y += 3.5;
+  }
+
+  if (data.firma?.agbText) {
+    y += 2;
+    const agbLines = doc.splitTextToSize(data.firma.agbText, contentW);
+    for (const line of agbLines) {
+      checkPageBreak(5);
+      doc.text(line, mL, y);
+      y += 3;
+    }
+  }
+
+  addPageNumber();
+
+  return doc;
+}
+
+/**
+ * Client-side: returns Blob for Rechnung PDF download
+ */
+export function generateRechnungPDF(data: RechnungPDFData): Blob {
+  const doc = buildRechnungPDF(data, jsPDF);
+  return doc.output("blob");
+}
+
+/**
+ * Server-side: returns Buffer for Rechnung PDF email attachments
+ */
+export function generateRechnungPDFBuffer(data: RechnungPDFData): Buffer {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const jsPDFModule = require("jspdf");
+  const JsPDFClass = jsPDFModule.jsPDF || jsPDFModule.default || jsPDFModule;
+  const doc = buildRechnungPDF(data, JsPDFClass);
+  const arrayBuffer = doc.output("arraybuffer");
+  return Buffer.from(arrayBuffer);
+}

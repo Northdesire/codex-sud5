@@ -51,6 +51,9 @@ model Firma {
 
   googleReviewUrl String?
 
+  rechnungNrPrefix  String  @default("RE-")
+  rechnungNrCounter Int     @default(1)
+
   branche         Branche  @default(MALER)
 
   users           User[]
@@ -62,6 +65,7 @@ model Firma {
   raumVorlagen    RaumVorlage[]
   textVorlagen    TextVorlage[]
   angebote        Angebot[]
+  rechnungen      Rechnung[]
   kalkRegeln      KalkulationsRegeln?
   produkte        Produkt[]
 }
@@ -110,6 +114,7 @@ model Kunde {
   rabattProzent   Float?
 
   angebote        Angebot[]
+  rechnungen      Rechnung[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
@@ -333,6 +338,8 @@ model TextVorlage {
 enum VorlagenTyp {
   ANGEBOT_INTRO
   ANGEBOT_SCHLUSS
+  RECHNUNG_INTRO
+  RECHNUNG_SCHLUSS
   FOLLOWUP_TAG3
   FOLLOWUP_TAG7
   FOLLOWUP_TAG12
@@ -383,6 +390,7 @@ model Angebot {
 
   pdfUrl          String?
 
+  rechnung        Rechnung?
   followUps       FollowUp[]
   bewertungAngefragt Boolean     @default(false)
 
@@ -475,4 +483,60 @@ enum FollowUpStatus {
   GEPLANT
   GESENDET
   ABGEBROCHEN
+}
+
+// ═══════════════════════════════════════════
+// RECHNUNGEN (SHOP-BRANCHE)
+// ═══════════════════════════════════════════
+
+enum RechnungsStatus {
+  ENTWURF
+  OFFEN
+  BEZAHLT
+  STORNIERT
+}
+
+model Rechnung {
+  id              String           @id @default(cuid())
+  firmaId         String
+  firma           Firma            @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  kundeId         String?
+  kunde           Kunde?           @relation(fields: [kundeId], references: [id], onDelete: SetNull)
+  angebotId       String?          @unique
+  angebot         Angebot?         @relation(fields: [angebotId], references: [id], onDelete: SetNull)
+  nummer          String
+  datum           DateTime         @default(now())
+  faelligAm       DateTime
+  status          RechnungsStatus  @default(ENTWURF)
+  statusAenderung DateTime?
+  bezahltAm       DateTime?
+  kundeName       String
+  kundeStrasse    String?
+  kundePlz        String?
+  kundeOrt        String?
+  kundeEmail      String?
+  kundeTelefon    String?
+  positionen      RechnungPosition[]
+  netto           Float
+  mwstSatz        Float
+  mwstBetrag      Float
+  brutto          Float
+  einleitungsText String?
+  schlussText     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model RechnungPosition {
+  id          String       @id @default(cuid())
+  rechnungId  String
+  rechnung    Rechnung     @relation(fields: [rechnungId], references: [id], onDelete: Cascade)
+  posNr       Int
+  typ         PositionsTyp
+  bezeichnung String
+  menge       Float
+  einheit     String
+  einzelpreis Float
+  gesamtpreis Float
+  sortierung  Int          @default(0)
 }

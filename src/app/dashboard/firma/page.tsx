@@ -34,9 +34,11 @@ interface FirmaData {
   zahlungsziel: number;
   angebotsGueltig: number;
   nrPrefix: string;
+  rechnungNrPrefix: string;
   agbText: string | null;
   logoUrl: string | null;
   googleReviewUrl: string | null;
+  branche?: string;
 }
 
 export default function FirmaPage() {
@@ -396,6 +398,18 @@ function FirmaContent() {
                 />
               </div>
             </div>
+            {firma.branche === "SHOP" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Rechnungsnr.-Prefix</Label>
+                  <Input
+                    value={firma.rechnungNrPrefix ?? "RE-"}
+                    onChange={(e) => update("rechnungNrPrefix", e.target.value)}
+                    placeholder="RE-"
+                  />
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>AGB / Fusszeile</Label>
               <Textarea
