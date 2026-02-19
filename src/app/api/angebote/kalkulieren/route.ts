@@ -11,6 +11,7 @@ import {
   type KalkRegeln,
   type ZuschlagInfo,
   type RabattInfo,
+  type ExtraInfo,
 } from "@/lib/kalkulation";
 
 export async function POST(request: Request) {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const body = await request.json();
 
-    const { kunde, raeume: rawRaeume, optionen: rawOptionen, selectedMaterials } = body;
+    const { kunde, raeume: rawRaeume, optionen: rawOptionen, selectedMaterials, extras: rawExtras } = body;
 
     if (!rawRaeume || !Array.isArray(rawRaeume) || rawRaeume.length === 0) {
       return NextResponse.json(
@@ -117,6 +118,16 @@ export async function POST(request: Request) {
       wert: r.wert,
     }));
 
+    // Extras aufbereiten
+    const extrasInfos: ExtraInfo[] = Array.isArray(rawExtras)
+      ? rawExtras.map((e: { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }) => ({
+          bezeichnung: e.bezeichnung || "",
+          kategorie: e.kategorie || "SONSTIGES",
+          schaetzMenge: e.schaetzMenge || 0,
+          einheit: e.einheit || "pauschal",
+        }))
+      : [];
+
     // Kalkulation durchführen
     const ergebnis = kalkuliere(
       raeume,
@@ -127,7 +138,8 @@ export async function POST(request: Request) {
       mwstSatz,
       zuschlagInfos,
       rabattInfos,
-      selectedMaterials
+      selectedMaterials,
+      extrasInfos
     );
 
     return NextResponse.json({

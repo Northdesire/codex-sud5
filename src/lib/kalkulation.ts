@@ -55,6 +55,13 @@ export interface LeistungInfo {
   materialKat: string | null;
 }
 
+export interface ExtraInfo {
+  bezeichnung: string;
+  kategorie: string;
+  schaetzMenge: number;
+  einheit: string;
+}
+
 // --- ERGEBNIS-TYPEN ---
 
 export interface RaumBerechnung {
@@ -198,7 +205,8 @@ export function kalkuliere(
   mwstSatz: number,
   zuschlagInfos: ZuschlagInfo[] = [],
   rabattInfos: RabattInfo[] = [],
-  selectedMaterials?: Record<string, string>
+  selectedMaterials?: Record<string, string>,
+  extras?: ExtraInfo[]
 ): KalkErgebnis {
   const berechneteRaeume = raeume.map((r) => berechneRaumFlaeche(r, regeln));
   const positionen: Position[] = [];
@@ -404,6 +412,39 @@ export function kalkuliere(
           materialNetto += gp;
         }
       }
+    }
+  }
+
+  // --- EXTRAS (Zusatzarbeiten aus AI-Erkennung) ---
+  if (extras && extras.length > 0) {
+    for (const extra of extras) {
+      // Default to 1 for pauschal items with 0 quantity
+      const menge = extra.schaetzMenge > 0
+        ? extra.schaetzMenge
+        : extra.einheit === "pauschal" ? 1 : 0;
+      if (menge <= 0) continue;
+
+      // Try name-based matching first (more specific), then fall back to category
+      const bezLower = extra.bezeichnung.toLowerCase();
+      const matchedLeistung =
+        leistungen.find((l) => bezLower.includes(l.name.toLowerCase()) || l.name.toLowerCase().includes(bezLower)) ??
+        leistungen.find((l) => l.kategorie === extra.kategorie && l.einheit === extra.einheit) ??
+        leistungen.find((l) => l.kategorie === extra.kategorie);
+
+      const preis = matchedLeistung ? matchedLeistung.preisProEinheit : 0;
+      const gp = runde2(menge * preis);
+
+      positionen.push({
+        posNr: posNr++,
+        typ: "LEISTUNG",
+        bezeichnung: extra.bezeichnung,
+        menge,
+        einheit: extra.einheit,
+        einzelpreis: preis,
+        gesamtpreis: gp,
+        leistungId: matchedLeistung?.id,
+      });
+      arbeitsNetto += gp;
     }
   }
 

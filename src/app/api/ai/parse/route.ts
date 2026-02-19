@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -46,16 +48,23 @@ Für jeden genannten Raum:
 - spachteln: true wenn gespachtelt, Risse ausgebessert, oder "alles glatt" erwähnt
 - tapeteEntfernen: true wenn Tapete/Rauhfaser entfernt werden soll
 
-### 4. Extras (Array)
-Erfasse Sonderwünsche wie:
-- "Sockelleisten/Fußleisten streichen"
-- "Türrahmen/Türzargen lackieren"
-- "Heizkörper streichen"
-- "Möbel rücken/verrücken"
-- "Risse ausbessern"
-- "Schimmel behandeln"
-- "Fassade streichen" (Außenbereich!)
-- "Balkon streichen"
+### 4. Extras (Array von Objekten)
+Erfasse Sonderwünsche als strukturierte Objekte:
+Für jeden Extra:
+- bezeichnung: Beschreibung der Arbeit (z.B. "Sockelleisten streichen")
+- kategorie: STREICHEN, VORBEREITUNG, LACKIEREN, TAPEZIEREN oder SONSTIGES
+- schaetzMenge: Geschätzte Menge (z.B. 12 lfm Sockelleisten, 2 Stück Türzargen)
+- einheit: "lfm", "m²", "Stück" oder "pauschal"
+
+Typische Extras:
+- "Sockelleisten/Fußleisten streichen" → kategorie: LACKIEREN, einheit: lfm
+- "Türrahmen/Türzargen lackieren" → kategorie: LACKIEREN, einheit: Stück
+- "Heizkörper streichen" → kategorie: LACKIEREN, einheit: Stück
+- "Möbel rücken/verrücken" → kategorie: SONSTIGES, einheit: pauschal
+- "Risse ausbessern" → kategorie: VORBEREITUNG, einheit: pauschal
+- "Schimmel behandeln" → kategorie: VORBEREITUNG, einheit: m²
+- "Fassade streichen" (Außenbereich!) → kategorie: STREICHEN, einheit: m²
+- "Balkon streichen" → kategorie: STREICHEN, einheit: m²
 
 ### 5. Confidence (0-100)
 - kunde: Wie vollständig sind die Kundendaten? (Name+Adresse+Kontakt = 90+, nur Name = 40, nichts = 10)
@@ -140,7 +149,17 @@ const RESPONSE_FORMAT = {
         },
         extras: {
           type: "array",
-          items: { type: "string" },
+          items: {
+            type: "object",
+            properties: {
+              bezeichnung: { type: "string" },
+              kategorie: { type: "string", enum: ["STREICHEN", "VORBEREITUNG", "LACKIEREN", "TAPEZIEREN", "SONSTIGES"] },
+              schaetzMenge: { type: "number" },
+              einheit: { type: "string" },
+            },
+            required: ["bezeichnung", "kategorie", "schaetzMenge", "einheit"],
+            additionalProperties: false,
+          },
         },
         confidence: {
           type: "object",
@@ -159,10 +178,91 @@ const RESPONSE_FORMAT = {
   },
 };
 
+// Build system prompt with user's catalog context
+function buildSystemPrompt(katalogKontext: string): string {
+  return SYSTEM_PROMPT + (katalogKontext ? `\n\n${katalogKontext}` : "");
+}
+
+// Load user's catalog and build context string
+async function loadKatalogKontext(firmaId: string): Promise<string> {
+  const [materialien, leistungen] = await Promise.all([
+    prisma.material.findMany({
+      where: { firmaId, aktiv: true },
+      select: { name: true, kategorie: true },
+    }),
+    prisma.leistung.findMany({
+      where: { firmaId, aktiv: true },
+      select: { name: true, kategorie: true },
+    }),
+  ]);
+
+  if (materialien.length === 0 && leistungen.length === 0) return "";
+
+  let kontext = "## Verfügbarer Katalog des Betriebs\nWenn der Kunde Materialien oder Arbeiten erwähnt, versuche die passenden Einträge aus diesem Katalog zu referenzieren.\n";
+  if (materialien.length > 0) {
+    kontext += "Materialien: " + materialien.map((m) => `${m.name} (${m.kategorie})`).join(", ") + "\n";
+  }
+  if (leistungen.length > 0) {
+    kontext += "Leistungen: " + leistungen.map((l) => `${l.name} (${l.kategorie})`).join(", ") + "\n";
+  }
+  return kontext;
+}
+
+// Post-validation: clamp room dimensions, validate PLZ
+function validateParsedResult(data: Record<string, unknown>): Record<string, unknown> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raeume = data.raeume as any[];
+  if (Array.isArray(raeume)) {
+    for (const raum of raeume) {
+      if (typeof raum.laenge === "number") raum.laenge = Math.max(1.0, Math.min(15.0, raum.laenge));
+      if (typeof raum.breite === "number") raum.breite = Math.max(1.0, Math.min(15.0, raum.breite));
+      if (typeof raum.hoehe === "number") raum.hoehe = Math.max(2.0, Math.min(5.0, raum.hoehe));
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const kunde = data.kunde as any;
+  if (kunde && typeof kunde.plz === "string" && kunde.plz && !/^\d{5}$/.test(kunde.plz)) {
+    // Try to extract 5 digits
+    const match = kunde.plz.match(/\d{5}/);
+    kunde.plz = match ? match[0] : "";
+  }
+
+  // Validate extras
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const extras = data.extras as any[];
+  if (Array.isArray(extras)) {
+    for (const extra of extras) {
+      if (typeof extra.schaetzMenge === "number") {
+        // Clamp: max 500 for m²/lfm, max 50 for Stück, default 1 for pauschal
+        if (extra.einheit === "pauschal") {
+          extra.schaetzMenge = Math.max(1, Math.min(10, extra.schaetzMenge));
+        } else if (extra.einheit === "Stück") {
+          extra.schaetzMenge = Math.max(0, Math.min(50, extra.schaetzMenge));
+        } else {
+          extra.schaetzMenge = Math.max(0, Math.min(500, extra.schaetzMenge));
+        }
+      }
+    }
+  }
+
+  return data;
+}
+
 export async function POST(request: Request) {
   let inputText = "";
 
   try {
+    // Auth + catalog context (best-effort, don't fail if not logged in)
+    let katalogKontext = "";
+    try {
+      const user = await requireUser();
+      katalogKontext = await loadKatalogKontext(user.firmaId);
+    } catch {
+      // Not logged in or DB error — proceed without catalog
+    }
+
+    const systemPrompt = buildSystemPrompt(katalogKontext);
     const contentType = request.headers.get("content-type") || "";
 
     // Handle multipart/form-data (image + optional text)
@@ -207,14 +307,14 @@ export async function POST(request: Request) {
       }
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
         ],
         response_format: RESPONSE_FORMAT,
         temperature: 0.1,
-        max_tokens: 3000,
+        max_tokens: 4000,
       });
 
       const content = completion.choices[0]?.message?.content;
@@ -222,7 +322,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Keine Antwort vom AI" }, { status: 500 });
       }
 
-      return NextResponse.json(JSON.parse(content));
+      return NextResponse.json(validateParsedResult(JSON.parse(content)));
     }
 
     // Handle JSON body (text only)
@@ -243,14 +343,14 @@ export async function POST(request: Request) {
     }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: inputText },
       ],
       response_format: RESPONSE_FORMAT,
       temperature: 0.1,
-      max_tokens: 3000,
+      max_tokens: 4000,
     });
 
     const content = completion.choices[0]?.message?.content;
@@ -259,7 +359,7 @@ export async function POST(request: Request) {
       return NextResponse.json(parseAnfrageRegex(inputText));
     }
 
-    const parsed = JSON.parse(content);
+    const parsed = validateParsedResult(JSON.parse(content));
     return NextResponse.json(parsed);
   } catch (error) {
     console.error("AI Parse Fehler:", error);
@@ -670,20 +770,29 @@ function parseOptionen(text: string) {
 }
 
 function parseExtras(text: string) {
-  const extras: string[] = [];
+  const extras: Array<{ bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }> = [];
   const lower = text.toLowerCase();
 
   if (lower.includes("riss") || lower.includes("ausbessern")) {
-    extras.push("Risse ausbessern");
+    extras.push({ bezeichnung: "Risse ausbessern", kategorie: "VORBEREITUNG", schaetzMenge: 1, einheit: "pauschal" });
   }
   if (lower.includes("tapete entfern") || lower.includes("tapete ablös")) {
-    extras.push("Tapete entfernen");
+    extras.push({ bezeichnung: "Tapete entfernen", kategorie: "VORBEREITUNG", schaetzMenge: 1, einheit: "pauschal" });
   }
   if (lower.includes("möbel") && lower.includes("rück")) {
-    extras.push("Möbel rücken");
+    extras.push({ bezeichnung: "Möbel rücken", kategorie: "SONSTIGES", schaetzMenge: 1, einheit: "pauschal" });
   }
   if (lower.includes("sockelleist")) {
-    extras.push("Sockelleisten streichen");
+    extras.push({ bezeichnung: "Sockelleisten streichen", kategorie: "LACKIEREN", schaetzMenge: 12, einheit: "lfm" });
+  }
+  if (lower.includes("türrahmen") || lower.includes("türzargen") || lower.includes("tuerzargen")) {
+    extras.push({ bezeichnung: "Türzargen lackieren", kategorie: "LACKIEREN", schaetzMenge: 2, einheit: "Stück" });
+  }
+  if (lower.includes("heizkörper") || lower.includes("heizkoerper")) {
+    extras.push({ bezeichnung: "Heizkörper streichen", kategorie: "LACKIEREN", schaetzMenge: 2, einheit: "Stück" });
+  }
+  if (lower.includes("schimmel")) {
+    extras.push({ bezeichnung: "Schimmel behandeln", kategorie: "VORBEREITUNG", schaetzMenge: 5, einheit: "m²" });
   }
 
   return extras;

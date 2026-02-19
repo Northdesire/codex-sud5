@@ -54,7 +54,7 @@ interface ParsedResult {
     spachteln: boolean;
     tapeteEntfernen: boolean;
   };
-  extras: string[];
+  extras: Array<string | { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }>;
   confidence: { kunde: number; raeume: number; optionen: number };
 }
 
@@ -628,7 +628,9 @@ export default function AIEingabePage() {
               <p className="text-xs text-muted-foreground mb-1">Extras:</p>
               {ergebnis.extras.map((extra, i) => (
                 <Badge key={i} variant="outline" className="mr-1 mb-1">
-                  {extra}
+                  {typeof extra === "string"
+                    ? extra
+                    : `${extra.bezeichnung} (${extra.schaetzMenge} ${extra.einheit})`}
                 </Badge>
               ))}
             </div>

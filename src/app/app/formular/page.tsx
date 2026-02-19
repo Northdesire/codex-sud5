@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Rocket } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 interface Raum {
@@ -17,6 +17,14 @@ interface Raum {
   hoehe: number;
   fenster: number;
   tueren: number;
+}
+
+interface ExtraItem {
+  bezeichnung: string;
+  kategorie: string;
+  schaetzMenge: number;
+  einheit: string;
+  aktiv: boolean;
 }
 
 interface FormData {
@@ -48,6 +56,7 @@ const LEER_RAUM: Raum = {
 export default function FormularPage() {
   const router = useRouter();
   const [generiert, setGeneriert] = useState(false);
+  const [extras, setExtras] = useState<ExtraItem[]>([]);
   const [form, setForm] = useState<FormData>({
     kunde: { name: "", strasse: "", plz: "", ort: "", email: "", telefon: "" },
     raeume: [{ ...LEER_RAUM, name: "Wohnzimmer" }],
@@ -72,6 +81,18 @@ export default function FormularPage() {
             spachteln: parsed.optionen?.spachteln || false,
           },
         });
+
+        // Load extras from AI result
+        if (Array.isArray(parsed.extras) && parsed.extras.length > 0) {
+          const loadedExtras: ExtraItem[] = parsed.extras.map(
+            (e: string | { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }) =>
+              typeof e === "string"
+                ? { bezeichnung: e, kategorie: "SONSTIGES", schaetzMenge: 1, einheit: "pauschal", aktiv: true }
+                : { ...e, aktiv: true }
+          );
+          setExtras(loadedExtras);
+        }
+
         sessionStorage.removeItem("ai-ergebnis");
         toast.success("AI-Daten übernommen");
       } catch {
@@ -126,7 +147,10 @@ export default function FormularPage() {
       const res = await fetch("/api/angebote/kalkulieren", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          extras: extras.filter((e) => e.aktiv).map(({ aktiv: _, ...rest }) => rest),
+        }),
       });
 
       const kalkulation = await res.json();
@@ -389,6 +413,58 @@ export default function FormularPage() {
           </Card>
         ))}
       </div>
+
+      {/* Zusatzarbeiten / Extras */}
+      {extras.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Wrench className="h-4 w-4" />
+              Zusatzarbeiten
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {extras.map((extra, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
+                  extra.aktiv ? "bg-muted/50" : "bg-muted/20 opacity-60"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={extra.aktiv}
+                  onChange={() => {
+                    const updated = [...extras];
+                    updated[i] = { ...updated[i], aktiv: !updated[i].aktiv };
+                    setExtras(updated);
+                  }}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{extra.bezeichnung}</p>
+                  <p className="text-xs text-muted-foreground">{extra.kategorie}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={extra.schaetzMenge}
+                    onChange={(e) => {
+                      const updated = [...extras];
+                      updated[i] = { ...updated[i], schaetzMenge: parseFloat(e.target.value) || 0 };
+                      setExtras(updated);
+                    }}
+                    className="h-7 w-16 text-sm text-right"
+                    disabled={!extra.aktiv}
+                  />
+                  <span className="text-xs text-muted-foreground w-12">{extra.einheit}</span>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Generieren Button */}
       <Button

@@ -209,18 +209,18 @@ export async function POST(request: Request) {
         if (pdfText.trim().length > 50) {
           userContent.push({
             type: "text",
-            text: `\n\nInhalt des Dokuments:\n\n${pdfText.substring(0, 15000)}`,
+            text: `\n\nInhalt des Dokuments:\n\n${pdfText.substring(0, 30000)}`,
           });
         } else {
           return NextResponse.json(
-            { error: "PDF enthält keinen lesbaren Text. Bitte als Foto hochladen." },
+            { error: "Diese PDF scheint eingescannt zu sein und enthält keinen maschinenlesbaren Text. Bitte laden Sie das Dokument als Foto/Screenshot hoch — die AI kann Bilder direkt analysieren." },
             { status: 400 }
           );
         }
       } catch (e) {
         console.error("pdf-parse failed:", e);
         return NextResponse.json(
-          { error: "PDF konnte nicht gelesen werden. Bitte als Foto hochladen." },
+          { error: "PDF konnte nicht gelesen werden. Bitte laden Sie das Dokument als Foto/Screenshot hoch — die AI kann Bilder direkt analysieren." },
           { status: 400 }
         );
       }
@@ -238,19 +238,19 @@ export async function POST(request: Request) {
       const text = await file.text();
       userContent.push({
         type: "text",
-        text: `\n\nInhalt des Dokuments:\n\n${text.substring(0, 15000)}`,
+        text: `\n\nInhalt des Dokuments:\n\n${text.substring(0, 30000)}`,
       });
     }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userContent },
       ],
       response_format: RESPONSE_FORMAT,
       temperature: 0.1,
-      max_tokens: 4000,
+      max_tokens: 8000,
     });
 
     const content = completion.choices[0]?.message?.content;

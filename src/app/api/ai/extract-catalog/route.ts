@@ -151,7 +151,7 @@ export async function POST(request: Request) {
 
         if (!extractedText.trim()) {
           return NextResponse.json(
-            { error: "PDF enthält keinen lesbaren Text. Bitte als Foto hochladen." },
+            { error: "Diese PDF scheint eingescannt zu sein und enthält keinen maschinenlesbaren Text. Bitte laden Sie das Dokument als Foto/Screenshot hoch — die AI kann Bilder direkt analysieren." },
             { status: 400 }
           );
         }
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
         const dataUrl = `data:${file.type};base64,${base64}`;
 
         const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "gpt-4o",
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             {
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
           ],
           response_format: RESPONSE_FORMAT,
           temperature: 0.1,
-          max_tokens: 4000,
+          max_tokens: 8000,
         });
 
         const content = completion.choices[0]?.message?.content;
@@ -194,13 +194,58 @@ export async function POST(request: Request) {
       );
     }
 
-    // Text zu lang? Kürzen auf ~12000 Zeichen (Token-Limit)
-    if (extractedText.length > 12000) {
-      extractedText = extractedText.substring(0, 12000);
+    // Chunking for long texts (>10000 chars)
+    if (extractedText.length > 10000) {
+      const chunks = splitIntoChunks(extractedText, 8000);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allProdukte: any[] = [];
+      let zusammenfassung = "";
+
+      for (const chunk of chunks) {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            {
+              role: "user",
+              content: `Extrahiere alle Produkte und Leistungen aus diesem Dokumentabschnitt:\n\n${chunk}`,
+            },
+          ],
+          response_format: RESPONSE_FORMAT,
+          temperature: 0.1,
+          max_tokens: 8000,
+        });
+
+        const content = completion.choices[0]?.message?.content;
+        if (content) {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed.produkte)) {
+            allProdukte.push(...parsed.produkte);
+          }
+          if (parsed.zusammenfassung && !zusammenfassung) {
+            zusammenfassung = parsed.zusammenfassung;
+          }
+        }
+      }
+
+      // Deduplicate by name
+      const seen = new Set<string>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const uniqueProdukte = allProdukte.filter((p: any) => {
+        const key = p.name?.toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      return NextResponse.json({
+        produkte: uniqueProdukte,
+        zusammenfassung: zusammenfassung || `${uniqueProdukte.length} Produkte aus ${chunks.length} Textabschnitten extrahiert.`,
+      });
     }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -210,7 +255,7 @@ export async function POST(request: Request) {
       ],
       response_format: RESPONSE_FORMAT,
       temperature: 0.1,
-      max_tokens: 4000,
+      max_tokens: 8000,
     });
 
     const content = completion.choices[0]?.message?.content;
@@ -230,4 +275,23 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+// Split text into chunks at line breaks, each ~maxChars
+function splitIntoChunks(text: string, maxChars: number): string[] {
+  const lines = text.split("\n");
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const line of lines) {
+    if (current.length + line.length + 1 > maxChars && current.length > 0) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current += (current ? "\n" : "") + line;
+    }
+  }
+  if (current.trim()) chunks.push(current);
+
+  return chunks;
 }

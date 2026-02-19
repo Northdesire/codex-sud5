@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, Info } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Info, CheckSquare, X } from "lucide-react";
 import { AICatalogUpload } from "@/components/dashboard/ai-catalog-upload";
 
 const KATEGORIEN = [
@@ -70,6 +70,9 @@ export default function MaterialPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyMaterial);
   const [saving, setSaving] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkKatDialogOpen, setBulkKatDialogOpen] = useState(false);
+  const [bulkKategorie, setBulkKategorie] = useState("WANDFARBE");
 
   const loadData = useCallback(async () => {
     const url = filter === "ALLE" ? "/api/material" : `/api/material?kategorie=${filter}`;
@@ -81,6 +84,7 @@ export default function MaterialPage() {
 
   useEffect(() => {
     loadData();
+    setSelected(new Set());
   }, [loadData]);
 
   function openNew() {
@@ -145,6 +149,61 @@ export default function MaterialPage() {
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === materialien.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(materialien.map((m) => m.id)));
+    }
+  }
+
+  async function handleBulkDelete() {
+    const count = selected.size;
+    if (!confirm(`${count} Material${count > 1 ? "ien" : ""} wirklich löschen?`)) return;
+
+    const res = await fetch("/api/material/bulk", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(selected) }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      toast.success(`${data.deleted} Material${data.deleted > 1 ? "ien" : ""} gelöscht`);
+      setSelected(new Set());
+      loadData();
+    } else {
+      toast.error("Fehler beim Löschen");
+    }
+  }
+
+  async function handleBulkKategorie() {
+    const res = await fetch("/api/material/bulk", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(selected), kategorie: bulkKategorie }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      toast.success(`${data.updated} Material${data.updated > 1 ? "ien" : ""} aktualisiert`);
+      setSelected(new Set());
+      setBulkKatDialogOpen(false);
+      loadData();
+    } else {
+      toast.error("Fehler beim Aktualisieren");
+    }
+  }
+
   function formatEuro(n: number) {
     return n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
   }
@@ -202,6 +261,40 @@ export default function MaterialPage() {
           ))}
         </div>
 
+        {/* Bulk-Aktionen */}
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2">
+            <CheckSquare className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">
+              {selected.size} ausgewählt
+            </span>
+            <div className="flex gap-2 ml-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkKatDialogOpen(true)}
+              >
+                Kategorie ändern
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Löschen
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelected(new Set())}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Tabelle */}
         {loading ? (
           <div className="flex justify-center py-12">
@@ -217,6 +310,14 @@ export default function MaterialPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      checked={materialien.length > 0 && selected.size === materialien.length}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Kategorie</TableHead>
                   <TableHead>Art.Nr.</TableHead>
@@ -230,7 +331,15 @@ export default function MaterialPage() {
               </TableHeader>
               <TableBody>
                 {materialien.map((m) => (
-                  <TableRow key={m.id}>
+                  <TableRow key={m.id} className={selected.has(m.id) ? "bg-primary/5" : ""}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(m.id)}
+                        onChange={() => toggleSelect(m.id)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{m.name}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{katLabel(m.kategorie)}</Badge>
@@ -422,6 +531,40 @@ export default function MaterialPage() {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
               {editId ? "Speichern" : "Erstellen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Bulk Kategorie ändern */}
+      <Dialog open={bulkKatDialogOpen} onOpenChange={setBulkKatDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Kategorie ändern ({selected.size} Material{selected.size > 1 ? "ien" : ""})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Neue Kategorie</Label>
+            <Select value={bulkKategorie} onValueChange={setBulkKategorie}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {KATEGORIEN.map((k) => (
+                  <SelectItem key={k.value} value={k.value}>
+                    {k.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkKatDialogOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleBulkKategorie}>
+              Ändern
             </Button>
           </DialogFooter>
         </DialogContent>
