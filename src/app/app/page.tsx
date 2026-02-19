@@ -1,7 +1,54 @@
 import Link from "next/link";
 import { Brain, FileText, BarChart3 } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { formatEuro } from "@/lib/kalkulation";
 
-export default function AppHome() {
+export default async function AppHome() {
+  let angeboteCount = 0;
+  let quote = 0;
+  let volumen = 0;
+
+  try {
+    const user = await getCurrentUser();
+    if (user) {
+      const now = new Date();
+      const monatsStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const [countAll, countAngenommen, countAbgelehnt, sumResult] =
+        await Promise.all([
+          prisma.angebot.count({
+            where: { firmaId: user.firmaId, datum: { gte: monatsStart } },
+          }),
+          prisma.angebot.count({
+            where: {
+              firmaId: user.firmaId,
+              datum: { gte: monatsStart },
+              status: "ANGENOMMEN",
+            },
+          }),
+          prisma.angebot.count({
+            where: {
+              firmaId: user.firmaId,
+              datum: { gte: monatsStart },
+              status: "ABGELEHNT",
+            },
+          }),
+          prisma.angebot.aggregate({
+            where: { firmaId: user.firmaId, datum: { gte: monatsStart } },
+            _sum: { brutto: true },
+          }),
+        ]);
+
+      angeboteCount = countAll;
+      const entschieden = countAngenommen + countAbgelehnt;
+      quote = entschieden > 0 ? Math.round((countAngenommen / entschieden) * 100) : 0;
+      volumen = sumResult._sum.brutto ?? 0;
+    }
+  } catch {
+    // Stats-Fehler ignorieren, Seite trotzdem laden
+  }
+
   return (
     <div className="px-5 pt-8 space-y-6">
       {/* Header */}
@@ -64,15 +111,15 @@ export default function AppHome() {
         </h3>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
-            <p className="text-2xl font-bold">0</p>
+            <p className="text-2xl font-bold">{angeboteCount}</p>
             <p className="text-xs text-muted-foreground">Angebote</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">0%</p>
+            <p className="text-2xl font-bold">{quote}%</p>
             <p className="text-xs text-muted-foreground">Quote</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">0 €</p>
+            <p className="text-2xl font-bold">{formatEuro(volumen)}</p>
             <p className="text-xs text-muted-foreground">Volumen</p>
           </div>
         </div>

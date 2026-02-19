@@ -13,7 +13,10 @@ import {
   CheckCircle,
   XCircle,
   Send,
+  Pencil,
+  Copy,
 } from "lucide-react";
+import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
 interface AngebotDetail {
@@ -171,6 +174,55 @@ export default function AngebotDetailPage() {
       alert(error instanceof Error ? error.message : "Fehler beim Senden");
     } finally {
       setSending(false);
+    }
+  }
+
+  function handleBearbeiten() {
+    if (!data) return;
+    // Angebotsdaten in Formular-Format konvertieren und laden
+    const formularDaten = {
+      kunde: {
+        name: data.kundeName,
+        strasse: data.kundeStrasse || "",
+        plz: data.kundePlz || "",
+        ort: data.kundeOrt || "",
+        email: data.kundeEmail || "",
+        telefon: data.kundeTelefon || "",
+      },
+      arbeitsbereiche: [] as Array<Record<string, unknown>>,
+      qualitaet: "standard",
+      extras: [] as Array<Record<string, unknown>>,
+    };
+    sessionStorage.setItem("ai-ergebnis", JSON.stringify(formularDaten));
+    // Kalkulation auch laden damit Angebot-Seite die Positionen hat
+    sessionStorage.setItem("kalkulation", JSON.stringify({
+      raeume: [],
+      positionen: data.positionen,
+      materialNetto: data.materialNetto,
+      arbeitsNetto: data.arbeitsNetto,
+      anfahrt: data.anfahrt,
+      zuschlagNetto: 0,
+      rabattNetto: 0,
+      netto: data.netto,
+      mwstSatz: data.mwstSatz ?? data.firma?.mwstSatz ?? 19,
+      mwstBetrag: data.mwstBetrag,
+      brutto: data.brutto,
+      kunde: formularDaten.kunde,
+      firma: data.firma,
+    }));
+    router.push("/app/formular");
+  }
+
+  async function handleDuplizieren() {
+    if (!data) return;
+    try {
+      const res = await fetch(`/api/angebote/${id}/duplizieren`, { method: "POST" });
+      if (!res.ok) throw new Error("Duplizieren fehlgeschlagen");
+      const result = await res.json();
+      toast.success(`Angebot ${result.nummer} erstellt`);
+      router.push(`/app/uebersicht/${result.id}`);
+    } catch {
+      toast.error("Fehler beim Duplizieren");
     }
   }
 
@@ -387,6 +439,16 @@ export default function AngebotDetailPage() {
             </Button>
           </>
         )}
+
+        <Button variant="outline" className="h-12" onClick={handleBearbeiten}>
+          <Pencil className="h-4 w-4 mr-1" />
+          Bearbeiten
+        </Button>
+
+        <Button variant="outline" className="h-12" onClick={handleDuplizieren}>
+          <Copy className="h-4 w-4 mr-1" />
+          Duplizieren
+        </Button>
       </div>
     </div>
   );

@@ -21,14 +21,24 @@ Extrahiere folgende Informationen:
 - email: E-Mail-Adresse
 - telefon: Telefonnummer (formatiert)
 
-### 2. Räume (Array)
-Für jeden genannten Raum:
-- name: Raumbezeichnung (z.B. "Wohnzimmer", "Schlafzimmer 1")
-- laenge: Länge in Metern (Dezimalzahl mit Punkt)
-- breite: Breite in Metern
-- hoehe: Deckenhöhe (Standard: 2.55)
-- fenster: Anzahl Fenster (Standard: 1)
-- tueren: Anzahl Türen (Standard: 1)
+### 2. Arbeitsbereiche (Array)
+Für jeden genannten Raum oder Bereich:
+- name: Bezeichnung (z.B. "Wohnzimmer", "Schlafzimmer 1", "Fassade Süd")
+- typ: "RAUM" wenn Maße (Länge x Breite x Höhe) bekannt/schätzbar, "FLAECHE" wenn nur m² genannt (z.B. Fassade, Treppenhaus)
+- laenge: Länge in Metern (nur bei typ RAUM, sonst 0)
+- breite: Breite in Metern (nur bei typ RAUM, sonst 0)
+- hoehe: Deckenhöhe (nur bei typ RAUM, Standard: 2.55, sonst 0)
+- fenster: Anzahl Fenster (nur bei typ RAUM, Standard: 1, sonst 0)
+- tueren: Anzahl Türen (nur bei typ RAUM, Standard: 1, sonst 0)
+- wandflaeche: Direkte Wandfläche in m² (nur bei typ FLAECHE, sonst 0)
+- deckenflaeche: Direkte Deckenfläche in m² (nur bei typ FLAECHE, sonst 0)
+- arbeiten: Welche Arbeiten in diesem Bereich durchgeführt werden sollen:
+  - waendeStreichen: IMMER true wenn nichts anderes gesagt wird (Standardarbeit)
+  - deckeStreichen: true wenn Kunde "Decke" erwähnt, "komplett" sagt, oder "alles" meint
+  - grundierung: true standardmäßig (Grundierung gehört zur Standardvorbereitung)
+  - spachteln: true wenn Risse, Unebenheiten, Q3-Qualität, "alles glatt", "glätten" erwähnt
+  - tapeteEntfernen: true wenn "alte Tapete ab", "Tapete entfernen", "Tapete ablösen"
+  - tapezieren: true wenn "neue Tapete", "Raufaser", "tapezieren"
 
 **Raum-Schätzregeln** wenn keine Maße angegeben:
 - "3-Zimmer-Wohnung" → Wohnzimmer 5.0x4.0, Schlafzimmer 4.0x3.5, Kinderzimmer/Arbeitszimmer 3.5x3.0 + Küche 3.5x2.8 + Bad 2.5x2.0 + Flur 5.0x1.5
@@ -37,23 +47,19 @@ Für jeden genannten Raum:
 - "nur Wohnzimmer" → einzelner Raum mit realistischen Maßen
 - Altbau: Deckenhöhe 3.0-3.20m
 - Neubau: Deckenhöhe 2.50-2.55m
-- Dachgeschoss: Deckenhöhe 2.20-2.40m
-- Keller: Deckenhöhe 2.20-2.30m
+- "Fassade 80m²" → typ: "FLAECHE", wandflaeche: 80
+- "Treppenhaus 45m²" → typ: "FLAECHE", wandflaeche: 45
 
-### 3. Optionen
+### 3. Qualität
 - qualitaet: "standard" oder "premium"
   → premium bei: Caparol, Brillux, "beste Qualität", "hochwertig", "Latex", "Silikat"
   → standard bei: "günstig", "einfach", "normal", keine besondere Erwähnung
-- decke: true wenn Decken gestrichen werden sollen
-- spachteln: true wenn gespachtelt, Risse ausgebessert, oder "alles glatt" erwähnt
-- tapeteEntfernen: true wenn Tapete/Rauhfaser entfernt werden soll
 
 ### 4. Extras (Array von Objekten)
-Erfasse Sonderwünsche als strukturierte Objekte:
-Für jeden Extra:
+Erfasse Sonderwünsche die NICHT durch die Arbeiten pro Bereich abgedeckt sind:
 - bezeichnung: Beschreibung der Arbeit (z.B. "Sockelleisten streichen")
 - kategorie: STREICHEN, VORBEREITUNG, LACKIEREN, TAPEZIEREN oder SONSTIGES
-- schaetzMenge: Geschätzte Menge (z.B. 12 lfm Sockelleisten, 2 Stück Türzargen)
+- schaetzMenge: Geschätzte Menge
 - einheit: "lfm", "m²", "Stück" oder "pauschal"
 
 Typische Extras:
@@ -61,15 +67,11 @@ Typische Extras:
 - "Türrahmen/Türzargen lackieren" → kategorie: LACKIEREN, einheit: Stück
 - "Heizkörper streichen" → kategorie: LACKIEREN, einheit: Stück
 - "Möbel rücken/verrücken" → kategorie: SONSTIGES, einheit: pauschal
-- "Risse ausbessern" → kategorie: VORBEREITUNG, einheit: pauschal
-- "Schimmel behandeln" → kategorie: VORBEREITUNG, einheit: m²
-- "Fassade streichen" (Außenbereich!) → kategorie: STREICHEN, einheit: m²
-- "Balkon streichen" → kategorie: STREICHEN, einheit: m²
 
 ### 5. Confidence (0-100)
-- kunde: Wie vollständig sind die Kundendaten? (Name+Adresse+Kontakt = 90+, nur Name = 40, nichts = 10)
-- raeume: Wie genau sind die Raumdaten? (echte Maße = 85+, geschätzt = 30-50, vage = 15)
-- optionen: Wie klar sind die gewünschten Arbeiten? (detailliert = 80+, nur "streichen" = 50, unklar = 20)
+- kunde: Wie vollständig sind die Kundendaten?
+- raeume: Wie genau sind die Raumdaten?
+- optionen: Wie klar sind die gewünschten Arbeiten?
 
 ## Erkennungsregeln
 
@@ -85,19 +87,19 @@ Typische Extras:
 - "ungefähr 4 auf 3" = 4.0 x 3.0
 
 **Typische Kundenformulierungen:**
-- "komplett machen" / "alles neu" = streichen + Decke + ggf. spachteln
-- "nur Wände" = keine Decke
-- "Renovierung" / "renovieren" = Standard-Streicharbeit
-- "Sanierung" = eventuell spachteln + Tapete entfernen
+- "komplett machen" / "alles neu" = waendeStreichen + deckeStreichen + grundierung
+- "nur Wände" = waendeStreichen true, deckeStreichen false
+- "Renovierung" / "renovieren" = waendeStreichen + grundierung
+- "Sanierung" = eventuell spachteln + tapeteEntfernen
 - "weiß streichen" / "alles weiß" = Standard-Wandfarbe
-- "farbig" / "Akzent" / "Farbton" = Premium (Tönfarbe nötig)
+- "farbig" / "Akzent" / "Farbton" = Premium
 
 WICHTIG:
 - Dezimalpunkte verwenden (3.5 nicht 3,5)
 - Leere Strings "" für fehlende Felder, NICHT null
 - Confidence IMMER als ganze Zahl 0-100 angeben
-- Bei Spracheingaben großzügig interpretieren (Tippfehler, Versprecher)
-- Wenn m² angegeben statt Maße: rückwärts rechnen auf plausible L x B`;
+- Bei Spracheingaben großzügig interpretieren
+- Wenn m² angegeben statt Maße: typ = "FLAECHE" verwenden`;
 
 const RESPONSE_FORMAT = {
   type: "json_schema" as const,
@@ -120,33 +122,39 @@ const RESPONSE_FORMAT = {
           required: ["name", "strasse", "plz", "ort", "email", "telefon"],
           additionalProperties: false,
         },
-        raeume: {
+        arbeitsbereiche: {
           type: "array",
           items: {
             type: "object",
             properties: {
               name: { type: "string" },
+              typ: { type: "string", enum: ["RAUM", "FLAECHE"] },
               laenge: { type: "number" },
               breite: { type: "number" },
               hoehe: { type: "number" },
               fenster: { type: "number" },
               tueren: { type: "number" },
+              wandflaeche: { type: "number" },
+              deckenflaeche: { type: "number" },
+              arbeiten: {
+                type: "object",
+                properties: {
+                  waendeStreichen: { type: "boolean" },
+                  deckeStreichen: { type: "boolean" },
+                  grundierung: { type: "boolean" },
+                  spachteln: { type: "boolean" },
+                  tapeteEntfernen: { type: "boolean" },
+                  tapezieren: { type: "boolean" },
+                },
+                required: ["waendeStreichen", "deckeStreichen", "grundierung", "spachteln", "tapeteEntfernen", "tapezieren"],
+                additionalProperties: false,
+              },
             },
-            required: ["name", "laenge", "breite", "hoehe", "fenster", "tueren"],
+            required: ["name", "typ", "laenge", "breite", "hoehe", "fenster", "tueren", "wandflaeche", "deckenflaeche", "arbeiten"],
             additionalProperties: false,
           },
         },
-        optionen: {
-          type: "object",
-          properties: {
-            qualitaet: { type: "string", enum: ["standard", "premium"] },
-            decke: { type: "boolean" },
-            spachteln: { type: "boolean" },
-            tapeteEntfernen: { type: "boolean" },
-          },
-          required: ["qualitaet", "decke", "spachteln", "tapeteEntfernen"],
-          additionalProperties: false,
-        },
+        qualitaet: { type: "string", enum: ["standard", "premium"] },
         extras: {
           type: "array",
           items: {
@@ -172,7 +180,7 @@ const RESPONSE_FORMAT = {
           additionalProperties: false,
         },
       },
-      required: ["kunde", "raeume", "optionen", "extras", "confidence"],
+      required: ["kunde", "arbeitsbereiche", "qualitaet", "extras", "confidence"],
       additionalProperties: false,
     },
   },
@@ -208,22 +216,36 @@ async function loadKatalogKontext(firmaId: string): Promise<string> {
   return kontext;
 }
 
-// Post-validation: clamp room dimensions, validate PLZ
+// Post-validation: clamp dimensions, validate PLZ
 function validateParsedResult(data: Record<string, unknown>): Record<string, unknown> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raeume = data.raeume as any[];
-  if (Array.isArray(raeume)) {
-    for (const raum of raeume) {
-      if (typeof raum.laenge === "number") raum.laenge = Math.max(1.0, Math.min(15.0, raum.laenge));
-      if (typeof raum.breite === "number") raum.breite = Math.max(1.0, Math.min(15.0, raum.breite));
-      if (typeof raum.hoehe === "number") raum.hoehe = Math.max(2.0, Math.min(5.0, raum.hoehe));
+  const bereiche = data.arbeitsbereiche as any[];
+  if (Array.isArray(bereiche)) {
+    for (const b of bereiche) {
+      if (b.typ === "RAUM") {
+        if (typeof b.laenge === "number") b.laenge = Math.max(1.0, Math.min(15.0, b.laenge));
+        if (typeof b.breite === "number") b.breite = Math.max(1.0, Math.min(15.0, b.breite));
+        if (typeof b.hoehe === "number") b.hoehe = Math.max(2.0, Math.min(5.0, b.hoehe));
+      } else if (b.typ === "FLAECHE") {
+        if (typeof b.wandflaeche === "number") b.wandflaeche = Math.max(0, Math.min(500, b.wandflaeche));
+        if (typeof b.deckenflaeche === "number") b.deckenflaeche = Math.max(0, Math.min(500, b.deckenflaeche));
+      }
+      // Mindestens eine Arbeit muss aktiv sein
+      if (b.arbeiten) {
+        const a = b.arbeiten;
+        const hasAny = a.waendeStreichen || a.deckeStreichen || a.grundierung ||
+          a.spachteln || a.tapeteEntfernen || a.tapezieren;
+        if (!hasAny) {
+          a.waendeStreichen = true;
+          a.grundierung = true;
+        }
+      }
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const kunde = data.kunde as any;
   if (kunde && typeof kunde.plz === "string" && kunde.plz && !/^\d{5}$/.test(kunde.plz)) {
-    // Try to extract 5 digits
     const match = kunde.plz.match(/\d{5}/);
     kunde.plz = match ? match[0] : "";
   }
@@ -234,7 +256,6 @@ function validateParsedResult(data: Record<string, unknown>): Record<string, unk
   if (Array.isArray(extras)) {
     for (const extra of extras) {
       if (typeof extra.schaetzMenge === "number") {
-        // Clamp: max 500 for m²/lfm, max 50 for Stück, default 1 for pauschal
         if (extra.einheit === "pauschal") {
           extra.schaetzMenge = Math.max(1, Math.min(10, extra.schaetzMenge));
         } else if (extra.einheit === "Stück") {
@@ -283,7 +304,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Kein API Key für Bilderkennung" }, { status: 500 });
       }
 
-      // Build message with image and/or text
       const userContent: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail: "high" } }> = [];
 
       if (textPart) {
@@ -364,7 +384,6 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("AI Parse Fehler:", error);
 
-    // Bei OpenAI-Fehlern: Fallback auf Regex
     if (inputText) {
       console.log("OpenAI fehlgeschlagen, nutze Regex-Fallback");
       return NextResponse.json(parseAnfrageRegex(inputText));
@@ -381,6 +400,15 @@ export async function POST(request: Request) {
 // Regelbasiertes Parsing (Fallback ohne AI)
 // ═══════════════════════════════════════════
 
+const DEFAULT_ARBEITEN = {
+  waendeStreichen: true,
+  deckeStreichen: false,
+  grundierung: true,
+  spachteln: false,
+  tapeteEntfernen: false,
+  tapezieren: false,
+};
+
 // Deutsche Zahlwörter → Ziffern
 const ZAHLWOERTER: Record<string, number> = {
   null: 0, eins: 1, ein: 1, eine: 1, zwei: 2, drei: 3, vier: 4,
@@ -389,23 +417,19 @@ const ZAHLWOERTER: Record<string, number> = {
   zwanzig: 20, dreißig: 30, vierzig: 40, fünfzig: 50,
 };
 
-// "fünf" → 5, "5,2" → 5.2, "fünf komma zwei" → 5.2, "zweieinhalb" → 2.5
 function parseZahl(s: string): number | null {
   if (!s) return null;
   s = s.trim().toLowerCase();
 
-  // Reine Zahl: "5", "5.2", "5,2"
   const num = parseFloat(s.replace(",", "."));
   if (!isNaN(num)) return num;
 
-  // "zweieinhalb", "dreieinhalb"
   if (s.includes("einhalb")) {
     const prefix = s.replace("einhalb", "");
     const base = ZAHLWOERTER[prefix];
     if (base !== undefined) return base + 0.5;
   }
 
-  // "fünf komma zwei", "drei komma fünf"
   const kommaMatch = s.match(/^(\w+)\s*komma\s*(\w+)$/);
   if (kommaMatch) {
     const ganzzahl = ZAHLWOERTER[kommaMatch[1]];
@@ -415,7 +439,6 @@ function parseZahl(s: string): number | null {
     }
   }
 
-  // Einfaches Zahlwort
   return ZAHLWOERTER[s] ?? null;
 }
 
@@ -423,12 +446,9 @@ function capitalize(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Text vorverarbeiten: Zahlwörter durch Ziffern ersetzen
-// Hinweis: \w matcht keine Umlaute in JS, darum \S+ (non-whitespace) verwenden
 function normalizeText(text: string): string {
   let result = text;
 
-  // "zweieinhalb meter" → "2.5 meter"
   result = result.replace(
     /(?:^|\s)(zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun)einhalb(?:\s|$)/gi,
     (match, prefix) => {
@@ -437,7 +457,6 @@ function normalizeText(text: string): string {
     }
   );
 
-  // "fünf komma zwei" → "5,2"
   result = result.replace(
     /(\S+)\s+komma\s+(\S+)/gi,
     (match, a, b) => {
@@ -447,7 +466,6 @@ function normalizeText(text: string): string {
     }
   );
 
-  // "fünf mal vier" → "5 x 4"
   result = result.replace(
     /(\S+)\s+mal\s+(\S+)/gi,
     (match, a, b) => {
@@ -457,10 +475,8 @@ function normalizeText(text: string): string {
     }
   );
 
-  // Einzelne Zahlwörter ersetzen (nur Wörter ≥4 Buchstaben um false positives zu vermeiden)
   for (const [wort, zahl] of Object.entries(ZAHLWOERTER)) {
     if (wort.length < 4) continue;
-    // Lookbehind/lookahead für Wortgrenzen die auch mit Umlauten funktionieren
     const re = new RegExp(`(?<=^|\\s)${wort}(?=\\s|$|[.,;:!?])`, "gi");
     result = result.replace(re, String(zahl));
   }
@@ -469,25 +485,29 @@ function normalizeText(text: string): string {
 }
 
 function parseAnfrageRegex(rawText: string) {
-  // Text normalisieren: Zahlwörter → Ziffern
   const text = normalizeText(rawText);
 
   const kunde = parseKunde(text);
-  const raeume = parseRaeume(text);
-  const optionen = parseOptionen(text);
+  const arbeitsbereiche = parseArbeitsbereiche(text);
+  const { qualitaet, arbeiten: globalArbeiten } = parseQualitaetUndArbeiten(text);
   const extras = parseExtras(text);
+
+  // Globale Arbeiten auf alle Bereiche anwenden
+  for (const b of arbeitsbereiche) {
+    b.arbeiten = { ...DEFAULT_ARBEITEN, ...globalArbeiten };
+  }
 
   const hasNumbers = /\d/.test(rawText);
   const isVoice = !hasNumbers && rawText.length > 30;
 
   return {
     kunde,
-    raeume,
-    optionen,
+    arbeitsbereiche,
+    qualitaet,
     extras,
     confidence: {
       kunde: kunde.name ? (isVoice ? 40 : 60) : 15,
-      raeume: raeume.length > 0 ? (isVoice ? 35 : 55) : 10,
+      raeume: arbeitsbereiche.length > 0 ? (isVoice ? 35 : 55) : 10,
       optionen: isVoice ? 30 : 45,
     },
   };
@@ -503,14 +523,11 @@ function parseKunde(text: string) {
     telefon: "",
   };
 
-  // Name-Erkennung: max 1-3 Wörter, case-insensitive für Spracheingabe
-  // 1. Grußformel: "Mit freundlichen Grüßen\nFamilie Müller"
   const grussMatch = text.match(
     /(?:gr[uü][sß]e?|mfg|freundlichen\s+gr[uü][sß]en|liebe\s+gr[uü][sß]e)\s*[,]?\s*\n\s*((?:familie\s+)?[a-zäöüßA-ZÄÖÜ]+(?:\s+[a-zäöüßA-ZÄÖÜ]+)?)/i
   );
   if (grussMatch) kunde.name = capitalize(grussMatch[1]);
 
-  // 2. "Familie X" (fast immer der Absender)
   if (!kunde.name) {
     const familieMatch = text.match(
       /familie\s+([a-zäöüßA-ZÄÖÜ]+(?:[-\s]+[a-zäöüßA-ZÄÖÜ]+)?)/i
@@ -518,7 +535,6 @@ function parseKunde(text: string) {
     if (familieMatch) kunde.name = "Familie " + capitalize(familieMatch[1]);
   }
 
-  // Stoppwörter die kein Name sind
   const stoppwoerter = new Set([
     "und", "ich", "wir", "sie", "das", "die", "der", "den", "dem",
     "ist", "hat", "war", "bin", "sind", "hier", "dort", "also",
@@ -528,7 +544,6 @@ function parseKunde(text: string) {
     "würde", "möchte", "brauche", "hätte", "kann", "soll",
   ]);
 
-  // 3. "Herr/Frau X" — genau 1 Nachname (kein Stoppwort)
   if (!kunde.name) {
     const nameMatch = text.match(
       /(?:herr|frau|hr\.|fr\.)\s+([a-zäöüßA-ZÄÖÜ]{2,})/i
@@ -539,7 +554,6 @@ function parseKunde(text: string) {
     }
   }
 
-  // 4. "Mein Name ist X" / "Ich bin X / heiße X"
   if (!kunde.name) {
     const ichBinMatch = text.match(
       /(?:mein name ist|ich bin|ich hei[sß]e)\s+(?:der\s+|die\s+)?([a-zäöüßA-ZÄÖÜ]{2,}(?:\s+[a-zäöüßA-ZÄÖÜ]{2,})?)/i
@@ -549,26 +563,19 @@ function parseKunde(text: string) {
     }
   }
 
-  // E-Mail
   const emailMatch = text.match(
     /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
   );
   if (emailMatch) kunde.email = emailMatch[0];
 
-  // Telefon — verschiedene Formate
   const telMatch = text.match(
     /(?:Tel\.?|Telefon|Mobil|Handy|Ruf|Nummer)?[:\s]*((?:\+49|0)[\s]?\d[\d\s/.()\-]{6,})/i
   );
   if (telMatch) kunde.telefon = telMatch[1].replace(/[\s()]/g, "").trim();
 
-  // Straße — erweiterte Erkennung
-  // Pattern 1: "Gartenstraße 8", "Hauptstr. 12a", "Am Markt 3"
   const strassePatterns = [
-    // Klassisch: Xyzstraße/str./weg/etc. + Hausnummer
     /([A-ZÄÖÜ][a-zäöüß]+(?:straße|strasse|str\.?|weg|gasse|platz|allee|ring|damm|steig|pfad|ufer|graben|berg|hof|stieg)\s*\d+\s*[a-zA-Z]?)/i,
-    // Zusammengesetzt: "Am/An/In der/Zur X 12"
     /((?:Am|An\s+der|In\s+der|Zum|Zur|Auf\s+dem|Im)\s+[A-ZÄÖÜ][a-zäöüß]+(?:\s+[a-zäöüß]+)?\s*\d+\s*[a-zA-Z]?)/i,
-    // Einfach: "Xyzweg 12", "Abc 5" nach PLZ-Zeile
     /(?:in\s+der|wohnen?\s+in|adresse:?)\s*([A-ZÄÖÜ][a-zäöüß]+\s*\d+\s*[a-zA-Z]?)/i,
   ];
 
@@ -580,9 +587,7 @@ function parseKunde(text: string) {
     }
   }
 
-  // PLZ + Ort — flexibler (Ort = 1 Wort + optional Bindestrich-Teil + optional "am/an Main")
   const plzOrtPatterns = [
-    // "26721 Emden", "60311 Frankfurt am Main", "40233 Düsseldorf-Gerresheim"
     /(\d{5})\s+([A-ZÄÖÜ][a-zäöüß]+(?:-[A-ZÄÖÜ][a-zäöüß]+)?(?:\s+(?:am|an|ob|bei|im|in)(?:\s+der)?\s+[A-ZÄÖÜ][a-zäöüß]+)?)/,
   ];
 
@@ -598,17 +603,22 @@ function parseKunde(text: string) {
   return kunde;
 }
 
-function parseRaeume(text: string) {
-  const raeume: Array<{
-    name: string;
-    laenge: number;
-    breite: number;
-    hoehe: number;
-    fenster: number;
-    tueren: number;
-  }> = [];
+interface ArbeitsbereichRegex {
+  name: string;
+  typ: "RAUM" | "FLAECHE";
+  laenge: number;
+  breite: number;
+  hoehe: number;
+  fenster: number;
+  tueren: number;
+  wandflaeche: number;
+  deckenflaeche: number;
+  arbeiten: typeof DEFAULT_ARBEITEN;
+}
 
-  // Raumnamen mit Varianten (auch Sprache: "wozi", "sz", "kizi")
+function parseArbeitsbereiche(text: string): ArbeitsbereichRegex[] {
+  const bereiche: ArbeitsbereichRegex[] = [];
+
   const raumVarianten: Array<{ display: string; patterns: string[] }> = [
     { display: "Wohnzimmer", patterns: ["wohnzimmer", "wozi", "wohnraum"] },
     { display: "Schlafzimmer", patterns: ["schlafzimmer", "sz", "schlafraum"] },
@@ -623,7 +633,6 @@ function parseRaeume(text: string) {
     { display: "Gästezimmer", patterns: ["g[äa]ste.?zimmer"] },
   ];
 
-  // Deckenhöhe suchen (auch Sprache: "deckenhöhe ist 2.5 meter")
   let defaultHoehe = 2.55;
   const hoehePatterns = [
     /(?:deckenh[oö]he|raumh[oö]he)(?:\s+ist|\s+von|[:\s])\s*(?:ca\.?\s*|ungef[äa]hr\s+)?(\d+[.,]\d+)\s*m/i,
@@ -639,10 +648,8 @@ function parseRaeume(text: string) {
     }
   }
 
-  // Für jeden bekannten Raum nach Maßen suchen
   for (const rv of raumVarianten) {
     for (const pattern of rv.patterns) {
-      // Pattern: "wohnzimmer 5,2 x 4,1" oder "wohnzimmer ist so 5 x 4" oder "das wohnzimmer hat ca 5 mal 4"
       const regex = new RegExp(
         `${pattern}[,:\\s]+(?:das\\s+)?(?:ist\\s+(?:so\\s+)?|hat\\s+|mit\\s+|ca\\.?\\s*|ungef[äa]hr\\s+|circa\\s+|etwa\\s+)*(\\d+[.,]?\\d*)\\s*(?:m(?:eter)?\\s*)?[xX×]\\s*(\\d+[.,]?\\d*)`,
         "i"
@@ -653,7 +660,6 @@ function parseRaeume(text: string) {
         const breite = parseFloat(match[2].replace(",", "."));
 
         if (laenge > 0 && laenge < 30 && breite > 0 && breite < 30) {
-          // Fenster/Türen in der Umgebung suchen
           const ctx = text.substring(
             Math.max(0, (match.index || 0) - 10),
             (match.index || 0) + match[0].length + 80
@@ -661,15 +667,18 @@ function parseRaeume(text: string) {
           const fensterMatch = ctx.match(/(\d+)\s*(?:fenster)/i);
           const tuerenMatch = ctx.match(/(\d+)\s*(?:t[uü]r|t[uü]ren)/i);
 
-          // Nicht doppelt hinzufügen
-          if (!raeume.find((r) => r.name === rv.display)) {
-            raeume.push({
+          if (!bereiche.find((r) => r.name === rv.display)) {
+            bereiche.push({
               name: rv.display,
+              typ: "RAUM",
               laenge,
               breite,
               hoehe: defaultHoehe,
               fenster: fensterMatch ? parseInt(fensterMatch[1]) : 1,
               tueren: tuerenMatch ? parseInt(tuerenMatch[1]) : 1,
+              wandflaeche: 0,
+              deckenflaeche: 0,
+              arbeiten: { ...DEFAULT_ARBEITEN },
             });
           }
         }
@@ -679,7 +688,7 @@ function parseRaeume(text: string) {
   }
 
   // Wenn keine Maße gefunden: Raumname allein erwähnt → Default-Maße
-  if (raeume.length === 0) {
+  if (bereiche.length === 0) {
     const defaultMasse: Record<string, [number, number]> = {
       Wohnzimmer: [5.0, 4.0],
       Schlafzimmer: [4.0, 3.5],
@@ -697,15 +706,19 @@ function parseRaeume(text: string) {
     for (const rv of raumVarianten) {
       for (const pattern of rv.patterns) {
         const found = new RegExp(`\\b${pattern}\\b`, "i").test(text);
-        if (found && !raeume.find((r) => r.name === rv.display)) {
+        if (found && !bereiche.find((r) => r.name === rv.display)) {
           const masse = defaultMasse[rv.display] || [4.0, 3.5];
-          raeume.push({
+          bereiche.push({
             name: rv.display,
+            typ: "RAUM",
             laenge: masse[0],
             breite: masse[1],
             hoehe: defaultHoehe,
             fenster: 1,
             tueren: 1,
+            wandflaeche: 0,
+            deckenflaeche: 0,
+            arbeiten: { ...DEFAULT_ARBEITEN },
           });
         }
       }
@@ -713,7 +726,7 @@ function parseRaeume(text: string) {
   }
 
   // Fallback: "3 Zimmer Wohnung" / "3 Räume"
-  if (raeume.length === 0) {
+  if (bereiche.length === 0) {
     const anzahlMatch = text.match(
       /(\d+)[\s-]*(?:r[äa]ume|zimmer(?:\s*wohnung)?)/i
     );
@@ -723,22 +736,26 @@ function parseRaeume(text: string) {
       const defaultNamen = ["Wohnzimmer", "Schlafzimmer", "Kinderzimmer", "Büro", "Gästezimmer"];
       const defaultMasse = [[5.0, 4.0], [4.0, 3.5], [3.5, 3.0], [3.5, 3.0], [3.5, 3.0]];
       for (let i = 0; i < Math.min(anzahl, 5); i++) {
-        raeume.push({
+        bereiche.push({
           name: defaultNamen[i] || `Raum ${i + 1}`,
+          typ: "RAUM",
           laenge: defaultMasse[i]?.[0] || 4.0,
           breite: defaultMasse[i]?.[1] || 3.5,
           hoehe: defaultHoehe,
           fenster: 1,
           tueren: 1,
+          wandflaeche: 0,
+          deckenflaeche: 0,
+          arbeiten: { ...DEFAULT_ARBEITEN },
         });
       }
     }
   }
 
-  return raeume;
+  return bereiche;
 }
 
-function parseOptionen(text: string) {
+function parseQualitaetUndArbeiten(text: string) {
   const lower = text.toLowerCase();
 
   const isPremium =
@@ -749,23 +766,26 @@ function parseOptionen(text: string) {
     lower.includes("qualität");
 
   const decke = lower.includes("decke") || lower.includes("decken");
-
   const spachteln =
     lower.includes("spachtel") ||
     lower.includes("risse") ||
     lower.includes("ausbessern") ||
     lower.includes("glätten");
-
   const tapeteEntfernen =
-    lower.includes("tapete") ||
-    lower.includes("ablösen") ||
-    lower.includes("abkratzen");
+    lower.includes("tapete") && (lower.includes("entfern") || lower.includes("ablös") || lower.includes("abkratz"));
+  const tapezieren =
+    lower.includes("tapezier") || lower.includes("raufaser");
 
   return {
-    qualitaet: isPremium ? ("premium" as const) : ("standard" as const),
-    decke,
-    spachteln,
-    tapeteEntfernen,
+    qualitaet: isPremium ? "premium" as const : "standard" as const,
+    arbeiten: {
+      waendeStreichen: true,
+      deckeStreichen: decke,
+      grundierung: true,
+      spachteln,
+      tapeteEntfernen,
+      tapezieren,
+    },
   };
 }
 
@@ -775,9 +795,6 @@ function parseExtras(text: string) {
 
   if (lower.includes("riss") || lower.includes("ausbessern")) {
     extras.push({ bezeichnung: "Risse ausbessern", kategorie: "VORBEREITUNG", schaetzMenge: 1, einheit: "pauschal" });
-  }
-  if (lower.includes("tapete entfern") || lower.includes("tapete ablös")) {
-    extras.push({ bezeichnung: "Tapete entfernen", kategorie: "VORBEREITUNG", schaetzMenge: 1, einheit: "pauschal" });
   }
   if (lower.includes("möbel") && lower.includes("rück")) {
     extras.push({ bezeichnung: "Möbel rücken", kategorie: "SONSTIGES", schaetzMenge: 1, einheit: "pauschal" });

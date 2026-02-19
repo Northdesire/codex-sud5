@@ -31,9 +31,19 @@ interface MaterialAlt {
   anstriche: number | null;
 }
 
+interface BereichArbeiten {
+  waendeStreichen?: boolean;
+  deckeStreichen?: boolean;
+  grundierung?: boolean;
+  spachteln?: boolean;
+  tapeteEntfernen?: boolean;
+  tapezieren?: boolean;
+}
+
 interface KalkData {
   raeume: Array<{
     name: string;
+    typ?: "RAUM" | "FLAECHE";
     laenge?: number;
     breite?: number;
     hoehe?: number;
@@ -42,6 +52,7 @@ interface KalkData {
     wandflaeche: number;
     deckenflaeche: number;
     gesamtflaeche: number;
+    arbeiten?: BereichArbeiten;
   }>;
   positionen: Array<{
     posNr: number;
@@ -383,13 +394,23 @@ export default function AngebotPage() {
     return (
       <div className="px-5 pt-8 text-center">
         <p className="text-muted-foreground">Kein Angebot vorhanden</p>
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => router.push("/app/formular")}
-        >
-          Zum Formular
-        </Button>
+        <p className="text-xs text-muted-foreground mt-1">
+          Erstelle zuerst ein Angebot über AI-Eingabe oder das Formular.
+        </p>
+        <div className="flex gap-2 justify-center mt-4">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/app/ai")}
+          >
+            AI-Eingabe
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push("/app/formular")}
+          >
+            Formular
+          </Button>
+        </div>
       </div>
     );
   }
@@ -496,48 +517,58 @@ export default function AngebotPage() {
             </p>
           </div>
 
-          {/* Raum-Übersicht */}
+          {/* Bereichs-Übersicht */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Raumübersicht
+              Arbeitsbereiche
             </p>
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/50">
-                    <th className="text-left px-3 py-1.5 text-xs font-medium">
-                      Raum
-                    </th>
-                    <th className="text-right px-3 py-1.5 text-xs font-medium">
-                      Wand
-                    </th>
-                    <th className="text-right px-3 py-1.5 text-xs font-medium">
-                      Decke
-                    </th>
-                    <th className="text-right px-3 py-1.5 text-xs font-medium">
-                      Gesamt
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.raeume.map((r, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="px-3 py-1.5">{r.name}</td>
-                      <td className="text-right px-3 py-1.5 font-mono text-xs">
-                        {r.wandflaeche.toFixed(1)} m²
-                      </td>
-                      <td className="text-right px-3 py-1.5 font-mono text-xs">
-                        {r.deckenflaeche > 0
-                          ? `${r.deckenflaeche.toFixed(1)} m²`
-                          : "–"}
-                      </td>
-                      <td className="text-right px-3 py-1.5 font-mono text-xs font-medium">
+            <div className="space-y-2">
+              {data.raeume.map((r, i) => {
+                const arbeitLabels: string[] = [];
+                if (r.arbeiten?.waendeStreichen) arbeitLabels.push("Streichen");
+                if (r.arbeiten?.deckeStreichen) arbeitLabels.push("Decke");
+                if (r.arbeiten?.grundierung) arbeitLabels.push("Grundierung");
+                if (r.arbeiten?.spachteln) arbeitLabels.push("Spachteln");
+                if (r.arbeiten?.tapeteEntfernen) arbeitLabels.push("Tapete ab");
+                if (r.arbeiten?.tapezieren) arbeitLabels.push("Tapezieren");
+
+                return (
+                  <div key={i} className="rounded-lg border p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">{r.name}</p>
+                        {r.typ === "FLAECHE" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            Fläche
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="font-mono text-xs font-medium">
                         {r.gesamtflaeche.toFixed(1)} m²
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>Wand {r.wandflaeche.toFixed(1)} m²</span>
+                      {r.deckenflaeche > 0 && (
+                        <span>Decke {r.deckenflaeche.toFixed(1)} m²</span>
+                      )}
+                    </div>
+                    {arbeitLabels.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {arbeitLabels.map((label) => (
+                          <Badge
+                            key={label}
+                            variant="secondary"
+                            className="text-[10px] px-1.5 py-0 font-normal"
+                          >
+                            {label}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -1053,7 +1084,13 @@ export default function AngebotPage() {
         <Button
           variant="outline"
           className="h-12"
-          onClick={() => router.push("/app/formular")}
+          onClick={() => {
+            const formRaw = sessionStorage.getItem("formular-daten");
+            if (formRaw) {
+              sessionStorage.setItem("ai-ergebnis", formRaw);
+            }
+            router.push("/app/formular");
+          }}
         >
           <Pencil className="h-4 w-4 mr-1" />
           Bearbeiten

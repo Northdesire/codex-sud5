@@ -31,6 +31,28 @@ Familie Müller
 Tel: 0176 1234567
 mueller@email.de`;
 
+interface ArbeitsbereichArbeiten {
+  waendeStreichen: boolean;
+  deckeStreichen: boolean;
+  grundierung: boolean;
+  spachteln: boolean;
+  tapeteEntfernen: boolean;
+  tapezieren: boolean;
+}
+
+interface ArbeitsbereichParsed {
+  name: string;
+  typ: "RAUM" | "FLAECHE";
+  laenge: number;
+  breite: number;
+  hoehe: number;
+  fenster: number;
+  tueren: number;
+  wandflaeche: number;
+  deckenflaeche: number;
+  arbeiten: ArbeitsbereichArbeiten;
+}
+
 interface ParsedResult {
   kunde: {
     name: string;
@@ -40,29 +62,39 @@ interface ParsedResult {
     email: string;
     telefon: string;
   };
-  raeume: Array<{
-    name: string;
-    laenge: number;
-    breite: number;
-    hoehe: number;
-    fenster: number;
-    tueren: number;
-  }>;
-  optionen: {
-    qualitaet: "standard" | "premium";
-    decke: boolean;
-    spachteln: boolean;
-    tapeteEntfernen: boolean;
-  };
+  arbeitsbereiche: ArbeitsbereichParsed[];
+  qualitaet: "standard" | "premium";
   extras: Array<string | { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }>;
   confidence: { kunde: number; raeume: number; optionen: number };
+}
+
+const ARBEIT_LABELS: Record<keyof ArbeitsbereichArbeiten, string> = {
+  waendeStreichen: "Streichen",
+  deckeStreichen: "Decke",
+  grundierung: "Grundierung",
+  spachteln: "Spachteln",
+  tapeteEntfernen: "Tapete ab",
+  tapezieren: "Tapezieren",
+};
+
+const FENSTER_ABZUG = 1.5;
+const TUER_ABZUG = 2.0;
+
+function berechneWandflaeche(b: ArbeitsbereichParsed) {
+  if (b.typ === "FLAECHE") return b.wandflaeche || 0;
+  return Math.max(
+    0,
+    2 * (b.laenge + b.breite) * b.hoehe -
+      b.fenster * FENSTER_ABZUG -
+      b.tueren * TUER_ABZUG
+  );
 }
 
 const ANALYSE_SCHRITTE = [
   { icon: "📖", text: "Text wird gelesen..." },
   { icon: "👤", text: "Kundendaten extrahieren..." },
-  { icon: "📐", text: "Räume & Maße erkennen..." },
-  { icon: "🎨", text: "Optionen & Qualität bestimmen..." },
+  { icon: "📐", text: "Bereiche & Maße erkennen..." },
+  { icon: "🎨", text: "Arbeiten & Qualität bestimmen..." },
   { icon: "✅", text: "Fertig!" },
 ];
 
@@ -103,7 +135,6 @@ export default function AIEingabePage() {
     setAnalysiert(false);
     setErgebnis(null);
 
-    // Fortschrittsanimation
     for (let i = 0; i < ANALYSE_SCHRITTE.length - 1; i++) {
       setAnalysierSchritt(i);
       await new Promise((r) => setTimeout(r, 600));
@@ -113,7 +144,6 @@ export default function AIEingabePage() {
       let res: Response;
 
       if (image) {
-        // Send as FormData with image
         const formData = new FormData();
         formData.append("image", image);
         if (text.trim()) formData.append("text", text);
@@ -135,6 +165,7 @@ export default function AIEingabePage() {
       }
 
       const data = await res.json();
+
       // Normalize confidence: OpenAI returns 0-1, display expects 0-100
       if (data.confidence) {
         const c = data.confidence;
@@ -144,7 +175,42 @@ export default function AIEingabePage() {
           c.optionen = Math.round(c.optionen * 100);
         }
       }
-      setErgebnis(data);
+
+      // Normalize: handle both old format (raeume+optionen) and new format (arbeitsbereiche+qualitaet)
+      const normalized: ParsedResult = {
+        kunde: data.kunde,
+        arbeitsbereiche: data.arbeitsbereiche || [],
+        qualitaet: data.qualitaet || data.optionen?.qualitaet || "standard",
+        extras: data.extras || [],
+        confidence: data.confidence,
+      };
+
+      // Convert old format if needed
+      if ((!normalized.arbeitsbereiche || normalized.arbeitsbereiche.length === 0) && Array.isArray(data.raeume)) {
+        const decke = data.optionen?.decke || false;
+        const spachteln = data.optionen?.spachteln || false;
+        normalized.arbeitsbereiche = data.raeume.map((r: { name: string; laenge: number; breite: number; hoehe: number; fenster: number; tueren: number }) => ({
+          name: r.name,
+          typ: "RAUM" as const,
+          laenge: r.laenge,
+          breite: r.breite,
+          hoehe: r.hoehe,
+          fenster: r.fenster ?? 1,
+          tueren: r.tueren ?? 1,
+          wandflaeche: 0,
+          deckenflaeche: 0,
+          arbeiten: {
+            waendeStreichen: true,
+            deckeStreichen: decke,
+            grundierung: true,
+            spachteln,
+            tapeteEntfernen: false,
+            tapezieren: false,
+          },
+        }));
+      }
+
+      setErgebnis(normalized);
       setAnalysierSchritt(ANALYSE_SCHRITTE.length - 1);
       setAnalysiert(true);
     } catch (err) {
@@ -157,20 +223,17 @@ export default function AIEingabePage() {
 
   function handleUebernehmen() {
     if (!ergebnis) return;
-    // Ergebnis in sessionStorage speichern und zum Formular weiterleiten
     sessionStorage.setItem("ai-ergebnis", JSON.stringify(ergebnis));
     sessionStorage.setItem("ai-originaltext", text);
     router.push("/app/formular");
   }
 
   async function handleSprache() {
-    // Stoppen
     if (recording && mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       return;
     }
 
-    // Mikrofon-Zugriff
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -181,7 +244,6 @@ export default function AIEingabePage() {
       return;
     }
 
-    // MediaRecorder starten
     chunksRef.current = [];
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -195,7 +257,6 @@ export default function AIEingabePage() {
     };
 
     mediaRecorder.onstop = async () => {
-      // Mikrofon freigeben
       stream.getTracks().forEach((t) => t.stop());
       setRecording(false);
       setTranscribing(true);
@@ -203,7 +264,6 @@ export default function AIEingabePage() {
       try {
         const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
 
-        // An Whisper senden
         const formData = new FormData();
         formData.append("audio", audioBlob, "aufnahme.webm");
 
@@ -565,42 +625,56 @@ export default function AIEingabePage() {
         </CardContent>
       </Card>
 
-      {/* Räume */}
+      {/* Arbeitsbereiche */}
       <Card>
         <CardContent className="pt-5">
           <div className="flex items-center gap-2 mb-3">
             <Ruler className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm">Räume</h3>
+            <h3 className="font-semibold text-sm">Arbeitsbereiche</h3>
             <Badge variant="outline" className="ml-auto text-xs">
               {ergebnis.confidence.raeume}%
             </Badge>
           </div>
           <div className="space-y-2">
-            {ergebnis.raeume.map((raum, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
-              >
-                <div>
-                  <p className="font-medium text-sm">{raum.name}</p>
+            {ergebnis.arbeitsbereiche.map((bereich, i) => {
+              const wandfl = berechneWandflaeche(bereich);
+              return (
+                <div
+                  key={i}
+                  className="rounded-lg bg-muted/50 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-sm">{bereich.name}</p>
+                    <p className="text-xs font-mono text-muted-foreground">
+                      ~{wandfl.toFixed(0)} m²
+                    </p>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    {raum.laenge} x {raum.breite} m, H {raum.hoehe} m |{" "}
-                    {raum.fenster} F, {raum.tueren} T
+                    {bereich.typ === "RAUM"
+                      ? `${bereich.laenge} x ${bereich.breite} m, H ${bereich.hoehe} m | ${bereich.fenster}F, ${bereich.tueren}T`
+                      : `${bereich.wandflaeche} m² Wand${bereich.deckenflaeche > 0 ? `, ${bereich.deckenflaeche} m² Decke` : ""}`
+                    }
                   </p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {(Object.keys(ARBEIT_LABELS) as (keyof ArbeitsbereichArbeiten)[]).map((key) =>
+                      bereich.arbeiten[key] ? (
+                        <span
+                          key={key}
+                          className="inline-block rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px]"
+                        >
+                          {ARBEIT_LABELS[key]}
+                        </span>
+                      ) : null
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs font-mono text-muted-foreground">
-                  ~{(
-                    2 * (raum.laenge + raum.breite) * raum.hoehe
-                  ).toFixed(0)}{" "}
-                  m²
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Optionen */}
+      {/* Qualität + Extras */}
       <Card>
         <CardContent className="pt-5">
           <div className="flex items-center gap-2 mb-3">
@@ -611,16 +685,8 @@ export default function AIEingabePage() {
             </Badge>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge
-              variant={ergebnis.optionen.qualitaet === "premium" ? "default" : "secondary"}
-            >
-              {ergebnis.optionen.qualitaet === "premium" ? "Premium" : "Standard"}
-            </Badge>
-            <Badge variant={ergebnis.optionen.decke ? "default" : "secondary"}>
-              Decke {ergebnis.optionen.decke ? "Ja" : "Nein"}
-            </Badge>
-            <Badge variant={ergebnis.optionen.spachteln ? "default" : "secondary"}>
-              Spachteln {ergebnis.optionen.spachteln ? "Ja" : "Nein"}
+            <Badge variant={ergebnis.qualitaet === "premium" ? "default" : "secondary"}>
+              {ergebnis.qualitaet === "premium" ? "Premium" : "Standard"}
             </Badge>
           </div>
           {ergebnis.extras.length > 0 && (

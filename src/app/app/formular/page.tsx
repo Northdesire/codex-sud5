@@ -1,22 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Rocket, Wrench } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, Wrench, Ruler, SquareIcon, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
-interface Raum {
+interface ArbeitsbereichArbeiten {
+  waendeStreichen: boolean;
+  deckeStreichen: boolean;
+  grundierung: boolean;
+  spachteln: boolean;
+  tapeteEntfernen: boolean;
+  tapezieren: boolean;
+}
+
+interface Arbeitsbereich {
   name: string;
+  typ: "RAUM" | "FLAECHE";
   laenge: number;
   breite: number;
   hoehe: number;
   fenster: number;
   tueren: number;
+  wandflaeche: number;
+  deckenflaeche: number;
+  arbeiten: ArbeitsbereichArbeiten;
 }
 
 interface ExtraItem {
@@ -27,62 +40,195 @@ interface ExtraItem {
   aktiv: boolean;
 }
 
-interface FormData {
-  kunde: {
-    name: string;
-    strasse: string;
-    plz: string;
-    ort: string;
-    email: string;
-    telefon: string;
-  };
-  raeume: Raum[];
-  optionen: {
-    qualitaet: "standard" | "premium";
-    decke: boolean;
-    spachteln: boolean;
-  };
+interface RaumVorlage {
+  id: string;
+  name: string;
+  icon: string | null;
+  laenge: number;
+  breite: number;
+  hoehe: number;
+  fenster: number;
+  tueren: number;
 }
 
-const LEER_RAUM: Raum = {
+interface LeistungInfo {
+  id: string;
+  name: string;
+  kategorie: string;
+  einheit: string;
+  preisProEinheit: number;
+}
+
+interface Kunde {
+  name: string;
+  strasse: string;
+  plz: string;
+  ort: string;
+  email: string;
+  telefon: string;
+}
+
+const DEFAULT_ARBEITEN: ArbeitsbereichArbeiten = {
+  waendeStreichen: true,
+  deckeStreichen: false,
+  grundierung: true,
+  spachteln: false,
+  tapeteEntfernen: false,
+  tapezieren: false,
+};
+
+const LEER_BEREICH: Arbeitsbereich = {
   name: "Neuer Raum",
+  typ: "RAUM",
   laenge: 4.0,
   breite: 3.5,
   hoehe: 2.55,
   fenster: 1,
   tueren: 1,
+  wandflaeche: 0,
+  deckenflaeche: 0,
+  arbeiten: { ...DEFAULT_ARBEITEN },
 };
+
+const FENSTER_ABZUG = 1.5;
+const TUER_ABZUG = 2.0;
+
+function berechneFlaechen(b: Arbeitsbereich) {
+  if (b.typ === "FLAECHE") {
+    return { wand: b.wandflaeche || 0, decke: b.deckenflaeche || 0 };
+  }
+  const wand = Math.max(
+    0,
+    2 * (b.laenge + b.breite) * b.hoehe -
+      b.fenster * FENSTER_ABZUG -
+      b.tueren * TUER_ABZUG
+  );
+  const decke = b.laenge * b.breite;
+  return { wand: Math.round(wand * 100) / 100, decke: Math.round(decke * 100) / 100 };
+}
+
+type ArbeitKey = keyof ArbeitsbereichArbeiten;
+
+const ARBEIT_LABELS: Record<ArbeitKey, string> = {
+  waendeStreichen: "Wände streichen",
+  deckeStreichen: "Decke streichen",
+  grundierung: "Grundierung",
+  spachteln: "Spachteln",
+  tapeteEntfernen: "Tapete entfernen",
+  tapezieren: "Tapezieren",
+};
+
+const ARBEIT_KATEGORIE: Record<ArbeitKey, string> = {
+  waendeStreichen: "STREICHEN",
+  deckeStreichen: "STREICHEN",
+  grundierung: "VORBEREITUNG",
+  spachteln: "VORBEREITUNG",
+  tapeteEntfernen: "TAPEZIEREN",
+  tapezieren: "TAPEZIEREN",
+};
+
+const ARBEIT_NAME_HINTS: Record<ArbeitKey, string[]> = {
+  waendeStreichen: ["wand", "wänd"],
+  deckeStreichen: ["decke"],
+  grundierung: ["grundier"],
+  spachteln: ["spachtel"],
+  tapeteEntfernen: ["tapete entfern", "entfern"],
+  tapezieren: ["tapezier"],
+};
+
+function findPreis(leistungen: LeistungInfo[], arbeitKey: ArbeitKey): number | null {
+  const kat = ARBEIT_KATEGORIE[arbeitKey];
+  const hints = ARBEIT_NAME_HINTS[arbeitKey];
+
+  for (const hint of hints) {
+    const match = leistungen.find(
+      (l) => l.kategorie === kat && l.name.toLowerCase().includes(hint)
+    );
+    if (match) return match.preisProEinheit;
+  }
+
+  const fallback = leistungen.find((l) => l.kategorie === kat);
+  return fallback ? fallback.preisProEinheit : null;
+}
 
 export default function FormularPage() {
   const router = useRouter();
   const [generiert, setGeneriert] = useState(false);
+  const [bereiche, setBereiche] = useState<Arbeitsbereich[]>([{ ...LEER_BEREICH, name: "Wohnzimmer" }]);
+  const [qualitaet, setQualitaet] = useState<"standard" | "premium">("standard");
+  const [kunde, setKunde] = useState<Kunde>({ name: "", strasse: "", plz: "", ort: "", email: "", telefon: "" });
   const [extras, setExtras] = useState<ExtraItem[]>([]);
-  const [form, setForm] = useState<FormData>({
-    kunde: { name: "", strasse: "", plz: "", ort: "", email: "", telefon: "" },
-    raeume: [{ ...LEER_RAUM, name: "Wohnzimmer" }],
-    optionen: { qualitaet: "standard", decke: false, spachteln: false },
-  });
+  const [raumvorlagen, setRaumvorlagen] = useState<RaumVorlage[]>([]);
+  const [leistungen, setLeistungen] = useState<LeistungInfo[]>([]);
 
-  // AI-Ergebnis aus sessionStorage laden
+  // Daten laden bei Mount
+  useEffect(() => {
+    fetch("/api/raumvorlagen")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { if (Array.isArray(data)) setRaumvorlagen(data); })
+      .catch(() => {});
+
+    fetch("/api/leistungen")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { if (Array.isArray(data)) setLeistungen(data); })
+      .catch(() => {});
+  }, []);
+
+  // AI-Ergebnis oder Draft aus Storage laden
   useEffect(() => {
     const aiData = sessionStorage.getItem("ai-ergebnis");
     if (aiData) {
       try {
         const parsed = JSON.parse(aiData);
-        setForm({
-          kunde: parsed.kunde || form.kunde,
-          raeume:
-            parsed.raeume?.length > 0
-              ? parsed.raeume
-              : form.raeume,
-          optionen: {
-            qualitaet: parsed.optionen?.qualitaet || "standard",
-            decke: parsed.optionen?.decke || false,
-            spachteln: parsed.optionen?.spachteln || false,
-          },
-        });
 
-        // Load extras from AI result
+        // Kunde
+        if (parsed.kunde) {
+          setKunde(parsed.kunde);
+        }
+
+        // Neues Format: arbeitsbereiche
+        if (Array.isArray(parsed.arbeitsbereiche) && parsed.arbeitsbereiche.length > 0) {
+          setBereiche(parsed.arbeitsbereiche.map((b: Partial<Arbeitsbereich>) => ({
+            name: b.name || "Raum",
+            typ: b.typ || "RAUM",
+            laenge: b.laenge || 4.0,
+            breite: b.breite || 3.5,
+            hoehe: b.hoehe || 2.55,
+            fenster: b.fenster ?? 1,
+            tueren: b.tueren ?? 1,
+            wandflaeche: b.wandflaeche || 0,
+            deckenflaeche: b.deckenflaeche || 0,
+            arbeiten: { ...DEFAULT_ARBEITEN, ...b.arbeiten },
+          })));
+          if (parsed.qualitaet) setQualitaet(parsed.qualitaet);
+        }
+        // Altes Format: raeume + optionen (Backward-Compat)
+        else if (Array.isArray(parsed.raeume) && parsed.raeume.length > 0) {
+          const decke = parsed.optionen?.decke || false;
+          const spachteln = parsed.optionen?.spachteln || false;
+          setBereiche(parsed.raeume.map((r: { name: string; laenge: number; breite: number; hoehe: number; fenster: number; tueren: number }) => ({
+            name: r.name,
+            typ: "RAUM" as const,
+            laenge: r.laenge,
+            breite: r.breite,
+            hoehe: r.hoehe,
+            fenster: r.fenster ?? 1,
+            tueren: r.tueren ?? 1,
+            wandflaeche: 0,
+            deckenflaeche: 0,
+            arbeiten: {
+              waendeStreichen: true,
+              deckeStreichen: decke,
+              grundierung: true,
+              spachteln,
+              tapeteEntfernen: false,
+              tapezieren: false,
+            },
+          })));
+          if (parsed.optionen?.qualitaet) setQualitaet(parsed.optionen.qualitaet);
+        }
+
+        // Extras
         if (Array.isArray(parsed.extras) && parsed.extras.length > 0) {
           const loadedExtras: ExtraItem[] = parsed.extras.map(
             (e: string | { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }) =>
@@ -95,62 +241,149 @@ export default function FormularPage() {
 
         sessionStorage.removeItem("ai-ergebnis");
         toast.success("AI-Daten übernommen");
+        return; // AI-Daten haben Vorrang, kein Draft laden
       } catch {
         // ignore
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // Kein AI-Ergebnis → Draft aus localStorage laden
+    const draft = localStorage.getItem("formular-draft");
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        if (parsed.kunde?.name) setKunde(parsed.kunde);
+        if (Array.isArray(parsed.bereiche) && parsed.bereiche.length > 0) setBereiche(parsed.bereiche);
+        if (parsed.qualitaet) setQualitaet(parsed.qualitaet);
+        if (Array.isArray(parsed.extras)) setExtras(parsed.extras);
+        toast.info("Entwurf wiederhergestellt");
+      } catch {
+        // ignore
+      }
+    }
   }, []);
 
+  // Draft auto-save (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (kunde.name || bereiche.length > 1 || bereiche[0]?.name !== "Wohnzimmer") {
+        localStorage.setItem("formular-draft", JSON.stringify({ kunde, bereiche, qualitaet, extras }));
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [kunde, bereiche, qualitaet, extras]);
+
   function updateKunde(field: string, value: string) {
-    setForm({
-      ...form,
-      kunde: { ...form.kunde, [field]: value },
+    setKunde({ ...kunde, [field]: value });
+  }
+
+  const updateBereich = useCallback((index: number, field: string, value: string | number) => {
+    setBereiche((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  }, []);
+
+  const updateArbeiten = useCallback((index: number, arbeitKey: ArbeitKey, value: boolean) => {
+    setBereiche((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        arbeiten: { ...updated[index].arbeiten, [arbeitKey]: value },
+      };
+      return updated;
+    });
+  }, []);
+
+  function toggleModus(index: number) {
+    setBereiche((prev) => {
+      const updated = [...prev];
+      const b = updated[index];
+      if (b.typ === "RAUM") {
+        // RAUM → FLAECHE: berechne Flächen aus Maßen
+        const { wand, decke } = berechneFlaechen(b);
+        updated[index] = { ...b, typ: "FLAECHE", wandflaeche: wand, deckenflaeche: decke };
+      } else {
+        // FLAECHE → RAUM: setze Standard-Maße
+        updated[index] = { ...b, typ: "RAUM", laenge: 4.0, breite: 3.5, hoehe: 2.55, fenster: 1, tueren: 1 };
+      }
+      return updated;
     });
   }
 
-  function updateRaum(index: number, field: string, value: string | number) {
-    const raeume = [...form.raeume];
-    raeume[index] = { ...raeume[index], [field]: value };
-    setForm({ ...form, raeume });
+  function addVorlage(vorlage: RaumVorlage) {
+    setBereiche((prev) => [
+      ...prev,
+      {
+        name: vorlage.name,
+        typ: "RAUM",
+        laenge: vorlage.laenge,
+        breite: vorlage.breite,
+        hoehe: vorlage.hoehe,
+        fenster: vorlage.fenster,
+        tueren: vorlage.tueren,
+        wandflaeche: 0,
+        deckenflaeche: 0,
+        arbeiten: { ...DEFAULT_ARBEITEN },
+      },
+    ]);
   }
 
-  function addRaum() {
-    setForm({ ...form, raeume: [...form.raeume, { ...LEER_RAUM }] });
+  function addFlaeche() {
+    setBereiche((prev) => [
+      ...prev,
+      {
+        name: "Neue Fläche",
+        typ: "FLAECHE",
+        laenge: 0,
+        breite: 0,
+        hoehe: 0,
+        fenster: 0,
+        tueren: 0,
+        wandflaeche: 0,
+        deckenflaeche: 0,
+        arbeiten: { waendeStreichen: true, deckeStreichen: false, grundierung: true, spachteln: false, tapeteEntfernen: false, tapezieren: false },
+      },
+    ]);
   }
 
-  function removeRaum(index: number) {
-    if (form.raeume.length <= 1) return;
-    const raeume = form.raeume.filter((_, i) => i !== index);
-    setForm({ ...form, raeume });
+  function addNeu() {
+    setBereiche((prev) => [...prev, { ...LEER_BEREICH }]);
+  }
+
+  function removeBereich(index: number) {
+    if (bereiche.length <= 1) return;
+    setBereiche((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleGenerieren() {
-    if (!form.kunde.name) {
+    if (!kunde.name) {
       toast.error("Bitte Kundennamen angeben");
       return;
     }
-    if (form.raeume.length === 0) {
-      toast.error("Mindestens ein Raum nötig");
+    if (bereiche.length === 0) {
+      toast.error("Mindestens ein Arbeitsbereich nötig");
       return;
     }
 
     setGeneriert(true);
 
-    // Formulardaten + Originaltext in sessionStorage für Angebots-Seite
-    const originalText = sessionStorage.getItem("ai-originaltext") || "";
-    sessionStorage.setItem("formular-daten", JSON.stringify(form));
-    sessionStorage.setItem("ai-originaltext", originalText);
+    // Formulardaten speichern für "Bearbeiten" und Draft-Recovery
+    const formularDaten = {
+      kunde,
+      arbeitsbereiche: bereiche,
+      qualitaet,
+      extras: extras.filter((e) => e.aktiv).map(({ aktiv: _, ...rest }) => rest),
+    };
+    sessionStorage.setItem("formular-daten", JSON.stringify(formularDaten));
+    localStorage.setItem("formular-draft", JSON.stringify({ kunde, bereiche, qualitaet, extras }));
 
-    // Kalkulation über API
     try {
       const res = await fetch("/api/angebote/kalkulieren", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          extras: extras.filter((e) => e.aktiv).map(({ aktiv: _, ...rest }) => rest),
-        }),
+        body: JSON.stringify(formularDaten),
       });
 
       const kalkulation = await res.json();
@@ -160,6 +393,7 @@ export default function FormularPage() {
       }
 
       sessionStorage.setItem("kalkulation", JSON.stringify(kalkulation));
+      localStorage.removeItem("formular-draft");
 
       toast.success("Angebot erstellt!");
       router.push("/app/angebot");
@@ -172,11 +406,20 @@ export default function FormularPage() {
 
   return (
     <div className="px-5 pt-6 space-y-4 pb-4">
-      <div>
-        <h1 className="text-xl font-bold">Angebot erstellen</h1>
-        <p className="text-sm text-muted-foreground">
-          Kundendaten und Räume prüfen
-        </p>
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.back()}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold">Angebot erstellen</h1>
+          <p className="text-sm text-muted-foreground">
+            Kundendaten, Bereiche und Arbeiten prüfen
+          </p>
+        </div>
       </div>
 
       {/* Kundendaten */}
@@ -188,7 +431,7 @@ export default function FormularPage() {
           <div>
             <Label className="text-xs">Name *</Label>
             <Input
-              value={form.kunde.name}
+              value={kunde.name}
               onChange={(e) => updateKunde("name", e.target.value)}
               placeholder="Familie Müller"
               className="h-9"
@@ -198,7 +441,7 @@ export default function FormularPage() {
             <div>
               <Label className="text-xs">E-Mail</Label>
               <Input
-                value={form.kunde.email}
+                value={kunde.email}
                 onChange={(e) => updateKunde("email", e.target.value)}
                 placeholder="email@beispiel.de"
                 className="h-9"
@@ -207,7 +450,7 @@ export default function FormularPage() {
             <div>
               <Label className="text-xs">Telefon</Label>
               <Input
-                value={form.kunde.telefon}
+                value={kunde.telefon}
                 onChange={(e) => updateKunde("telefon", e.target.value)}
                 placeholder="0176 ..."
                 className="h-9"
@@ -215,9 +458,9 @@ export default function FormularPage() {
             </div>
           </div>
           <div>
-            <Label className="text-xs">Strasse</Label>
+            <Label className="text-xs">Straße</Label>
             <Input
-              value={form.kunde.strasse}
+              value={kunde.strasse}
               onChange={(e) => updateKunde("strasse", e.target.value)}
               className="h-9"
             />
@@ -226,7 +469,7 @@ export default function FormularPage() {
             <div>
               <Label className="text-xs">PLZ</Label>
               <Input
-                value={form.kunde.plz}
+                value={kunde.plz}
                 onChange={(e) => updateKunde("plz", e.target.value)}
                 className="h-9"
               />
@@ -234,7 +477,7 @@ export default function FormularPage() {
             <div className="col-span-2">
               <Label className="text-xs">Ort</Label>
               <Input
-                value={form.kunde.ort}
+                value={kunde.ort}
                 onChange={(e) => updateKunde("ort", e.target.value)}
                 className="h-9"
               />
@@ -243,175 +486,246 @@ export default function FormularPage() {
         </CardContent>
       </Card>
 
-      {/* Optionen */}
+      {/* Qualität */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Optionen</CardTitle>
+          <CardTitle className="text-sm">Qualität</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
             <Badge
-              variant={form.optionen.qualitaet === "standard" ? "default" : "secondary"}
+              variant={qualitaet === "standard" ? "default" : "secondary"}
               className="cursor-pointer"
-              onClick={() =>
-                setForm({
-                  ...form,
-                  optionen: { ...form.optionen, qualitaet: "standard" },
-                })
-              }
+              onClick={() => setQualitaet("standard")}
             >
               Standard
             </Badge>
             <Badge
-              variant={form.optionen.qualitaet === "premium" ? "default" : "secondary"}
+              variant={qualitaet === "premium" ? "default" : "secondary"}
               className="cursor-pointer"
-              onClick={() =>
-                setForm({
-                  ...form,
-                  optionen: { ...form.optionen, qualitaet: "premium" },
-                })
-              }
+              onClick={() => setQualitaet("premium")}
             >
               Premium
-            </Badge>
-            <Badge
-              variant={form.optionen.decke ? "default" : "secondary"}
-              className="cursor-pointer"
-              onClick={() =>
-                setForm({
-                  ...form,
-                  optionen: { ...form.optionen, decke: !form.optionen.decke },
-                })
-              }
-            >
-              Decke {form.optionen.decke ? "Ja" : "Nein"}
-            </Badge>
-            <Badge
-              variant={form.optionen.spachteln ? "default" : "secondary"}
-              className="cursor-pointer"
-              onClick={() =>
-                setForm({
-                  ...form,
-                  optionen: {
-                    ...form.optionen,
-                    spachteln: !form.optionen.spachteln,
-                  },
-                })
-              }
-            >
-              Spachteln {form.optionen.spachteln ? "Ja" : "Nein"}
             </Badge>
           </div>
         </CardContent>
       </Card>
 
-      {/* Räume */}
+      {/* Arbeitsbereiche */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-sm">
-            Räume ({form.raeume.length})
+            Arbeitsbereiche ({bereiche.length})
           </h2>
-          <Button variant="outline" size="sm" onClick={addRaum}>
+          <Button variant="outline" size="sm" onClick={addNeu}>
             <Plus className="h-4 w-4 mr-1" />
-            Raum
+            Neu
           </Button>
         </div>
 
-        {form.raeume.map((raum, i) => (
-          <Card key={i}>
-            <CardContent className="pt-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <Input
-                  value={raum.name}
-                  onChange={(e) => updateRaum(i, "name", e.target.value)}
-                  className="h-8 font-medium border-none px-0 text-sm"
-                />
-                {form.raeume.length > 1 && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => removeRaum(i)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+        {/* Raumvorlagen Chips */}
+        {raumvorlagen.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {raumvorlagen.map((v) => (
+              <Badge
+                key={v.id}
+                variant="outline"
+                className="cursor-pointer hover:bg-muted text-xs"
+                onClick={() => addVorlage(v)}
+              >
+                {v.icon ? `${v.icon} ` : ""}{v.name}
+              </Badge>
+            ))}
+            <Badge
+              variant="outline"
+              className="cursor-pointer hover:bg-muted text-xs"
+              onClick={addFlaeche}
+            >
+              + Fläche
+            </Badge>
+          </div>
+        )}
+        {raumvorlagen.length === 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <Badge
+              variant="outline"
+              className="cursor-pointer hover:bg-muted text-xs"
+              onClick={addFlaeche}
+            >
+              + Fläche
+            </Badge>
+          </div>
+        )}
+
+        {/* Bereiche */}
+        {bereiche.map((bereich, i) => {
+          const fl = berechneFlaechen(bereich);
+          return (
+            <Card key={i}>
+              <CardContent className="pt-4 space-y-3">
+                {/* Header: Name + Modus-Toggle + Löschen */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={bereich.name}
+                    onChange={(e) => updateBereich(i, "name", e.target.value)}
+                    className="h-8 font-medium border-none px-0 text-sm flex-1"
+                  />
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => toggleModus(i)}
+                      className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
+                        bereich.typ === "RAUM"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                      title="Maße eingeben"
+                    >
+                      <Ruler className="h-3 w-3" />
+                      Maße
+                    </button>
+                    <button
+                      onClick={() => toggleModus(i)}
+                      className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors ${
+                        bereich.typ === "FLAECHE"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                      title="Fläche direkt eingeben"
+                    >
+                      <SquareIcon className="h-3 w-3" />
+                      m²
+                    </button>
+                  </div>
+                  {bereiche.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => removeBereich(i)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Maße oder Fläche */}
+                {bereich.typ === "RAUM" ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Länge (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={bereich.laenge}
+                          onChange={(e) => updateBereich(i, "laenge", parseFloat(e.target.value) || 0)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Breite (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={bereich.breite}
+                          onChange={(e) => updateBereich(i, "breite", parseFloat(e.target.value) || 0)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Höhe (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={bereich.hoehe}
+                          onChange={(e) => updateBereich(i, "hoehe", parseFloat(e.target.value) || 0)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Fenster</Label>
+                        <Input
+                          type="number"
+                          value={bereich.fenster}
+                          onChange={(e) => updateBereich(i, "fenster", parseInt(e.target.value) || 0)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Türen</Label>
+                        <Input
+                          type="number"
+                          value={bereich.tueren}
+                          onChange={(e) => updateBereich(i, "tueren", parseInt(e.target.value) || 0)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Wandfläche (m²)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={bereich.wandflaeche}
+                        onChange={(e) => updateBereich(i, "wandflaeche", parseFloat(e.target.value) || 0)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Deckenfläche (m²)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={bereich.deckenflaeche}
+                        onChange={(e) => updateBereich(i, "deckenflaeche", parseFloat(e.target.value) || 0)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
                 )}
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">
-                    Länge (m)
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={raum.laenge}
-                    onChange={(e) =>
-                      updateRaum(i, "laenge", parseFloat(e.target.value) || 0)
-                    }
-                    className="h-8 text-sm"
-                  />
+
+                {/* Live m²-Anzeige */}
+                <p className="text-xs text-muted-foreground">
+                  Wand: {fl.wand.toFixed(1)} m² · Decke: {fl.decke.toFixed(1)} m²
+                </p>
+
+                {/* Arbeiten Checkboxes */}
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Arbeiten</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(Object.keys(ARBEIT_LABELS) as ArbeitKey[]).map((key) => {
+                      const aktiv = bereich.arbeiten[key];
+                      const preis = findPreis(leistungen, key);
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => updateArbeiten(i, key, !aktiv)}
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs transition-colors border ${
+                            aktiv
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-muted-foreground border-border hover:bg-muted"
+                          }`}
+                        >
+                          {ARBEIT_LABELS[key]}
+                          {preis !== null && (
+                            <span className={aktiv ? "opacity-80" : "opacity-60"}>
+                              {preis.toFixed(2).replace(".", ",")} €
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">
-                    Breite (m)
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={raum.breite}
-                    onChange={(e) =>
-                      updateRaum(i, "breite", parseFloat(e.target.value) || 0)
-                    }
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">
-                    Höhe (m)
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={raum.hoehe}
-                    onChange={(e) =>
-                      updateRaum(i, "hoehe", parseFloat(e.target.value) || 0)
-                    }
-                    className="h-8 text-sm"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">
-                    Fenster
-                  </Label>
-                  <Input
-                    type="number"
-                    value={raum.fenster}
-                    onChange={(e) =>
-                      updateRaum(i, "fenster", parseInt(e.target.value) || 0)
-                    }
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">
-                    Türen
-                  </Label>
-                  <Input
-                    type="number"
-                    value={raum.tueren}
-                    onChange={(e) =>
-                      updateRaum(i, "tueren", parseInt(e.target.value) || 0)
-                    }
-                    className="h-8 text-sm"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Zusatzarbeiten / Extras */}
