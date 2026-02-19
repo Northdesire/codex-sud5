@@ -178,6 +178,14 @@ export default function FormularPage() {
   const [raumvorlagen, setRaumvorlagen] = useState<RaumVorlage[]>([]);
   const [leistungen, setLeistungen] = useState<LeistungInfo[]>([]);
 
+  // SHOP-User auf Shop-Formular umleiten
+  useEffect(() => {
+    fetch("/api/firma/branche")
+      .then((r) => r.json())
+      .then((data) => { if (data.branche === "SHOP") router.replace("/app/shop-formular"); })
+      .catch(() => {});
+  }, [router]);
+
   // Daten laden bei Mount
   useEffect(() => {
     fetch("/api/raumvorlagen")
