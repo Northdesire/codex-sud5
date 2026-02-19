@@ -38,6 +38,7 @@ interface ExtraItem {
   kategorie: string;
   schaetzMenge: number;
   einheit: string;
+  einzelpreis?: number;
   aktiv: boolean;
 }
 
@@ -162,7 +163,7 @@ export default function FormularPage() {
   const [anfahrtAktiv, setAnfahrtAktiv] = useState(true);
   const [anfahrtBetrag, setAnfahrtBetrag] = useState(35);
   const [showExtraForm, setShowExtraForm] = useState(false);
-  const [extraForm, setExtraForm] = useState({ bezeichnung: "", schaetzMenge: "1", einheit: "pauschal" });
+  const [extraForm, setExtraForm] = useState({ bezeichnung: "", schaetzMenge: "1", einheit: "pauschal", einzelpreis: "" });
   const [raumvorlagen, setRaumvorlagen] = useState<RaumVorlage[]>([]);
   const [leistungen, setLeistungen] = useState<LeistungInfo[]>([]);
 
@@ -791,28 +792,17 @@ export default function FormularPage() {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{extra.bezeichnung}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {extra.schaetzMenge} {extra.einheit}
+                        {extra.einzelpreis ? ` × ${extra.einzelpreis.toFixed(2)} €` : ""}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={extra.schaetzMenge}
-                        onChange={(e) => {
-                          const updated = [...extras];
-                          updated[idx] = { ...updated[idx], schaetzMenge: parseFloat(e.target.value) || 0 };
-                          setExtras(updated);
-                        }}
-                        className="h-7 w-14 text-sm text-right"
-                        disabled={!extra.aktiv}
-                      />
-                      <span className="text-xs text-muted-foreground w-10">{extra.einheit}</span>
-                      <button
-                        onClick={() => setExtras(extras.filter((_, j) => j !== idx))}
-                        className="text-muted-foreground hover:text-destructive p-0.5"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setExtras(extras.filter((_, j) => j !== idx))}
+                      className="text-muted-foreground hover:text-destructive p-0.5 shrink-0"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 );
               })}
@@ -829,7 +819,7 @@ export default function FormularPage() {
                 onChange={(e) => setExtraForm({ ...extraForm, bezeichnung: e.target.value })}
                 className="h-9 text-sm"
               />
-              <div className="flex items-center gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <Input
                   type="number"
                   step="0.1"
@@ -837,31 +827,41 @@ export default function FormularPage() {
                   value={extraForm.schaetzMenge}
                   onChange={(e) => setExtraForm({ ...extraForm, schaetzMenge: e.target.value })}
                   placeholder="Menge"
-                  className="h-8 w-20 text-sm"
+                  className="h-8 text-sm"
                 />
                 <select
                   value={extraForm.einheit}
                   onChange={(e) => setExtraForm({ ...extraForm, einheit: e.target.value })}
-                  className="h-8 text-sm border rounded px-2 bg-background flex-1"
+                  className="h-8 text-sm border rounded px-2 bg-background"
                 >
                   <option value="pauschal">pauschal</option>
                   <option value="Stück">Stück</option>
                   <option value="lfm">lfm</option>
                   <option value="m²">m²</option>
                 </select>
+                <Input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={extraForm.einzelpreis}
+                  onChange={(e) => setExtraForm({ ...extraForm, einzelpreis: e.target.value })}
+                  placeholder="€/Einheit"
+                  className="h-8 text-sm"
+                />
                 <Button
                   size="sm"
                   className="h-8"
-                  disabled={!extraForm.bezeichnung.trim()}
+                  disabled={!extraForm.bezeichnung.trim() || !extraForm.einzelpreis}
                   onClick={() => {
                     setExtras([...extras, {
                       bezeichnung: extraForm.bezeichnung.trim(),
                       kategorie: "SONSTIGES",
                       schaetzMenge: parseFloat(extraForm.schaetzMenge) || 1,
                       einheit: extraForm.einheit,
+                      einzelpreis: parseFloat(extraForm.einzelpreis) || 0,
                       aktiv: true,
                     }]);
-                    setExtraForm({ bezeichnung: "", schaetzMenge: "1", einheit: "pauschal" });
+                    setExtraForm({ bezeichnung: "", schaetzMenge: "1", einheit: "pauschal", einzelpreis: "" });
                     setShowExtraForm(false);
                   }}
                 >

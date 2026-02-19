@@ -190,11 +190,12 @@ async function loadKalkData(firmaId: string) {
 
 function parseExtras(rawExtras: unknown): ExtraInfo[] {
   if (!Array.isArray(rawExtras)) return [];
-  return rawExtras.map((e: { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }) => ({
+  return rawExtras.map((e: { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string; einzelpreis?: number }) => ({
     bezeichnung: e.bezeichnung || "",
     kategorie: e.kategorie || "SONSTIGES",
     schaetzMenge: e.schaetzMenge || 0,
     einheit: e.einheit || "pauschal",
+    einzelpreis: e.einzelpreis,
   }));
 }
 

@@ -60,6 +60,7 @@ export interface ExtraInfo {
   kategorie: string;
   schaetzMenge: number;
   einheit: string;
+  einzelpreis?: number;
 }
 
 // --- ERGEBNIS-TYPEN ---
@@ -433,7 +434,9 @@ export function kalkuliere(
         leistungen.find((l) => l.kategorie === extra.kategorie && l.einheit === extra.einheit) ??
         leistungen.find((l) => l.kategorie === extra.kategorie);
 
-      const preis = matchedLeistung ? matchedLeistung.preisProEinheit : 0;
+      const preis = extra.einzelpreis != null && extra.einzelpreis > 0
+        ? extra.einzelpreis
+        : (matchedLeistung ? matchedLeistung.preisProEinheit : 0);
       const gp = runde2(menge * preis);
 
       positionen.push({
@@ -960,7 +963,9 @@ export function kalkuliereV2(
         leistungen.find((l) => l.kategorie === extra.kategorie && l.einheit === extra.einheit) ??
         leistungen.find((l) => l.kategorie === extra.kategorie);
 
-      const preis = matchedLeistung ? matchedLeistung.preisProEinheit : 0;
+      const preis = extra.einzelpreis != null && extra.einzelpreis > 0
+        ? extra.einzelpreis
+        : (matchedLeistung ? matchedLeistung.preisProEinheit : 0);
       const gp = runde2(menge * preis);
 
       positionen.push({
