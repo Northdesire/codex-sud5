@@ -208,7 +208,7 @@ export default function TutorialPage() {
                         {schritt.beispiel}
                       </p>
 
-                      <Link href={schritt.href}>
+                      <Link href={done ? schritt.href : `${schritt.href}?guide=1`}>
                         <Button
                           variant={done ? "outline" : "default"}
                           size="sm"

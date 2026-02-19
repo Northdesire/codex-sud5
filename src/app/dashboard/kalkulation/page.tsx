@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/dashboard/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,13 @@ const DEFAULTS: KalkRegeln = {
 };
 
 export default function KalkulationPage() {
+  return <Suspense><KalkulationContent /></Suspense>;
+}
+
+function KalkulationContent() {
+  const searchParams = useSearchParams();
+  const guideMode = searchParams.get("guide") === "1";
+
   const [regeln, setRegeln] = useState<KalkRegeln>(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -102,10 +110,11 @@ export default function KalkulationPage() {
         actions={
           <div className="flex gap-2">
             <HelpTour
+              autoStart={guideMode && !loading}
               steps={[
-                { element: "[data-tour='material-berechnung']", popover: { title: "Material-Berechnung", description: "Verschnitt-Faktor wird auf den Materialbedarf aufgeschlagen. Standard-Anstriche gelten wenn das Material keine eigene Angabe hat." } },
-                { element: "[data-tour='anfahrt']", popover: { title: "Anfahrtspauschale", description: "Wird automatisch auf jedes Angebot addiert. Ab der Schwelle (Raumanzahl) gilt die Groß-Pauschale." } },
-                { element: "[data-tour='abzuege']", popover: { title: "Flächen-Abzüge", description: "Pro Fenster/Tür wird diese m²-Zahl von der Wandfläche abgezogen. Standard: 1,5 m² pro Fenster, 2 m² pro Tür." } },
+                { element: "[data-tour='material-berechnung']", popover: { title: "Material-Berechnung", description: "Verschnitt-Faktor wird auf den Materialbedarf aufgeschlagen (Standard 10%). Standard-Anstriche gelten wenn das Material keine eigene Angabe hat. Die Defaults passen für die meisten Betriebe." } },
+                { element: "[data-tour='anfahrt']", popover: { title: "Anfahrtspauschale", description: "Wird automatisch auf jedes Angebot addiert. Klein = wenige Räume, Gross = viele Räume. Ab der Schwelle (Raumanzahl) gilt die Groß-Pauschale." } },
+                { element: "[data-tour='abzuege']", popover: { title: "Flächen-Abzüge", description: "Pro Fenster/Tür wird diese m²-Zahl von der Wandfläche abgezogen. Standard: 1,5 m² pro Fenster, 2 m² pro Tür. Kannst du anpassen wenn deine Fenster/Türen grösser oder kleiner sind." } },
               ]}
             />
             <Button variant="outline" size="sm" onClick={() => setRegeln(DEFAULTS)}>

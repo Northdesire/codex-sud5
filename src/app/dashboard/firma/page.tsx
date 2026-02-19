@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/dashboard/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,13 @@ interface FirmaData {
 }
 
 export default function FirmaPage() {
+  return <Suspense><FirmaContent /></Suspense>;
+}
+
+function FirmaContent() {
+  const searchParams = useSearchParams();
+  const guideMode = searchParams.get("guide") === "1";
+
   const [firma, setFirma] = useState<FirmaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -110,11 +118,12 @@ export default function FirmaPage() {
         actions={
           <div className="flex gap-2">
             <HelpTour
+              autoStart={guideMode && !loading}
               steps={[
                 { element: "[data-tour='logo']", popover: { title: "Firmenlogo", description: "Wird oben links im PDF-Angebot angezeigt. Max. 500 KB, am besten PNG mit transparentem Hintergrund." } },
-                { element: "[data-tour='stammdaten']", popover: { title: "Stammdaten", description: "Firmenname und Adresse erscheinen im Briefkopf jedes Angebots." } },
-                { element: "[data-tour='bank']", popover: { title: "Bankverbindung", description: "IBAN und Bankname erscheinen in der Fusszeile des Angebots." } },
-                { element: "[data-tour='einstellungen']", popover: { title: "Angebotseinstellungen", description: "MwSt-Satz, Zahlungsziel und Gültigkeit werden auf jedes neue Angebot angewendet." } },
+                { element: "[data-tour='stammdaten']", popover: { title: "Stammdaten", description: "Firmenname und Adresse erscheinen im Briefkopf jedes Angebots. Mindestens Firmenname und Strasse ausfüllen." } },
+                { element: "[data-tour='bank']", popover: { title: "Bankverbindung", description: "IBAN und Bankname erscheinen in der Fusszeile des Angebots. Wichtig für professionelle Angebote." } },
+                { element: "[data-tour='einstellungen']", popover: { title: "Angebotseinstellungen", description: "MwSt-Satz (Standard 19%), Zahlungsziel und Gültigkeit werden auf jedes neue Angebot angewendet. Die Defaults passen meist schon." } },
               ]}
             />
             <Button onClick={handleSave} disabled={saving}>

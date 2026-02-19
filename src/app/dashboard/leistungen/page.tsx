@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/dashboard/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,14 @@ const emptyForm = {
 };
 
 export default function LeistungenPage() {
+  return <Suspense><LeistungenContent /></Suspense>;
+}
+
+function LeistungenContent() {
+  const searchParams = useSearchParams();
+  const guideMode = searchParams.get("guide") === "1";
+  const guideTriggered = useRef(false);
+
   const [leistungen, setLeistungen] = useState<Leistung[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("ALLE");
@@ -92,6 +101,16 @@ export default function LeistungenPage() {
     loadData();
     setSelected(new Set());
   }, [loadData]);
+
+  // Guide-Modus: Dialog auto-öffnen wenn leer
+  useEffect(() => {
+    if (!loading && guideMode && leistungen.length === 0 && !guideTriggered.current) {
+      guideTriggered.current = true;
+      setEditId(null);
+      setForm(emptyForm);
+      setDialogOpen(true);
+    }
+  }, [loading, guideMode, leistungen.length]);
 
   function openNew() {
     setEditId(null);
@@ -390,6 +409,17 @@ export default function LeistungenPage() {
             <DialogTitle>
               {editId ? "Leistung bearbeiten" : "Neue Leistung"}
             </DialogTitle>
+            {guideMode && !editId && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm space-y-1.5 mt-2">
+                <p className="font-medium text-primary">Tipps zum Anlegen:</p>
+                <ul className="text-muted-foreground space-y-1 text-xs list-disc pl-4">
+                  <li><strong>Name</strong>: Am besten mit Qualität, z.B. &quot;Wände streichen Standard&quot; und &quot;Wände streichen Premium&quot; — das System erkennt Standard/Premium automatisch</li>
+                  <li><strong>Kategorie</strong>: STREICHEN = Wand/Decke, VORBEREITUNG = Grundierung/Spachteln, TAPEZIEREN = Tapezierarbeiten</li>
+                  <li><strong>Preis pro Einheit</strong>: Dein Arbeitspreis pro m² (ohne Material). z.B. 8,50 €/m² Standard, 12 €/m² Premium</li>
+                  <li><strong>Material-Verknüpfung</strong>: Verbindet die Leistung mit der passenden Material-Kategorie. Wandfarbe bei Streicharbeiten, Grundierung bei Grundierarbeit</li>
+                </ul>
+              </div>
+            )}
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

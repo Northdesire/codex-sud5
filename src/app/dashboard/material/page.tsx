@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/dashboard/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,14 @@ const emptyMaterial = {
 };
 
 export default function MaterialPage() {
+  return <Suspense><MaterialContent /></Suspense>;
+}
+
+function MaterialContent() {
+  const searchParams = useSearchParams();
+  const guideMode = searchParams.get("guide") === "1";
+  const guideTriggered = useRef(false);
+
   const [materialien, setMaterialien] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("ALLE");
@@ -87,6 +96,16 @@ export default function MaterialPage() {
     loadData();
     setSelected(new Set());
   }, [loadData]);
+
+  // Guide-Modus: Dialog auto-öffnen wenn leer
+  useEffect(() => {
+    if (!loading && guideMode && materialien.length === 0 && !guideTriggered.current) {
+      guideTriggered.current = true;
+      setEditId(null);
+      setForm(emptyMaterial);
+      setDialogOpen(true);
+    }
+  }, [loading, guideMode, materialien.length]);
 
   function openNew() {
     setEditId(null);
@@ -412,6 +431,17 @@ export default function MaterialPage() {
             <DialogTitle>
               {editId ? "Material bearbeiten" : "Neues Material"}
             </DialogTitle>
+            {guideMode && !editId && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm space-y-1.5 mt-2">
+                <p className="font-medium text-primary">Tipps zum Anlegen:</p>
+                <ul className="text-muted-foreground space-y-1 text-xs list-disc pl-4">
+                  <li><strong>Kategorie</strong> bestimmt die Zuordnung: Wandfarbe = Streicharbeiten, Grundierung = Grundierarbeit, Spachtel = Spachtelarbeiten</li>
+                  <li><strong>EK-Preis</strong> = dein Einkaufspreis, <strong>VK-Preis</strong> = was der Kunde zahlt (Marge wird automatisch berechnet)</li>
+                  <li><strong>Ergiebigkeit</strong> ist wichtig: m² pro Liter/kg. Steht auf dem Eimer — z.B. 7 m²/Liter bei Wandfarbe</li>
+                  <li><strong>Anstriche</strong> = wieviel Durchgänge (meist 2 bei Wandfarbe, 1 bei Grundierung)</li>
+                </ul>
+              </div>
+            )}
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
