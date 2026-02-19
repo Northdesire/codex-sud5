@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Rocket, Ruler, SquareIcon, ArrowLeft, Truck } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, Ruler, SquareIcon, ArrowLeft, Truck, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 interface ArbeitsbereichArbeiten {
@@ -160,6 +161,8 @@ export default function FormularPage() {
   const [extras, setExtras] = useState<ExtraItem[]>([]);
   const [anfahrtAktiv, setAnfahrtAktiv] = useState(true);
   const [anfahrtBetrag, setAnfahrtBetrag] = useState(35);
+  const [showExtraForm, setShowExtraForm] = useState(false);
+  const [extraForm, setExtraForm] = useState({ bezeichnung: "", schaetzMenge: "1", einheit: "pauschal" });
   const [raumvorlagen, setRaumvorlagen] = useState<RaumVorlage[]>([]);
   const [leistungen, setLeistungen] = useState<LeistungInfo[]>([]);
 
@@ -756,67 +759,126 @@ export default function FormularPage() {
                 disabled={!anfahrtAktiv}
               />
               <span className="text-xs text-muted-foreground">€</span>
-              <button
-                onClick={() => setAnfahrtAktiv(!anfahrtAktiv)}
-                className={`h-6 w-10 rounded-full transition-colors relative ${
-                  anfahrtAktiv ? "bg-primary" : "bg-muted"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                    anfahrtAktiv ? "translate-x-4" : "translate-x-0.5"
-                  }`}
-                />
-              </button>
+              <Switch
+                checked={anfahrtAktiv}
+                onCheckedChange={setAnfahrtAktiv}
+              />
             </div>
           </div>
 
-          {/* Extras aus AI */}
+          {/* Extras */}
           {extras.filter(e => e.bezeichnung).length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Zusatzarbeiten
               </p>
-              {extras.filter(e => e.bezeichnung).map((extra, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-                    extra.aktiv ? "bg-muted/50" : "bg-muted/20 opacity-60"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={extra.aktiv}
-                    onChange={() => {
-                      const idx = extras.indexOf(extra);
-                      const updated = [...extras];
-                      updated[idx] = { ...updated[idx], aktiv: !updated[idx].aktiv };
-                      setExtras(updated);
-                    }}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{extra.bezeichnung}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={extra.schaetzMenge}
-                      onChange={(e) => {
-                        const idx = extras.indexOf(extra);
+              {extras.filter(e => e.bezeichnung).map((extra) => {
+                const idx = extras.indexOf(extra);
+                return (
+                  <div
+                    key={idx}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
+                      extra.aktiv ? "bg-muted/50" : "bg-muted/20 opacity-60"
+                    }`}
+                  >
+                    <Switch
+                      checked={extra.aktiv}
+                      onCheckedChange={(checked) => {
                         const updated = [...extras];
-                        updated[idx] = { ...updated[idx], schaetzMenge: parseFloat(e.target.value) || 0 };
+                        updated[idx] = { ...updated[idx], aktiv: checked };
                         setExtras(updated);
                       }}
-                      className="h-7 w-14 text-sm text-right"
-                      disabled={!extra.aktiv}
                     />
-                    <span className="text-xs text-muted-foreground w-10">{extra.einheit}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{extra.bezeichnung}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={extra.schaetzMenge}
+                        onChange={(e) => {
+                          const updated = [...extras];
+                          updated[idx] = { ...updated[idx], schaetzMenge: parseFloat(e.target.value) || 0 };
+                          setExtras(updated);
+                        }}
+                        className="h-7 w-14 text-sm text-right"
+                        disabled={!extra.aktiv}
+                      />
+                      <span className="text-xs text-muted-foreground w-10">{extra.einheit}</span>
+                      <button
+                        onClick={() => setExtras(extras.filter((_, j) => j !== idx))}
+                        className="text-muted-foreground hover:text-destructive p-0.5"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+          )}
+
+          {/* Extra hinzufügen */}
+          {showExtraForm ? (
+            <div className="rounded-lg border p-3 space-y-2">
+              <Input
+                autoFocus
+                placeholder="z.B. Sockelleisten streichen"
+                value={extraForm.bezeichnung}
+                onChange={(e) => setExtraForm({ ...extraForm, bezeichnung: e.target.value })}
+                className="h-9 text-sm"
+              />
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={extraForm.schaetzMenge}
+                  onChange={(e) => setExtraForm({ ...extraForm, schaetzMenge: e.target.value })}
+                  placeholder="Menge"
+                  className="h-8 w-20 text-sm"
+                />
+                <select
+                  value={extraForm.einheit}
+                  onChange={(e) => setExtraForm({ ...extraForm, einheit: e.target.value })}
+                  className="h-8 text-sm border rounded px-2 bg-background flex-1"
+                >
+                  <option value="pauschal">pauschal</option>
+                  <option value="Stück">Stück</option>
+                  <option value="lfm">lfm</option>
+                  <option value="m²">m²</option>
+                </select>
+                <Button
+                  size="sm"
+                  className="h-8"
+                  disabled={!extraForm.bezeichnung.trim()}
+                  onClick={() => {
+                    setExtras([...extras, {
+                      bezeichnung: extraForm.bezeichnung.trim(),
+                      kategorie: "SONSTIGES",
+                      schaetzMenge: parseFloat(extraForm.schaetzMenge) || 1,
+                      einheit: extraForm.einheit,
+                      aktiv: true,
+                    }]);
+                    setExtraForm({ bezeichnung: "", schaetzMenge: "1", einheit: "pauschal" });
+                    setShowExtraForm(false);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs"
+              onClick={() => setShowExtraForm(true)}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Zusatzarbeit hinzufügen
+            </Button>
           )}
         </CardContent>
       </Card>
