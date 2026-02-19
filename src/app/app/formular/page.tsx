@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Rocket, Wrench, Ruler, SquareIcon, ArrowLeft, Truck, X } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, Ruler, SquareIcon, ArrowLeft, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 interface ArbeitsbereichArbeiten {
@@ -771,13 +771,13 @@ export default function FormularPage() {
             </div>
           </div>
 
-          {/* Extras aus AI oder manuell */}
-          {extras.length > 0 && (
+          {/* Extras aus AI */}
+          {extras.filter(e => e.bezeichnung).length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Zusatzarbeiten
               </p>
-              {extras.map((extra, i) => (
+              {extras.filter(e => e.bezeichnung).map((extra, i) => (
                 <div
                   key={i}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
@@ -788,8 +788,9 @@ export default function FormularPage() {
                     type="checkbox"
                     checked={extra.aktiv}
                     onChange={() => {
+                      const idx = extras.indexOf(extra);
                       const updated = [...extras];
-                      updated[i] = { ...updated[i], aktiv: !updated[i].aktiv };
+                      updated[idx] = { ...updated[idx], aktiv: !updated[idx].aktiv };
                       setExtras(updated);
                     }}
                     className="h-4 w-4 rounded border-gray-300"
@@ -803,87 +804,18 @@ export default function FormularPage() {
                       step="0.1"
                       value={extra.schaetzMenge}
                       onChange={(e) => {
+                        const idx = extras.indexOf(extra);
                         const updated = [...extras];
-                        updated[i] = { ...updated[i], schaetzMenge: parseFloat(e.target.value) || 0 };
+                        updated[idx] = { ...updated[idx], schaetzMenge: parseFloat(e.target.value) || 0 };
                         setExtras(updated);
                       }}
                       className="h-7 w-14 text-sm text-right"
                       disabled={!extra.aktiv}
                     />
                     <span className="text-xs text-muted-foreground w-10">{extra.einheit}</span>
-                    <button
-                      onClick={() => setExtras(extras.filter((_, j) => j !== i))}
-                      className="text-muted-foreground hover:text-destructive p-0.5"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
                   </div>
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* Extra hinzufügen */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full text-xs"
-            onClick={() =>
-              setExtras([
-                ...extras,
-                {
-                  bezeichnung: "",
-                  kategorie: "SONSTIGES",
-                  schaetzMenge: 1,
-                  einheit: "pauschal",
-                  aktiv: true,
-                },
-              ])
-            }
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Zusatzarbeit hinzufügen
-          </Button>
-
-          {/* Inline Edit für leere Bezeichnung */}
-          {extras.length > 0 && !extras[extras.length - 1].bezeichnung && (
-            <div className="flex items-center gap-2">
-              <Input
-                autoFocus
-                placeholder="z.B. Sockelleisten streichen"
-                className="h-8 text-sm flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.currentTarget.value) {
-                    const updated = [...extras];
-                    updated[updated.length - 1] = { ...updated[updated.length - 1], bezeichnung: e.currentTarget.value };
-                    setExtras(updated);
-                  }
-                }}
-                onBlur={(e) => {
-                  if (e.target.value) {
-                    const updated = [...extras];
-                    updated[updated.length - 1] = { ...updated[updated.length - 1], bezeichnung: e.target.value };
-                    setExtras(updated);
-                  } else {
-                    // Leeres Extra wieder entfernen
-                    setExtras(extras.slice(0, -1));
-                  }
-                }}
-              />
-              <select
-                defaultValue="pauschal"
-                onChange={(e) => {
-                  const updated = [...extras];
-                  updated[updated.length - 1] = { ...updated[updated.length - 1], einheit: e.target.value };
-                  setExtras(updated);
-                }}
-                className="h-8 text-xs border rounded px-1.5 bg-background"
-              >
-                <option value="pauschal">pauschal</option>
-                <option value="Stück">Stück</option>
-                <option value="lfm">lfm</option>
-                <option value="m²">m²</option>
-              </select>
             </div>
           )}
         </CardContent>
