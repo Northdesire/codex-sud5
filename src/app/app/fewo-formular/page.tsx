@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Home } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Home, Percent } from "lucide-react";
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
@@ -84,6 +84,8 @@ export default function FewoFormularPage() {
   const [personen, setPersonen] = useState(2);
   const [selectedUnterkunftId, setSelectedUnterkunftId] = useState("");
   const [selectedExtras, setSelectedExtras] = useState<Set<string>>(new Set());
+  const [rabattProzent, setRabattProzent] = useState("");
+  const [rabattGrund, setRabattGrund] = useState("");
   const [mwstSatz] = useState(7);
 
   // Nächte berechnen
@@ -118,10 +120,16 @@ export default function FewoFormularPage() {
   const effektiverPreisProNacht = useMemo(() => {
     if (!selectedUnterkunft) return 0;
     if (erkAnnteSaison) {
+      // Erst exakte saisonId suchen
       const sp = selectedUnterkunft.saisonPreise?.find(
         (p) => p.saisonId === erkAnnteSaison.id
       );
       if (sp) return sp.preisProNacht;
+      // Fallback: nach Saison-Name suchen (falls neue Zeiträume angelegt wurden)
+      const spByName = selectedUnterkunft.saisonPreise?.find(
+        (p) => p.saison?.name === erkAnnteSaison.name
+      );
+      if (spByName) return spByName.preisProNacht;
     }
     return selectedUnterkunft.preisProNacht;
   }, [selectedUnterkunft, erkAnnteSaison]);
@@ -157,7 +165,13 @@ export default function FewoFormularPage() {
     return Math.round(sum * 100) / 100;
   }, [selectedExtras, extras, naechte, personen]);
 
-  const netto = unterkunftNetto + extrasNetto;
+  const rabattNetto = useMemo(() => {
+    const pct = parseFloat(rabattProzent);
+    if (!pct || pct <= 0) return 0;
+    return Math.round((unterkunftNetto + extrasNetto) * (pct / 100) * 100) / 100;
+  }, [unterkunftNetto, extrasNetto, rabattProzent]);
+
+  const netto = unterkunftNetto + extrasNetto - rabattNetto;
   const mwstBetrag = Math.round(netto * (mwstSatz / 100) * 100) / 100;
   const brutto = Math.round((netto + mwstBetrag) * 100) / 100;
 
@@ -376,6 +390,19 @@ export default function FewoFormularPage() {
       });
     }
 
+    // Rabatt als eigene Position
+    if (rabattNetto > 0) {
+      positionen.push({
+        posNr: posNr++,
+        typ: "RABATT",
+        bezeichnung: rabattGrund ? `Rabatt (${rabattProzent}%) — ${rabattGrund}` : `Rabatt (${rabattProzent}%)`,
+        menge: 1,
+        einheit: "pauschal",
+        einzelpreis: -rabattNetto,
+        gesamtpreis: -rabattNetto,
+      });
+    }
+
     try {
       const payload = {
         kunde,
@@ -385,7 +412,7 @@ export default function FewoFormularPage() {
         arbeitsNetto: unterkunftNetto,
         anfahrt: 0,
         zuschlagNetto: extrasNetto,
-        rabattNetto: 0,
+        rabattNetto,
         netto,
         mwstSatz,
         mwstBetrag,
@@ -466,6 +493,17 @@ export default function FewoFormularPage() {
           gesamtpreis: Math.round(betrag * 100) / 100,
         });
       }
+      if (rabattNetto > 0) {
+        positionen.push({
+          posNr: posNr++,
+          typ: "RABATT" as const,
+          bezeichnung: rabattGrund ? `Rabatt (${rabattProzent}%) — ${rabattGrund}` : `Rabatt (${rabattProzent}%)`,
+          menge: 1,
+          einheit: "pauschal",
+          einzelpreis: -rabattNetto,
+          gesamtpreis: -rabattNetto,
+        });
+      }
 
       const blob = generateAngebotPDF({
         positionen,
@@ -474,7 +512,7 @@ export default function FewoFormularPage() {
         arbeitsNetto: unterkunftNetto,
         anfahrt: 0,
         zuschlagNetto: extrasNetto,
-        rabattNetto: 0,
+        rabattNetto,
         netto,
         mwstSatz,
         mwstBetrag,
@@ -754,6 +792,47 @@ export default function FewoFormularPage() {
         </Card>
       )}
 
+      {/* Rabatt */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Percent className="h-4 w-4" />
+            Rabatt
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">Rabatt (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={rabattProzent}
+                onChange={(e) => setRabattProzent(e.target.value)}
+                placeholder="0"
+                className="h-9"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs">Grund (optional)</Label>
+              <Input
+                value={rabattGrund}
+                onChange={(e) => setRabattGrund(e.target.value)}
+                placeholder="z.B. Stammgast, Frühbucher"
+                className="h-9"
+              />
+            </div>
+          </div>
+          {rabattNetto > 0 && (
+            <div className="rounded-md bg-green-50 dark:bg-green-950/30 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+              Rabatt: −{formatEuro(rabattNetto)}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Summenblock */}
       {selectedUnterkunft && naechte > 0 && (
         <Card>
@@ -766,6 +845,12 @@ export default function FewoFormularPage() {
               <div className="flex justify-between text-sm">
                 <p>Extras</p>
                 <p className="font-mono">{formatEuro(extrasNetto)}</p>
+              </div>
+            )}
+            {rabattNetto > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <p>Rabatt ({rabattProzent}%){rabattGrund ? ` — ${rabattGrund}` : ""}</p>
+                <p className="font-mono">−{formatEuro(rabattNetto)}</p>
               </div>
             )}
             <Separator />
