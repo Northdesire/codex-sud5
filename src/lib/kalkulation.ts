@@ -1117,5 +1117,6 @@ function runde2(n: number): number {
  * Formatiert eine Zahl als deutschen Euro-Betrag
  */
 export function formatEuro(n: number): string {
+  if (n == null || isNaN(n)) return "0,00 €";
   return n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 }

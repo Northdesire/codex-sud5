@@ -124,8 +124,13 @@ export default function UebersichtPage() {
                   : a
               )
             );
-            // Add to rechnungen list
-            setRechnungen((prev) => [rData, ...prev]);
+            // Reload full rechnungen list (aus-angebot returns incomplete data)
+            fetch("/api/rechnungen")
+              .then((r) => r.json())
+              .then((data) => {
+                if (Array.isArray(data)) setRechnungen(data);
+              })
+              .catch(() => {});
           }
         } catch {
           // Auto-Rechnung optional

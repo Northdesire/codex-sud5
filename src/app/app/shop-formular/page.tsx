@@ -44,6 +44,7 @@ export default function ShopFormularPage() {
   const [saving, setSaving] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [editAngebotId, setEditAngebotId] = useState<string | null>(null);
   const [produkte, setProdukte] = useState<Produkt[]>([]);
   const [positionen, setPositionen] = useState<ShopPosition[]>([]);
   const [kunde, setKunde] = useState<Kunde>({
@@ -64,6 +65,13 @@ export default function ShopFormularPage() {
     fetch("/api/firma/branche")
       .then((r) => r.json())
       .catch(() => {});
+
+    // Edit-Modus prüfen
+    const editId = sessionStorage.getItem("edit-angebot-id");
+    if (editId) {
+      setEditAngebotId(editId);
+      sessionStorage.removeItem("edit-angebot-id");
+    }
 
     // AI-Ergebnis laden
     const aiData = sessionStorage.getItem("ai-ergebnis");
@@ -196,31 +204,52 @@ export default function ShopFormularPage() {
     }));
 
     try {
-      const res = await fetch("/api/angebote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kunde,
-          positionen: angebotPositionen,
-          raeume: [],
-          materialNetto: 0,
-          arbeitsNetto: netto,
-          anfahrt: 0,
-          zuschlagNetto: 0,
-          rabattNetto: 0,
-          netto,
-          mwstSatz,
-          mwstBetrag,
-          brutto,
-          eingabeMethode: "FORMULAR",
-        }),
-      });
+      const payload = {
+        kunde,
+        positionen: angebotPositionen,
+        raeume: [],
+        materialNetto: 0,
+        arbeitsNetto: netto,
+        anfahrt: 0,
+        zuschlagNetto: 0,
+        rabattNetto: 0,
+        netto,
+        mwstSatz,
+        mwstBetrag,
+        brutto,
+        eingabeMethode: "FORMULAR",
+      };
+
+      let res: Response;
+      if (editAngebotId) {
+        // Bestehendes Angebot aktualisieren
+        res = await fetch(`/api/angebote/${editAngebotId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            kundeName: kunde.name,
+            kundeStrasse: kunde.strasse,
+            kundePlz: kunde.plz,
+            kundeOrt: kunde.ort,
+            kundeEmail: kunde.email,
+            kundeTelefon: kunde.telefon,
+          }),
+        });
+      } else {
+        // Neues Angebot erstellen
+        res = await fetch("/api/angebote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (!res.ok) throw new Error("Speichern fehlgeschlagen");
 
       setSaved(true);
-      toast.success("Angebot gespeichert!");
-      router.push("/app/uebersicht");
+      toast.success(editAngebotId ? "Angebot aktualisiert!" : "Angebot gespeichert!");
+      router.push(editAngebotId ? `/app/uebersicht/${editAngebotId}` : "/app/uebersicht");
     } catch (error) {
       console.error("Speichern Fehler:", error);
       toast.error("Fehler beim Speichern");
@@ -285,7 +314,9 @@ export default function ShopFormularPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-xl font-bold">Shop-Angebot erstellen</h1>
+          <h1 className="text-xl font-bold">
+            {editAngebotId ? "Angebot bearbeiten" : "Shop-Angebot erstellen"}
+          </h1>
           <p className="text-sm text-muted-foreground">
             Produkte auswählen und Mengen angeben
           </p>
@@ -540,7 +571,7 @@ export default function ShopFormularPage() {
           ) : (
             <Save className="h-4 w-4 mr-1" />
           )}
-          {saved ? "Gespeichert" : "Angebot speichern"}
+          {saved ? "Gespeichert" : editAngebotId ? "Änderungen speichern" : "Angebot speichern"}
         </Button>
       </div>
     </div>

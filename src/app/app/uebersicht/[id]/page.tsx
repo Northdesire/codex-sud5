@@ -224,6 +224,7 @@ export default function AngebotDetailPage() {
         })),
       };
       sessionStorage.setItem("ai-ergebnis", JSON.stringify(shopDaten));
+      sessionStorage.setItem("edit-angebot-id", data.id);
       router.push("/app/shop-formular");
     } else {
       // Maler: Original-Flow
