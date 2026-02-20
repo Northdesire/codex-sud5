@@ -27,10 +27,13 @@ const statusConfig: Record<
   STORNIERT: { label: "Storniert", variant: "destructive" },
 };
 
+type StatusFilter = "ALLE" | "OFFEN" | "BEZAHLT" | "STORNIERT";
+
 export default function RechnungenPage() {
   const router = useRouter();
   const [rechnungen, setRechnungen] = useState<Rechnung[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<StatusFilter>("ALLE");
 
   useEffect(() => {
     fetch("/api/rechnungen")
@@ -41,6 +44,8 @@ export default function RechnungenPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const filtered = filter === "ALLE" ? rechnungen : rechnungen.filter((r) => r.status === filter);
 
   if (loading) {
     return (
@@ -54,6 +59,25 @@ export default function RechnungenPage() {
     <div className="px-4 pt-5 pb-4 space-y-4">
       <h1 className="text-xl font-bold">Rechnungen</h1>
 
+      {/* Status-Filter */}
+      {rechnungen.length > 0 && (
+        <div className="flex rounded-lg border bg-muted p-1 gap-1">
+          {(["ALLE", "OFFEN", "BEZAHLT", "STORNIERT"] as const).map((s) => (
+            <button
+              key={s}
+              className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
+                filter === s
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => setFilter(s)}
+            >
+              {s === "ALLE" ? "Alle" : statusConfig[s].label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {rechnungen.length === 0 ? (
         <div className="text-center py-12">
           <Receipt className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
@@ -62,9 +86,13 @@ export default function RechnungenPage() {
             Erstelle Rechnungen aus angenommenen Angeboten
           </p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Keine {statusConfig[filter]?.label?.toLowerCase() || ""} Rechnungen</p>
+        </div>
       ) : (
         <div className="space-y-2">
-          {rechnungen.map((r) => {
+          {filtered.map((r) => {
             const cfg = statusConfig[r.status] || statusConfig.ENTWURF;
             return (
               <Card

@@ -61,6 +61,7 @@ export default function UebersichtPage() {
   const [branche, setBranche] = useState<string>("MALER");
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [rechnungFilter, setRechnungFilter] = useState<"ALLE" | "OFFEN" | "BEZAHLT" | "STORNIERT">("ALLE");
 
   const isShop = branche === "SHOP";
 
@@ -300,6 +301,25 @@ export default function UebersichtPage() {
       {/* Rechnungen Tab */}
       {tab === "rechnungen" && (
         <>
+          {/* Status-Filter */}
+          {rechnungen.length > 0 && (
+            <div className="flex rounded-lg border bg-muted p-1 gap-1">
+              {(["ALLE", "OFFEN", "BEZAHLT", "STORNIERT"] as const).map((s) => (
+                <button
+                  key={s}
+                  className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-colors ${
+                    rechnungFilter === s
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setRechnungFilter(s)}
+                >
+                  {s === "ALLE" ? "Alle" : rechnungStatusConfig[s].label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {rechnungen.length === 0 ? (
             <div className="text-center py-12">
               <Receipt className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
@@ -308,9 +328,13 @@ export default function UebersichtPage() {
                 Erstelle Rechnungen aus angenommenen Angeboten
               </p>
             </div>
+          ) : (rechnungFilter === "ALLE" ? rechnungen : rechnungen.filter((r) => r.status === rechnungFilter)).length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Keine {rechnungStatusConfig[rechnungFilter]?.label?.toLowerCase()} Rechnungen</p>
+            </div>
           ) : (
             <div className="space-y-2">
-              {rechnungen.map((r) => {
+              {(rechnungFilter === "ALLE" ? rechnungen : rechnungen.filter((r) => r.status === rechnungFilter)).map((r) => {
                 const cfg = rechnungStatusConfig[r.status] || rechnungStatusConfig.ENTWURF;
                 return (
                   <Card
