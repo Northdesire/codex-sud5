@@ -336,7 +336,7 @@ export default function RechnungDetailPage() {
           </Button>
         )}
 
-        {data.status === "OFFEN" && (
+        {(data.status === "ENTWURF" || data.status === "OFFEN") && (
           <>
             <Button
               className="h-12 bg-green-600 hover:bg-green-700"

@@ -323,7 +323,7 @@ export function RechnungenTable() {
                         >
                           <Mail className="h-4 w-4" />
                         </Button>
-                        {r.status === "OFFEN" && (
+                        {(r.status === "ENTWURF" || r.status === "OFFEN") && (
                           <>
                             <Button
                               size="sm"
@@ -346,16 +346,6 @@ export function RechnungenTable() {
                               Storniert
                             </Button>
                           </>
-                        )}
-                        {r.status === "ENTWURF" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => updateStatus(r.id, "OFFEN")}
-                            disabled={updatingId === r.id}
-                          >
-                            Freigeben
-                          </Button>
                         )}
                         <Button
                           variant="ghost"
