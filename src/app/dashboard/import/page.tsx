@@ -54,6 +54,13 @@ export default function ImportPage() {
   const isShop = branche === "SHOP";
 
   async function handleFileUpload(file: File) {
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Datei zu groß (max. 4 MB)", {
+        description: "Bitte eine kleinere Datei verwenden oder als Foto abfotografieren",
+      });
+      return;
+    }
+
     setFileName(file.name);
     setExtracting(true);
     setItems([]);
@@ -70,8 +77,14 @@ export default function ImportPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Extraktion fehlgeschlagen");
+        let errorMsg = "Extraktion fehlgeschlagen";
+        try {
+          const err = await res.json();
+          errorMsg = err.error || errorMsg;
+        } catch {
+          if (res.status === 413) errorMsg = "Datei zu groß (max. 4 MB)";
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await res.json();

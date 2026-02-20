@@ -180,6 +180,14 @@ export default function AIEingabePage() {
       return;
     }
 
+    // Dateigrößen-Check (Vercel Limit ~4.5MB)
+    if (image && image.size > 4 * 1024 * 1024) {
+      toast.error("Datei zu groß (max. 4 MB)", {
+        description: "Bitte eine kleinere Datei verwenden oder als Foto abfotografieren",
+      });
+      return;
+    }
+
     setAnalysiert(false);
     setErgebnis(null);
 
@@ -209,8 +217,14 @@ export default function AIEingabePage() {
       }
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "AI-Analyse fehlgeschlagen");
+        let errorMsg = "AI-Analyse fehlgeschlagen";
+        try {
+          const err = await res.json();
+          errorMsg = err.error || errorMsg;
+        } catch {
+          if (res.status === 413) errorMsg = "Datei zu groß (max. 4 MB)";
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await res.json();

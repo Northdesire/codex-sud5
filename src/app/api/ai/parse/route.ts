@@ -3,6 +3,8 @@ import OpenAI from "openai";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 
+export const maxDuration = 60;
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
