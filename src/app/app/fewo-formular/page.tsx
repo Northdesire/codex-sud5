@@ -119,17 +119,24 @@ export default function FewoFormularPage() {
   // Effektiver Preis pro Nacht: SaisonPreis wenn vorhanden, sonst Basispreis
   const effektiverPreisProNacht = useMemo(() => {
     if (!selectedUnterkunft) return 0;
+
+    console.log("[PREIS-DEBUG] erkAnnteSaison:", erkAnnteSaison);
+    console.log("[PREIS-DEBUG] unterkunft.saisonPreise:", selectedUnterkunft.saisonPreise);
+
     if (erkAnnteSaison) {
+      const preise = selectedUnterkunft.saisonPreise ?? [];
+
       // Erst exakte saisonId suchen
-      const sp = selectedUnterkunft.saisonPreise?.find(
-        (p) => p.saisonId === erkAnnteSaison.id
-      );
+      const sp = preise.find((p) => p.saisonId === erkAnnteSaison.id);
+      console.log("[PREIS-DEBUG] exakter Match:", sp);
       if (sp) return sp.preisProNacht;
+
       // Fallback: nach Saison-Name suchen (falls neue Zeiträume angelegt wurden)
-      const spByName = selectedUnterkunft.saisonPreise?.find(
-        (p) => p.saison?.name === erkAnnteSaison.name
-      );
+      const spByName = preise.find((p) => p.saison?.name === erkAnnteSaison.name);
+      console.log("[PREIS-DEBUG] Name-Match:", spByName);
       if (spByName) return spByName.preisProNacht;
+
+      console.log("[PREIS-DEBUG] KEIN Saisonpreis gefunden → Basispreis");
     }
     return selectedUnterkunft.preisProNacht;
   }, [selectedUnterkunft, erkAnnteSaison]);
@@ -666,11 +673,15 @@ export default function FewoFormularPage() {
               />
             </div>
           </div>
-          {erkAnnteSaison && (
+          {erkAnnteSaison ? (
             <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
               <span>Saison: <strong>{erkAnnteSaison.name}</strong></span>
             </div>
-          )}
+          ) : anreise && saisons.length > 0 ? (
+            <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              Kein Saison-Zeitraum für dieses Anreisedatum hinterlegt
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -720,34 +731,51 @@ export default function FewoFormularPage() {
                   );
                 })()}
               </select>
-              {selectedUnterkunft && (
-                <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span>Grundpreis/Nacht</span>
-                    <span className="font-mono">{formatEuro(selectedUnterkunft.preisProNacht)}</span>
-                  </div>
-                  {effektiverPreisProNacht !== selectedUnterkunft.preisProNacht && (
-                    <div className="flex justify-between text-sm">
-                      <span>Saisonpreis/Nacht{erkAnnteSaison ? ` (${erkAnnteSaison.name})` : ""}</span>
-                      <span className="font-mono font-medium">
-                        {formatEuro(Math.round(effektiverPreisProNacht * 100) / 100)}
-                      </span>
-                    </div>
-                  )}
-                  {naechte > 0 && (
-                    <>
-                      <Separator className="my-1" />
-                      <div className="flex justify-between text-sm font-medium">
-                        <span>{naechte} Nächte</span>
-                        <span className="font-mono">{formatEuro(unterkunftNetto)}</span>
+              {selectedUnterkunft && (() => {
+                const preise = selectedUnterkunft.saisonPreise ?? [];
+                const hatSaisonPreis = erkAnnteSaison && preise.some(
+                  (p) => p.saisonId === erkAnnteSaison.id || p.saison?.name === erkAnnteSaison.name
+                );
+                return (
+                  <div className="space-y-2">
+                    <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>Grundpreis/Nacht</span>
+                        <span className="font-mono">{formatEuro(selectedUnterkunft.preisProNacht)}</span>
                       </div>
-                    </>
-                  )}
-                  {selectedUnterkunft.beschreibung && (
-                    <p className="text-xs text-muted-foreground mt-1">{selectedUnterkunft.beschreibung}</p>
-                  )}
-                </div>
-              )}
+                      {effektiverPreisProNacht !== selectedUnterkunft.preisProNacht && (
+                        <div className="flex justify-between text-sm text-primary">
+                          <span>Saisonpreis/Nacht ({erkAnnteSaison?.name})</span>
+                          <span className="font-mono font-medium">
+                            {formatEuro(Math.round(effektiverPreisProNacht * 100) / 100)}
+                          </span>
+                        </div>
+                      )}
+                      {naechte > 0 && (
+                        <>
+                          <Separator className="my-1" />
+                          <div className="flex justify-between text-sm font-medium">
+                            <span>{naechte} Nächte</span>
+                            <span className="font-mono">{formatEuro(unterkunftNetto)}</span>
+                          </div>
+                        </>
+                      )}
+                      {selectedUnterkunft.beschreibung && (
+                        <p className="text-xs text-muted-foreground mt-1">{selectedUnterkunft.beschreibung}</p>
+                      )}
+                    </div>
+                    {erkAnnteSaison && !hatSaisonPreis && (
+                      <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                        Saison &ldquo;{erkAnnteSaison.name}&rdquo; erkannt, aber kein Saisonpreis
+                        für diese Unterkunft hinterlegt. Es wird der Grundpreis verwendet.
+                        <a href="/dashboard/unterkuenfte" className="underline ml-1 font-medium">
+                          Saisonpreise festlegen
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
         </CardContent>
