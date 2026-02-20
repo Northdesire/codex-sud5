@@ -13,15 +13,25 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 
 const EINHEITEN = ["pauschal", "pro Nacht", "pro Person", "pro Nacht/Person"];
+
+const TYP_OPTIONS = [
+  { value: "EINZELZIMMER", label: "Einzelzimmer" },
+  { value: "DOPPELZIMMER", label: "Doppelzimmer" },
+  { value: "SUITE", label: "Suite" },
+  { value: "FERIENWOHNUNG", label: "Ferienwohnung" },
+  { value: "BENUTZERDEFINIERT", label: "Sonstige" },
+];
 
 interface FewoExtra {
   id: string;
   name: string;
   preis: number;
   einheit: string;
+  unterkunftTypen: string[];
   aktiv: boolean;
 }
 
@@ -29,6 +39,7 @@ const emptyForm = {
   name: "",
   preis: "",
   einheit: "pauschal",
+  unterkunftTypen: [] as string[],
   aktiv: true,
 };
 
@@ -63,6 +74,7 @@ export default function FewoExtrasPage() {
       name: e.name,
       preis: e.preis.toString(),
       einheit: e.einheit,
+      unterkunftTypen: e.unterkunftTypen ?? [],
       aktiv: e.aktiv,
     });
     setDialogOpen(true);
@@ -139,6 +151,7 @@ export default function FewoExtrasPage() {
                   <TableHead>Name</TableHead>
                   <TableHead className="text-right">Preis</TableHead>
                   <TableHead>Einheit</TableHead>
+                  <TableHead>Gilt für</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
@@ -152,6 +165,19 @@ export default function FewoExtrasPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{e.einheit}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {e.unterkunftTypen.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">Alle</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {e.unterkunftTypen.map((t) => (
+                            <Badge key={t} variant="outline" className="text-xs">
+                              {TYP_OPTIONS.find((o) => o.value === t)?.label ?? t}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={e.aktiv ? "default" : "secondary"}>
@@ -212,6 +238,35 @@ export default function FewoExtrasPage() {
                     <option key={e} value={e}>{e}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+            {/* Unterkunft-Typen */}
+            <div className="space-y-2">
+              <Label>Gilt für welche Unterkünfte?</Label>
+              <p className="text-xs text-muted-foreground">Nichts auswählen = gilt für alle Typen</p>
+              <div className="grid grid-cols-2 gap-2">
+                {TYP_OPTIONS.map((t) => {
+                  const checked = form.unterkunftTypen.includes(t.value);
+                  return (
+                    <label
+                      key={t.value}
+                      className={`flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
+                        checked ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => {
+                          const updated = checked
+                            ? form.unterkunftTypen.filter((v) => v !== t.value)
+                            : [...form.unterkunftTypen, t.value];
+                          setForm({ ...form, unterkunftTypen: updated });
+                        }}
+                      />
+                      <span className="text-sm">{t.label}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>

@@ -327,10 +327,11 @@ export default function UnterkuenftePage() {
         <TableCell className="text-right font-mono font-medium">
           {formatEuro(u.preisProNacht)}
         </TableCell>
-        {saisons.map((s) => {
-          const sp = u.saisonPreise.find((p) => p.saisonId === s.id);
+        {[...new Set(saisons.map((s) => s.name))].map((saisonName) => {
+          const matchingSaisonIds = saisons.filter((s) => s.name === saisonName).map((s) => s.id);
+          const sp = u.saisonPreise.find((p) => matchingSaisonIds.includes(p.saisonId));
           return (
-            <TableCell key={s.id} className="text-right font-mono text-sm">
+            <TableCell key={saisonName} className="text-right font-mono text-sm">
               {sp ? formatEuro(sp.preisProNacht) : <span className="text-muted-foreground">—</span>}
             </TableCell>
           );
@@ -368,8 +369,8 @@ export default function UnterkuenftePage() {
               <TableHead>Typ</TableHead>
               <TableHead>Kapazität</TableHead>
               <TableHead className="text-right">Basis/Nacht</TableHead>
-              {saisons.map((s) => (
-                <TableHead key={s.id} className="text-right">{s.name}</TableHead>
+              {[...new Set(saisons.map((s) => s.name))].map((saisonName) => (
+                <TableHead key={saisonName} className="text-right">{saisonName}</TableHead>
               ))}
               <TableHead>Status</TableHead>
               <TableHead className="w-[120px]"></TableHead>
@@ -555,33 +556,41 @@ export default function UnterkuenftePage() {
               </div>
             </div>
 
-            {/* Saisonpreise */}
+            {/* Saisonpreise — gruppiert nach Name (ein Preis pro Saisontyp) */}
             {saisons.length > 0 && (
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Saisonpreise (EUR/Nacht)</Label>
                 <p className="text-xs text-muted-foreground">
-                  Wenn gesetzt, wird dieser Preis statt Basispreis × Faktor verwendet
+                  Optional — wenn leer, gilt der Basispreis
                 </p>
                 <div className="space-y-2">
-                  {saisons.map((s) => (
-                    <div key={s.id} className="flex items-center gap-3">
-                      <span className="text-sm w-32 shrink-0">{s.name}:</span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder={form.preisProNacht ? formatEuro(parseFloat(form.preisProNacht) * s.faktor) : "—"}
-                        value={form.saisonPreise[s.id] ?? ""}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            saisonPreise: { ...form.saisonPreise, [s.id]: e.target.value },
-                          })
-                        }
-                        className="h-9"
-                      />
-                      <span className="text-xs text-muted-foreground shrink-0">EUR/Nacht</span>
-                    </div>
-                  ))}
+                  {[...new Set(saisons.map((s) => s.name))].map((saisonName) => {
+                    // Use the first saison with this name as key for the form value
+                    const firstSaison = saisons.find((s) => s.name === saisonName)!;
+                    return (
+                      <div key={saisonName} className="flex items-center gap-3">
+                        <span className="text-sm w-32 shrink-0">{saisonName}:</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="—"
+                          value={form.saisonPreise[firstSaison.id] ?? ""}
+                          onChange={(e) => {
+                            // Set same price for ALL saisons with this name
+                            const updated = { ...form.saisonPreise };
+                            for (const s of saisons) {
+                              if (s.name === saisonName) {
+                                updated[s.id] = e.target.value;
+                              }
+                            }
+                            setForm({ ...form, saisonPreise: updated });
+                          }}
+                          className="h-9"
+                        />
+                        <span className="text-xs text-muted-foreground shrink-0">EUR/Nacht</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

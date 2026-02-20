@@ -45,6 +45,7 @@ export async function PUT(
         name: body.name,
         preis: parseFloat(body.preis),
         einheit: body.einheit || "pauschal",
+        unterkunftTypen: body.unterkunftTypen ?? [],
         aktiv: body.aktiv ?? true,
       },
     });

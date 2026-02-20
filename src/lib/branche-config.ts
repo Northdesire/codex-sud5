@@ -275,7 +275,6 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/dashboard/fewo-extras", label: "Extras", icon: Star },
       { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
       { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
-      { href: "/dashboard/import", label: "AI-Import", icon: Sparkles },
       { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: GraduationCap },
     ],
     tutorialSteps: [
@@ -305,8 +304,8 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
         title: "Saisons definieren (optional)",
         icon: CalendarRange,
         href: "/dashboard/saisons",
-        warum: "Saisons passen den Preis automatisch an: Hauptsaison teurer, Nebensaison günstiger. Der Saisonfaktor wird mit dem Grundpreis multipliziert.",
-        beispiel: 'Lege z.B. an: "Hauptsaison" (Juli-August, Faktor 1.3) oder "Nebensaison" (November-März, Faktor 0.8).',
+        warum: "Saisons passen den Preis automatisch an: Hauptsaison teurer, Nebensaison günstiger. Saisonpreise werden pro Unterkunft festgelegt.",
+        beispiel: 'Lege z.B. an: "Hauptsaison" (Juli-August) oder "Nebensaison" (November-März) und setze dann Preise pro Unterkunft.',
         color: "text-amber-600",
       },
       {

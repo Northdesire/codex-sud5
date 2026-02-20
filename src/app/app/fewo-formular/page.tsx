@@ -50,6 +50,7 @@ interface FewoExtra {
   name: string;
   preis: number;
   einheit: string;
+  unterkunftTypen: string[];
   aktiv: boolean;
 }
 
@@ -104,6 +105,14 @@ export default function FewoFormularPage() {
   }, [anreise, saisons]);
 
   const selectedUnterkunft = unterkuenfte.find((u) => u.id === selectedUnterkunftId) || null;
+
+  // Extras filtern: nur die passend zum Unterkunft-Typ anzeigen
+  const filteredExtras = useMemo(() => {
+    if (!selectedUnterkunft) return extras;
+    return extras.filter(
+      (e) => e.unterkunftTypen.length === 0 || e.unterkunftTypen.includes(selectedUnterkunft.typ)
+    );
+  }, [extras, selectedUnterkunft]);
 
   // Effektiver Preis pro Nacht: SaisonPreis wenn vorhanden, sonst Basispreis
   const effektiverPreisProNacht = useMemo(() => {
@@ -707,13 +716,13 @@ export default function FewoFormularPage() {
       </Card>
 
       {/* Extras */}
-      {extras.length > 0 && (
+      {filteredExtras.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">Extras</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {extras.map((extra) => {
+            {filteredExtras.map((extra) => {
               const checked = selectedExtras.has(extra.id);
               const betrag = extraBetrag(extra);
               return (

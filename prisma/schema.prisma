@@ -315,6 +315,7 @@ model FewoExtra {
   name            String
   preis           Float
   einheit         String   // "pauschal", "pro Nacht", "pro Person", "pro Nacht/Person"
+  unterkunftTypen String[] // z.B. ["FERIENWOHNUNG","SUITE"] — leer = gilt für alle
   aktiv           Boolean  @default(true)
 
   createdAt       DateTime @default(now())
