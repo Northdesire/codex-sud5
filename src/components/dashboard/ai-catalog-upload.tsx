@@ -21,6 +21,7 @@ import {
   Image,
 } from "lucide-react";
 import { toast } from "sonner";
+import { compressForUpload } from "@/lib/compress";
 
 interface ExtractedItem {
   name: string;
@@ -60,11 +61,12 @@ export function AICatalogUpload({ filterTyp = "all", onImported }: AICatalogUplo
   const [summary, setSummary] = useState("");
   const [fileName, setFileName] = useState("");
 
-  async function handleFile(file: File) {
-    if (file.size > 4 * 1024 * 1024) {
-      toast.error("Datei zu groß (max. 4 MB)", {
-        description: "Bitte eine kleinere Datei verwenden oder als Foto abfotografieren",
-      });
+  async function handleFile(rawFile: File) {
+    let file: File;
+    try {
+      file = await compressForUpload(rawFile);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Datei zu groß");
       return;
     }
 

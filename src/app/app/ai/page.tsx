@@ -13,6 +13,7 @@ import {
   User, Ruler, Paintbrush, Camera, ImageIcon, X, Package,
 } from "lucide-react";
 import { toast } from "sonner";
+import { compressForUpload } from "@/lib/compress";
 import type { Branche } from "@/lib/branche-config";
 
 const DEMO_TEXT_MALER = `Hallo Herr Schneider,
@@ -161,11 +162,16 @@ export default function AIEingabePage() {
       .catch(() => setBranche("MALER"));
   }, []);
 
-  function handleImageSelect(file: File) {
-    setImage(file);
-    const reader = new FileReader();
-    reader.onload = (e) => setImagePreview(e.target?.result as string);
-    reader.readAsDataURL(file);
+  async function handleImageSelect(file: File) {
+    try {
+      const compressed = await compressForUpload(file);
+      setImage(compressed);
+      const reader = new FileReader();
+      reader.onload = (e) => setImagePreview(e.target?.result as string);
+      reader.readAsDataURL(compressed);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Datei zu groß");
+    }
   }
 
   function removeImage() {
@@ -180,13 +186,7 @@ export default function AIEingabePage() {
       return;
     }
 
-    // Dateigrößen-Check (Vercel Limit ~4.5MB)
-    if (image && image.size > 4 * 1024 * 1024) {
-      toast.error("Datei zu groß (max. 4 MB)", {
-        description: "Bitte eine kleinere Datei verwenden oder als Foto abfotografieren",
-      });
-      return;
-    }
+    // Image is already compressed in handleImageSelect
 
     setAnalysiert(false);
     setErgebnis(null);
@@ -222,7 +222,7 @@ export default function AIEingabePage() {
           const err = await res.json();
           errorMsg = err.error || errorMsg;
         } catch {
-          if (res.status === 413) errorMsg = "Datei zu groß (max. 4 MB)";
+          if (res.status === 413) errorMsg = "Datei zu groß";
         }
         throw new Error(errorMsg);
       }
