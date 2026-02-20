@@ -26,9 +26,11 @@ import {
   Plus,
   Minus,
   X,
+  Receipt,
 } from "lucide-react";
 import { formatEuro } from "@/lib/kalkulation";
 import { toast } from "sonner";
+import Link from "next/link";
 
 interface Position {
   id?: string;
@@ -101,6 +103,10 @@ export function AngeboteTable() {
   const [angebote, setAngebote] = useState<Angebot[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [branche, setBranche] = useState<string>("MALER");
+
+  // Rechnung-IDs pro Angebot (nach Auto-Erstellung)
+  const [rechnungMap, setRechnungMap] = useState<Record<string, { id: string; nummer: string }>>({});
 
   // Search & Filter
   const [search, setSearch] = useState("");
@@ -132,6 +138,10 @@ export function AngeboteTable() {
 
   useEffect(() => {
     loadAngebote();
+    fetch("/api/firma/branche")
+      .then((r) => r.json())
+      .then((d) => setBranche(d.branche || "MALER"))
+      .catch(() => {});
   }, [loadAngebote]);
 
   // Filtered angebote
@@ -158,6 +168,24 @@ export function AngeboteTable() {
           prev.map((a) => (a.id === id ? { ...a, status } : a))
         );
         toast.success(`Status auf "${statusConfig[status]?.label}" gesetzt`);
+
+        // SHOP: Auto-Rechnung erstellen bei ANGENOMMEN
+        if (status === "ANGENOMMEN" && branche === "SHOP") {
+          try {
+            const rRes = await fetch("/api/rechnungen/aus-angebot", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ angebotId: id }),
+            });
+            if (rRes.ok) {
+              const rData = await rRes.json();
+              setRechnungMap((prev) => ({ ...prev, [id]: { id: rData.id, nummer: rData.nummer } }));
+              toast.success(`Rechnung ${rData.nummer} automatisch erstellt`);
+            }
+          } catch {
+            // Rechnung-Erstellung still optional
+          }
+        }
       }
     } catch (error) {
       console.error("Status update Fehler:", error);
@@ -539,17 +567,7 @@ export function AngeboteTable() {
                           <Mail className="h-4 w-4" />
                         </Button>
                         {/* Status actions */}
-                        {a.status === "ENTWURF" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => updateStatus(a.id, "OFFEN")}
-                            disabled={updatingId === a.id}
-                          >
-                            Freigeben
-                          </Button>
-                        )}
-                        {a.status === "OFFEN" && (
+                        {(a.status === "ENTWURF" || a.status === "OFFEN") && (
                           <>
                             <Button
                               size="sm"
@@ -570,6 +588,19 @@ export function AngeboteTable() {
                               Abgelehnt
                             </Button>
                           </>
+                        )}
+                        {/* Rechnung-Link (SHOP) */}
+                        {a.status === "ANGENOMMEN" && branche === "SHOP" && rechnungMap[a.id] && (
+                          <Link href={`/dashboard/rechnungen`}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-orange-700 border-orange-200 hover:bg-orange-50"
+                            >
+                              <Receipt className="h-3.5 w-3.5 mr-1" />
+                              {rechnungMap[a.id].nummer}
+                            </Button>
+                          </Link>
                         )}
                         {/* Delete */}
                         <Button

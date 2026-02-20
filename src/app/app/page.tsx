@@ -1,14 +1,30 @@
 import Link from "next/link";
-import { Brain, FileText, BarChart3 } from "lucide-react";
+import { Brain, FileText, Receipt } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatEuro } from "@/lib/kalkulation";
+
+const statusConfig: Record<string, { label: string; color: string }> = {
+  ENTWURF: { label: "Entwurf", color: "bg-gray-100 text-gray-700" },
+  OFFEN: { label: "Offen", color: "bg-blue-100 text-blue-700" },
+  ANGENOMMEN: { label: "Angenommen", color: "bg-green-100 text-green-700" },
+  ABGELEHNT: { label: "Abgelehnt", color: "bg-red-100 text-red-700" },
+  ABGELAUFEN: { label: "Abgelaufen", color: "bg-yellow-100 text-yellow-700" },
+};
 
 export default async function AppHome() {
   let angeboteCount = 0;
   let quote = 0;
   let volumen = 0;
   let branche = "MALER";
+  let recentAngebote: Array<{
+    id: string;
+    nummer: string;
+    datum: Date;
+    status: string;
+    kundeName: string;
+    brutto: number;
+  }> = [];
 
   try {
     const user = await getCurrentUser();
@@ -17,7 +33,7 @@ export default async function AppHome() {
       const now = new Date();
       const monatsStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const [countAll, countAngenommen, countAbgelehnt, sumResult] =
+      const [countAll, countAngenommen, countAbgelehnt, sumResult, recent] =
         await Promise.all([
           prisma.angebot.count({
             where: { firmaId: user.firmaId, datum: { gte: monatsStart } },
@@ -40,12 +56,26 @@ export default async function AppHome() {
             where: { firmaId: user.firmaId, datum: { gte: monatsStart } },
             _sum: { brutto: true },
           }),
+          prisma.angebot.findMany({
+            where: { firmaId: user.firmaId },
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            select: {
+              id: true,
+              nummer: true,
+              datum: true,
+              status: true,
+              kundeName: true,
+              brutto: true,
+            },
+          }),
         ]);
 
       angeboteCount = countAll;
       const entschieden = countAngenommen + countAbgelehnt;
       quote = entschieden > 0 ? Math.round((countAngenommen / entschieden) * 100) : 0;
       volumen = sumResult._sum.brutto ?? 0;
+      recentAngebote = recent;
     }
   } catch {
     // Stats-Fehler ignorieren, Seite trotzdem laden
@@ -54,7 +84,7 @@ export default async function AppHome() {
   const isShop = branche === "SHOP";
 
   return (
-    <div className="px-5 pt-8 space-y-6">
+    <div className="px-5 pt-8 pb-4 space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm">
@@ -96,15 +126,27 @@ export default async function AppHome() {
               </p>
             </div>
           </Link>
-          <Link href="/app/uebersicht">
-            <div className="rounded-2xl border p-4 active:scale-[0.98] transition-transform h-full">
-              <BarChart3 className="h-8 w-8 text-muted-foreground mb-2" />
-              <h3 className="font-semibold text-sm">Dashboard</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Offene Angebote
-              </p>
-            </div>
-          </Link>
+          {isShop ? (
+            <Link href="/app/rechnungen">
+              <div className="rounded-2xl border p-4 active:scale-[0.98] transition-transform h-full">
+                <Receipt className="h-8 w-8 text-muted-foreground mb-2" />
+                <h3 className="font-semibold text-sm">Rechnungen</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Offene Rechnungen
+                </p>
+              </div>
+            </Link>
+          ) : (
+            <Link href="/app/uebersicht">
+              <div className="rounded-2xl border p-4 active:scale-[0.98] transition-transform h-full">
+                <FileText className="h-8 w-8 text-muted-foreground mb-2" />
+                <h3 className="font-semibold text-sm">Übersicht</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Offene Angebote
+                </p>
+              </div>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -128,6 +170,51 @@ export default async function AppHome() {
           </div>
         </div>
       </div>
+
+      {/* Recent Angebote */}
+      {recentAngebote.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Letzte Angebote
+            </h3>
+            <Link
+              href="/app/uebersicht"
+              className="text-xs text-primary font-medium"
+            >
+              Alle anzeigen
+            </Link>
+          </div>
+          <div className="space-y-1.5">
+            {recentAngebote.map((a) => {
+              const cfg = statusConfig[a.status] || statusConfig.ENTWURF;
+              return (
+                <Link key={a.id} href={`/app/uebersicht/${a.id}`}>
+                  <div className="rounded-lg border p-3 flex justify-between items-center hover:bg-muted/50 transition-colors active:scale-[0.99]">
+                    <div>
+                      <p className="font-medium text-sm">{a.kundeName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {a.nummer} &middot;{" "}
+                        {new Date(a.datum).toLocaleDateString("de-DE")}
+                      </p>
+                    </div>
+                    <div className="text-right flex items-center gap-2">
+                      <span
+                        className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded ${cfg.color}`}
+                      >
+                        {cfg.label}
+                      </span>
+                      <span className="font-mono text-sm font-medium">
+                        {formatEuro(a.brutto)}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

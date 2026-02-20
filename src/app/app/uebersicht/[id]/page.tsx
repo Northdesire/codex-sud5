@@ -108,6 +108,26 @@ export default function AngebotDetailPage() {
       });
       if (res.ok) {
         setData((prev) => (prev ? { ...prev, status } : prev));
+        toast.success(status === "ANGENOMMEN" ? "Angebot angenommen" : "Angebot abgelehnt");
+
+        // SHOP: Auto-Rechnung erstellen bei ANGENOMMEN
+        if (status === "ANGENOMMEN" && isShop) {
+          try {
+            const rRes = await fetch("/api/rechnungen/aus-angebot", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ angebotId: id }),
+            });
+            if (rRes.ok) {
+              const rData = await rRes.json();
+              toast.success(`Rechnung ${rData.nummer} erstellt`);
+              router.push(`/app/rechnungen/${rData.id}`);
+              return;
+            }
+          } catch {
+            // Rechnung-Erstellung optional
+          }
+        }
       }
     } catch (error) {
       console.error("Status update Fehler:", error);
@@ -493,15 +513,18 @@ export default function AngebotDetailPage() {
           </Button>
         )}
 
-        {data.status === "OFFEN" && (
+        {(data.status === "ENTWURF" || data.status === "OFFEN") && (
           <>
             <Button
-              className="h-12"
-              variant="outline"
+              className="h-12 bg-green-600 hover:bg-green-700"
               onClick={() => updateStatus("ANGENOMMEN")}
               disabled={updating}
             >
-              <CheckCircle className="h-4 w-4 mr-1" />
+              {updating ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4 mr-1" />
+              )}
               Angenommen
             </Button>
             <Button
