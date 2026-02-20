@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Paintbrush, Package } from "lucide-react";
+import { Paintbrush, Package, Home } from "lucide-react";
 import { BRANCHE_CONFIG, type Branche } from "@/lib/branche-config";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +87,7 @@ export default function RegisterPage() {
           {/* Branche-Auswahl */}
           <div className="space-y-2 mb-6">
             <Label>Branche wählen</Label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => setBranche("MALER")}
@@ -116,6 +116,21 @@ export default function RegisterPage() {
                 <Package className={cn("h-8 w-8", branche === "SHOP" ? "text-primary" : "text-muted-foreground")} />
                 <span className={cn("text-sm font-medium", branche === "SHOP" ? "text-primary" : "text-muted-foreground")}>
                   Shop / E-Commerce
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBranche("FEWO")}
+                className={cn(
+                  "flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all hover:border-primary/40",
+                  branche === "FEWO"
+                    ? "border-primary bg-primary/5"
+                    : "border-muted"
+                )}
+              >
+                <Home className={cn("h-8 w-8", branche === "FEWO" ? "text-primary" : "text-muted-foreground")} />
+                <span className={cn("text-sm font-medium", branche === "FEWO" ? "text-primary" : "text-muted-foreground")}>
+                  Ferienwohnung
                 </span>
               </button>
             </div>

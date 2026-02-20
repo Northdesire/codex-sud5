@@ -17,6 +17,8 @@ interface SetupStatus {
   hasKalkRegeln: boolean;
   hasAngebote: boolean;
   hasProdukte: boolean;
+  hasUnterkuenfte: boolean;
+  hasSaisons: boolean;
   [key: string]: unknown;
 }
 
@@ -40,6 +42,8 @@ export default function TutorialPage() {
           hasKalkRegeln: false,
           hasAngebote: false,
           hasProdukte: false,
+          hasUnterkuenfte: false,
+          hasSaisons: false,
         })
       )
       .finally(() => setLoading(false));

@@ -28,6 +28,13 @@ const shopNavItems: NavItem[] = [
   { href: "/app/uebersicht", icon: BarChart3, label: "Übersicht" },
 ];
 
+const fewoNavItems: NavItem[] = [
+  { href: "/app", icon: Home, label: "Start" },
+  { href: "/app/ai", icon: Brain, label: "AI-Eingabe" },
+  { href: "/app/fewo-formular", icon: FileText, label: "Formular" },
+  { href: "/app/uebersicht", icon: BarChart3, label: "Übersicht" },
+];
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [branche, setBranche] = useState<string | null>(null);
@@ -39,7 +46,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       .catch(() => setBranche("MALER"));
   }, []);
 
-  const navItems = branche === "SHOP" ? shopNavItems : baseNavItems;
+  const navItems = branche === "FEWO" ? fewoNavItems : branche === "SHOP" ? shopNavItems : baseNavItems;
 
   return (
     <div className="flex flex-col min-h-screen max-w-lg mx-auto bg-background">

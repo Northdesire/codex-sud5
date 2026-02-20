@@ -39,7 +39,14 @@ export default async function DashboardPage() {
     const angeboteCount = await prisma.angebot.count({ where: { firmaId: user.firmaId } });
     counts = { kunden: kundenCount, angebote: angeboteCount };
 
-    if (branche === "SHOP") {
+    if (branche === "FEWO") {
+      const [unterkuenfteCount, saisonsCount] = await Promise.all([
+        prisma.unterkunft.count({ where: { firmaId: user.firmaId } }),
+        prisma.saison.count({ where: { firmaId: user.firmaId } }),
+      ]);
+      counts.unterkuenfte = unterkuenfteCount;
+      counts.saisons = saisonsCount;
+    } else if (branche === "SHOP") {
       const produkteCount = await prisma.produkt.count({ where: { firmaId: user.firmaId } });
       counts.produkte = produkteCount;
     } else {
@@ -64,6 +71,8 @@ export default async function DashboardPage() {
     hasKalkRegeln,
     hasAngebote: (counts.angebote ?? 0) > 0,
     hasProdukte: (counts.produkte ?? 0) > 0,
+    hasUnterkuenfte: (counts.unterkuenfte ?? 0) > 0,
+    hasSaisons: (counts.saisons ?? 0) > 0,
   };
 
   const setupChecks = config.setupChecks.map((c) => ({

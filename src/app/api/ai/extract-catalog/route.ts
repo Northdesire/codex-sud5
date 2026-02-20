@@ -67,6 +67,70 @@ const SHOP_CATALOG_RESPONSE_FORMAT = {
 };
 
 // ═══════════════════════════════════════════
+// FEWO CATALOG EXTRACTION
+// ═══════════════════════════════════════════
+
+const FEWO_CATALOG_PROMPT = `Du bist ein Assistent für einen deutschen Ferienwohnungs-/Unterkunftsvermieter. Du analysierst Preislisten, Kataloge und Dokumente und extrahierst Unterkünfte und Extras.
+
+## Für jedes Produkt (Unterkunft oder Extra) extrahieren:
+
+### Unterkünfte (typ="UNTERKUNFT"):
+1. **name**: Name der Unterkunft (z.B. "Ferienwohnung Seeblick", "Doppelzimmer Bergpanorama")
+2. **kategorie**: "UNTERKUNFT"
+3. **ekPreis**: 0
+4. **vkPreis**: Preis pro Nacht
+5. **einheit**: "Nacht"
+6. **artikelNr**: null
+7. **beschreibung**: Kapazität und Beschreibung (z.B. "Max. 4 Personen, 65m², Balkon")
+
+### Extras (typ="EXTRA"):
+1. **name**: Name des Extras (z.B. "Endreinigung", "Frühstück", "Hund")
+2. **kategorie**: "EXTRA"
+3. **ekPreis**: 0
+4. **vkPreis**: Preis
+5. **einheit**: "pauschal", "pro Nacht", "pro Person" oder "pro Nacht/Person"
+6. **artikelNr**: null
+7. **beschreibung**: Kurze Beschreibung
+
+## Regeln:
+- Extrahiere ALLE erkennbaren Unterkünfte und Extras
+- Preise als Dezimalzahlen mit Punkt: 12.50
+- zusammenfassung: Kurze Zusammenfassung (1-2 Sätze)`;
+
+const FEWO_CATALOG_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "fewo_catalog_extraction",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        produkte: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              kategorie: { type: "string" },
+              ekPreis: { type: "number" },
+              vkPreis: { type: "number" },
+              einheit: { type: "string" },
+              artikelNr: { type: ["string", "null"] },
+              beschreibung: { type: ["string", "null"] },
+            },
+            required: ["name", "kategorie", "ekPreis", "vkPreis", "einheit", "artikelNr", "beschreibung"],
+            additionalProperties: false,
+          },
+        },
+        zusammenfassung: { type: "string" },
+      },
+      required: ["produkte", "zusammenfassung"],
+      additionalProperties: false,
+    },
+  },
+};
+
+// ═══════════════════════════════════════════
 // MALER CATALOG EXTRACTION (original)
 // ═══════════════════════════════════════════
 
@@ -207,11 +271,14 @@ export async function POST(request: Request) {
     }
 
     const isShop = branche === "SHOP";
-    const systemPrompt = isShop ? SHOP_CATALOG_PROMPT : SYSTEM_PROMPT;
-    const responseFormat = isShop ? SHOP_CATALOG_RESPONSE_FORMAT : RESPONSE_FORMAT;
-    const userPromptPrefix = isShop
-      ? "Extrahiere alle Produkte aus diesem Dokument"
-      : "Extrahiere alle Produkte und Leistungen aus diesem Dokument";
+    const isFewo = branche === "FEWO";
+    const systemPrompt = isFewo ? FEWO_CATALOG_PROMPT : isShop ? SHOP_CATALOG_PROMPT : SYSTEM_PROMPT;
+    const responseFormat = isFewo ? FEWO_CATALOG_RESPONSE_FORMAT : isShop ? SHOP_CATALOG_RESPONSE_FORMAT : RESPONSE_FORMAT;
+    const userPromptPrefix = isFewo
+      ? "Extrahiere alle Unterkünfte und Extras aus diesem Dokument"
+      : isShop
+        ? "Extrahiere alle Produkte aus diesem Dokument"
+        : "Extrahiere alle Produkte und Leistungen aus diesem Dokument";
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;

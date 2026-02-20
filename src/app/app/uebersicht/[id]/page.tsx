@@ -39,6 +39,10 @@ interface AngebotDetail {
   mwstBetrag: number;
   brutto: number;
   mwstSatz?: number;
+  anreise?: string | null;
+  abreise?: string | null;
+  naechte?: number | null;
+  personen?: number | null;
   positionen: Array<{
     posNr: number;
     typ: string;
@@ -202,7 +206,8 @@ export default function AngebotDetailPage() {
 
   function handleBearbeiten() {
     if (!data) return;
-    const isShopAngebot = data.positionen.some((p) => p.typ === "PRODUKT");
+    const isFewoAngebot = !!(data.anreise || data.abreise || data.naechte);
+    const isShopAngebot = !isFewoAngebot && data.positionen.some((p) => p.typ === "PRODUKT");
     const kundeData = {
       name: data.kundeName,
       strasse: data.kundeStrasse || "",
@@ -211,6 +216,12 @@ export default function AngebotDetailPage() {
       email: data.kundeEmail || "",
       telefon: data.kundeTelefon || "",
     };
+
+    if (isFewoAngebot) {
+      sessionStorage.setItem("edit-angebot-id", data.id);
+      router.push("/app/fewo-formular");
+      return;
+    }
 
     if (isShopAngebot) {
       // Shop: Positionen als Produkte ins shop-formular laden
@@ -319,7 +330,8 @@ export default function AngebotDetailPage() {
   }
 
   const cfg = statusConfig[data.status] || statusConfig.ENTWURF;
-  const isShop = data.positionen.some((p) => p.typ === "PRODUKT");
+  const isFewo = !!(data.anreise || data.abreise || data.naechte);
+  const isShop = !isFewo && data.positionen.some((p) => p.typ === "PRODUKT");
   const leistungen = data.positionen.filter((p) => p.typ === "LEISTUNG");
   const materialien = data.positionen.filter((p) => p.typ === "MATERIAL");
   const produktPositionen = data.positionen.filter((p) => p.typ === "PRODUKT" || p.typ === "VERSAND");
@@ -362,6 +374,44 @@ export default function AngebotDetailPage() {
               </p>
             )}
           </div>
+
+          {/* FEWO: Aufenthalt */}
+          {isFewo && (data.anreise || data.abreise) && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Aufenthalt
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {data.anreise && (
+                    <div>
+                      <p className="text-muted-foreground text-xs">Anreise</p>
+                      <p className="font-medium">{new Date(data.anreise).toLocaleDateString("de-DE")}</p>
+                    </div>
+                  )}
+                  {data.abreise && (
+                    <div>
+                      <p className="text-muted-foreground text-xs">Abreise</p>
+                      <p className="font-medium">{new Date(data.abreise).toLocaleDateString("de-DE")}</p>
+                    </div>
+                  )}
+                  {data.naechte && (
+                    <div>
+                      <p className="text-muted-foreground text-xs">Nächte</p>
+                      <p className="font-medium">{data.naechte}</p>
+                    </div>
+                  )}
+                  {data.personen && (
+                    <div>
+                      <p className="text-muted-foreground text-xs">Personen</p>
+                      <p className="font-medium">{data.personen}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           <Separator />
 

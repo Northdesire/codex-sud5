@@ -82,6 +82,7 @@ export default async function AppHome() {
   }
 
   const isShop = branche === "SHOP";
+  const isFewo = branche === "FEWO";
 
   return (
     <div className="px-5 pt-8 pb-4 space-y-5">
@@ -117,12 +118,12 @@ export default async function AppHome() {
         </Link>
 
         <div className="grid grid-cols-2 gap-3">
-          <Link href={isShop ? "/app/shop-formular" : "/app/formular"}>
+          <Link href={isFewo ? "/app/fewo-formular" : isShop ? "/app/shop-formular" : "/app/formular"}>
             <div className="rounded-2xl border p-4 active:scale-[0.98] transition-transform h-full">
               <FileText className="h-8 w-8 text-muted-foreground mb-2" />
               <h3 className="font-semibold text-sm">Manuelles Formular</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {isShop ? "Produkte & Preise eingeben" : "Klassische Eingabe"}
+                {isFewo ? "Unterkunft & Aufenthalt eingeben" : isShop ? "Produkte & Preise eingeben" : "Klassische Eingabe"}
               </p>
             </div>
           </Link>
@@ -142,7 +143,7 @@ export default async function AppHome() {
                 <FileText className="h-8 w-8 text-muted-foreground mb-2" />
                 <h3 className="font-semibold text-sm">Übersicht</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Offene Angebote
+                  {isFewo ? "Angebote verwalten" : "Offene Angebote"}
                 </p>
               </div>
             </Link>

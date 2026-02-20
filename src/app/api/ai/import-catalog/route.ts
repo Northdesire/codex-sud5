@@ -37,6 +37,75 @@ export async function POST(request: Request) {
     });
     const branche = firma?.branche ?? "MALER";
 
+    // For FEWO branche: import Unterkünfte + Extras
+    if (branche === "FEWO") {
+      let unterkunftCount = 0;
+      let extraCount = 0;
+      let skipCount = 0;
+
+      for (const item of items) {
+        try {
+          if (item.kategorie === "UNTERKUNFT") {
+            // Parse capacity from description (e.g. "Max. 4 Personen")
+            const capMatch = item.beschreibung?.match(/(\d+)\s*Person/i);
+            const kapazitaet = capMatch ? parseInt(capMatch[1]) : 4;
+
+            await prisma.unterkunft.upsert({
+              where: {
+                firmaId_name: {
+                  firmaId: user.firmaId,
+                  name: item.name,
+                },
+              },
+              update: {
+                preisProNacht: item.vkPreis,
+                beschreibung: item.beschreibung || null,
+                kapazitaet,
+              },
+              create: {
+                firmaId: user.firmaId,
+                name: item.name,
+                preisProNacht: item.vkPreis,
+                beschreibung: item.beschreibung || null,
+                kapazitaet,
+              },
+            });
+            unterkunftCount++;
+          } else {
+            await prisma.fewoExtra.upsert({
+              where: {
+                firmaId_name: {
+                  firmaId: user.firmaId,
+                  name: item.name,
+                },
+              },
+              update: {
+                preis: item.vkPreis,
+                einheit: item.einheit || "pauschal",
+              },
+              create: {
+                firmaId: user.firmaId,
+                name: item.name,
+                preis: item.vkPreis,
+                einheit: item.einheit || "pauschal",
+              },
+            });
+            extraCount++;
+          }
+        } catch {
+          skipCount++;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        materialCount: unterkunftCount,
+        leistungCount: extraCount,
+        produktCount: 0,
+        skipCount,
+      });
+    }
+
     // For SHOP branche, treat all items as Produkt
     if (branche === "SHOP") {
       let produktCount = 0;

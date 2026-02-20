@@ -15,6 +15,7 @@ datasource db {
 enum Branche {
   MALER
   SHOP
+  FEWO
 }
 
 // ═══════════════════════════════════════════
@@ -69,6 +70,9 @@ model Firma {
   rechnungen      Rechnung[]
   kalkRegeln      KalkulationsRegeln?
   produkte        Produkt[]
+  unterkuenfte    Unterkunft[]
+  saisons         Saison[]
+  fewoExtras      FewoExtra[]
 }
 
 // ═══════════════════════════════════════════
@@ -230,6 +234,57 @@ model Produkt {
 }
 
 // ═══════════════════════════════════════════
+// FEWO (Ferienwohnung / Hotel / Unterkunft)
+// ═══════════════════════════════════════════
+
+model Unterkunft {
+  id              String   @id @default(cuid())
+  firmaId         String
+  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  beschreibung    String?
+  kapazitaet      Int
+  preisProNacht   Float
+  aktiv           Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([firmaId, name])
+}
+
+model Saison {
+  id              String   @id @default(cuid())
+  firmaId         String
+  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  von             DateTime
+  bis             DateTime
+  faktor          Float
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model FewoExtra {
+  id              String   @id @default(cuid())
+  firmaId         String
+  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  name            String
+  preis           Float
+  einheit         String   // "pauschal", "pro Nacht", "pro Person", "pro Nacht/Person"
+  aktiv           Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([firmaId, name])
+}
+
+// ═══════════════════════════════════════════
 // ZUSCHLÄGE & RABATTE
 // ═══════════════════════════════════════════
 
@@ -375,6 +430,12 @@ model Angebot {
   kundeOrt        String?
   kundeEmail      String?
   kundeTelefon    String?
+
+  // FEWO-spezifische Felder
+  anreise         DateTime?
+  abreise         DateTime?
+  naechte         Int?
+  personen        Int?
 
   positionen      AngebotPosition[]
   materialNetto   Float

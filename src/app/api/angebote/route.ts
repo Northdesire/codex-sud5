@@ -46,6 +46,11 @@ export async function POST(request: NextRequest) {
       einleitungsText,
       schlussText,
       raeume,
+      // FEWO-spezifische Felder
+      anreise,
+      abreise,
+      naechte,
+      personen,
     } = body;
 
     // Transaction: increment counter + create Angebot + Positionen
@@ -127,6 +132,10 @@ export async function POST(request: NextRequest) {
           brutto,
           einleitungsText: einleitungsText || null,
           schlussText: schlussText || null,
+          anreise: anreise ? new Date(anreise) : null,
+          abreise: abreise ? new Date(abreise) : null,
+          naechte: naechte ?? null,
+          personen: personen ?? null,
           positionen: {
             create: positionen.map(
               (

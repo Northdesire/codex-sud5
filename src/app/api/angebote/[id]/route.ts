@@ -79,6 +79,10 @@ export async function PUT(
             brutto: body.brutto,
             einleitungsText: body.einleitungsText ?? existing.einleitungsText,
             schlussText: body.schlussText ?? existing.schlussText,
+            anreise: body.anreise !== undefined ? (body.anreise ? new Date(body.anreise) : null) : existing.anreise,
+            abreise: body.abreise !== undefined ? (body.abreise ? new Date(body.abreise) : null) : existing.abreise,
+            naechte: body.naechte !== undefined ? body.naechte : existing.naechte,
+            personen: body.personen !== undefined ? body.personen : existing.personen,
             positionen: {
               create: body.positionen.map(
                 (p: { posNr: number; typ: string; raumName?: string; bezeichnung: string; menge: number; einheit: string; einzelpreis: number; gesamtpreis: number }, i: number) => ({

@@ -14,6 +14,26 @@ export async function GET() {
 
     const branche = firma?.branche ?? "MALER";
 
+    if (branche === "FEWO") {
+      const [unterkuenfteCount, saisonsCount, angeboteCount] = await Promise.all([
+        prisma.unterkunft.count({ where: { firmaId } }),
+        prisma.saison.count({ where: { firmaId } }),
+        prisma.angebot.count({ where: { firmaId } }),
+      ]);
+
+      return NextResponse.json({
+        branche,
+        hasFirma: !!(firma?.firmenname && firma?.strasse),
+        hasUnterkuenfte: unterkuenfteCount > 0,
+        hasSaisons: saisonsCount > 0,
+        hasAngebote: angeboteCount > 0,
+        hasLeistungen: false,
+        hasMaterial: false,
+        hasKalkRegeln: false,
+        hasProdukte: false,
+      });
+    }
+
     if (branche === "SHOP") {
       const [produkteCount, angeboteCount] = await Promise.all([
         prisma.produkt.count({ where: { firmaId } }),
@@ -25,7 +45,6 @@ export async function GET() {
         hasFirma: !!(firma?.firmenname && firma?.strasse),
         hasProdukte: produkteCount > 0,
         hasAngebote: angeboteCount > 0,
-        // Maler-spezifische Felder auf false setzen
         hasLeistungen: false,
         hasMaterial: false,
         hasKalkRegeln: false,

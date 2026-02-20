@@ -14,9 +14,12 @@ import {
   GraduationCap,
   Package,
   Receipt,
+  Home,
+  CalendarRange,
+  Star,
 } from "lucide-react";
 
-export type Branche = "MALER" | "SHOP";
+export type Branche = "MALER" | "SHOP" | "FEWO";
 
 export interface SidebarItem {
   href: string;
@@ -48,6 +51,9 @@ export interface BrancheConfig {
     hasProdukte: boolean;
     hasRaumvorlagen: boolean;
     hasRechnungen: boolean;
+    hasUnterkuenfte: boolean;
+    hasSaisons: boolean;
+    hasFewoExtras: boolean;
   };
   registerPlaceholders: {
     firmenname: string;
@@ -147,6 +153,9 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       hasProdukte: false,
       hasRaumvorlagen: true,
       hasRechnungen: false,
+      hasUnterkuenfte: false,
+      hasSaisons: false,
+      hasFewoExtras: false,
     },
     registerPlaceholders: {
       firmenname: "Malerbetrieb Schneider",
@@ -227,6 +236,9 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       hasProdukte: true,
       hasRaumvorlagen: false,
       hasRechnungen: true,
+      hasUnterkuenfte: false,
+      hasSaisons: false,
+      hasFewoExtras: false,
     },
     registerPlaceholders: {
       firmenname: "Mein Shop GmbH",
@@ -249,6 +261,98 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/app/ai", title: "Angebot erstellen", description: "Per AI oder manuell ein Angebot erstellen" },
     ],
     angebotEinleitung: "Vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:",
+  },
+
+  FEWO: {
+    label: "Ferienwohnung / Unterkunft",
+    beschreibung: "Ferienwohnung-Angebotssoftware",
+    sidebarItems: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard/firma", label: "Firmendaten", icon: Building2 },
+      { href: "/dashboard/kunden", label: "Kunden", icon: Users },
+      { href: "/dashboard/unterkuenfte", label: "Unterkünfte", icon: Home },
+      { href: "/dashboard/saisons", label: "Saisons", icon: CalendarRange },
+      { href: "/dashboard/fewo-extras", label: "Extras", icon: Star },
+      { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
+      { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
+      { href: "/dashboard/import", label: "AI-Import", icon: Sparkles },
+      { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: GraduationCap },
+    ],
+    tutorialSteps: [
+      {
+        key: "hasFirma",
+        nr: 1,
+        title: "Firmendaten",
+        icon: Building2,
+        href: "/dashboard/firma",
+        warum: "Deine Firmendaten erscheinen auf jedem Angebot: Briefkopf, Fusszeile, Bankverbindung.",
+        beispiel: "Firmenname, Adresse, Telefon, IBAN, Logo hochladen.",
+        color: "text-blue-600",
+      },
+      {
+        key: "hasUnterkuenfte",
+        nr: 2,
+        title: "Unterkünfte anlegen",
+        icon: Home,
+        href: "/dashboard/unterkuenfte",
+        warum: "Unterkünfte sind dein Katalog: Jede Wohnung/Zimmer bekommt einen Namen, Kapazität und Grundpreis pro Nacht. Beim Erstellen eines Angebots wählst du die passende Unterkunft aus.",
+        beispiel: 'Lege z.B. an: "Ferienwohnung Seeblick" (Kapazität: 4 Personen, 85 €/Nacht) oder "Doppelzimmer Bergpanorama" (2 Personen, 65 €/Nacht).',
+        color: "text-emerald-600",
+      },
+      {
+        key: "hasSaisons",
+        nr: 3,
+        title: "Saisons definieren (optional)",
+        icon: CalendarRange,
+        href: "/dashboard/saisons",
+        warum: "Saisons passen den Preis automatisch an: Hauptsaison teurer, Nebensaison günstiger. Der Saisonfaktor wird mit dem Grundpreis multipliziert.",
+        beispiel: 'Lege z.B. an: "Hauptsaison" (Juli-August, Faktor 1.3) oder "Nebensaison" (November-März, Faktor 0.8).',
+        color: "text-amber-600",
+      },
+      {
+        key: "hasAngebote",
+        nr: 4,
+        title: "Erstes Angebot erstellen",
+        icon: Sparkles,
+        href: "/app/ai",
+        warum: "Alles testen: AI-Eingabe oder Formular ausfüllen und das erste Angebot generieren.",
+        beispiel: 'Anfrage einfügen wie: "Wir möchten vom 15.-22. Juli mit 2 Erwachsenen und Hund kommen."',
+        color: "text-rose-600",
+      },
+    ],
+    appFeatures: {
+      hasRaeume: false,
+      hasKalkRegeln: false,
+      hasMaterial: false,
+      hasLeistungen: false,
+      hasProdukte: false,
+      hasRaumvorlagen: false,
+      hasRechnungen: false,
+      hasUnterkuenfte: true,
+      hasSaisons: true,
+      hasFewoExtras: true,
+    },
+    registerPlaceholders: {
+      firmenname: "Ferienwohnung Seeblick",
+      email: "info@fewo-seeblick.de",
+    },
+    setupChecks: [
+      { key: "hasFirma", label: "Firmendaten" },
+      { key: "hasUnterkuenfte", label: "Unterkünfte" },
+      { key: "hasAngebote", label: "Angebot" },
+    ],
+    dashboardStats: [
+      { key: "kunden", label: "Gäste", icon: Users, href: "/dashboard/kunden", color: "text-blue-600" },
+      { key: "unterkuenfte", label: "Unterkünfte", icon: Home, href: "/dashboard/unterkuenfte", color: "text-emerald-600" },
+      { key: "saisons", label: "Saisons", icon: CalendarRange, href: "/dashboard/saisons", color: "text-amber-600" },
+      { key: "angebote", label: "Angebote", icon: FileSpreadsheet, href: "/dashboard/angebote", color: "text-purple-600" },
+    ],
+    quickActions: [
+      { href: "/dashboard/firma", title: "Firmendaten pflegen", description: "Logo, Kontaktdaten und Einstellungen hinterlegen" },
+      { href: "/dashboard/unterkuenfte", title: "Unterkünfte anlegen", description: "Wohnungen und Zimmer mit Preisen verwalten" },
+      { href: "/app/ai", title: "Angebot erstellen", description: "Per AI oder manuell ein Angebot erstellen" },
+    ],
+    angebotEinleitung: "Vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot für Ihren Aufenthalt:",
   },
 };
 

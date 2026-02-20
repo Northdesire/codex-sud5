@@ -18,6 +18,9 @@ interface Angebot {
   brutto: number;
   createdAt: string;
   rechnung?: { id: string; nummer: string } | null;
+  anreise?: string | null;
+  abreise?: string | null;
+  naechte?: number | null;
 }
 
 interface Rechnung {
@@ -229,6 +232,12 @@ export default function UebersichtPage() {
                             {a.nummer} &middot;{" "}
                             {new Date(a.datum).toLocaleDateString("de-DE")}
                           </p>
+                          {a.anreise && a.abreise && (
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(a.anreise).toLocaleDateString("de-DE")} – {new Date(a.abreise).toLocaleDateString("de-DE")}
+                              {a.naechte ? ` (${a.naechte} N.)` : ""}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right space-y-1">
                           <Badge variant={cfg.variant} className="text-xs">

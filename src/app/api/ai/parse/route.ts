@@ -163,6 +163,194 @@ function parseShopAnfrageRegex(rawText: string) {
 }
 
 // ═══════════════════════════════════════════
+// FEWO SYSTEM PROMPT + RESPONSE FORMAT
+// ═══════════════════════════════════════════
+
+const FEWO_SYSTEM_PROMPT = `Du bist ein Assistent für einen deutschen Ferienwohnungs-/Unterkunftsvermieter. Du analysierst Gästeanfragen (E-Mails, WhatsApp, Formulare) und extrahierst strukturierte Daten für die Angebotserstellung.
+
+## Deine Aufgabe
+
+Extrahiere folgende Informationen:
+
+### 1. Kunde (Gast)
+- name: Vollständiger Name
+- strasse: Straße + Hausnummer
+- plz: 5-stellige Postleitzahl
+- ort: Ortsname
+- email: E-Mail-Adresse
+- telefon: Telefonnummer
+
+### 2. Aufenthalt
+- anreise: Anreise-Datum im Format "YYYY-MM-DD"
+- abreise: Abreise-Datum im Format "YYYY-MM-DD"
+- personen: Anzahl Personen/Gäste (Standard: 2)
+- hund: true wenn Hund/Haustier erwähnt wird
+- wuensche: Array von Sonderwünschen als Strings (z.B. "Frühstück", "Parkplatz", "Babybett", "Endreinigung")
+
+### 3. Confidence (0-100)
+- kunde: Wie vollständig sind die Kundendaten?
+- raeume: Wie genau sind die Aufenthaltsdaten? (verwende "raeume" als Feld)
+- optionen: Wie klar sind die Wünsche insgesamt?
+
+## Erkennungsregeln
+
+**Datumsformate:**
+- "15. Juli" oder "15.7." → aktuelles oder nächstes Jahr
+- "15.-22. Juli" → anreise: 15. Juli, abreise: 22. Juli
+- "vom 15. bis 22. Juli" → anreise/abreise
+- "eine Woche ab 15. Juli" → anreise: 15. Juli, abreise: 22. Juli
+- "KW 28" → Montag bis Sonntag der Kalenderwoche
+
+**Personenangaben:**
+- "2 Erwachsene und 2 Kinder" → personen: 4
+- "zu zweit" → personen: 2
+- "Familie" ohne Zahl → personen: 4
+- "alleine" → personen: 1
+
+**Hund/Haustier:**
+- "mit Hund", "Haustier", "Vierbeiner" → hund: true
+
+**Wünsche:**
+- "Frühstück", "Halbpension" → in wuensche
+- "Brötchenservice" → in wuensche
+- "Parkplatz", "Garage" → in wuensche
+- "Babybett", "Kinderbett" → in wuensche
+- "Endreinigung" → in wuensche
+- "Bettwäsche", "Handtücher" → in wuensche
+
+WICHTIG:
+- Dezimalpunkte verwenden
+- Leere Strings "" für fehlende Felder, NICHT null
+- Confidence IMMER als ganze Zahl 0-100 angeben
+- Daten im Format YYYY-MM-DD (z.B. "2025-07-15")`;
+
+const FEWO_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "fewo_anfrage_parsing",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        kunde: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            strasse: { type: "string" },
+            plz: { type: "string" },
+            ort: { type: "string" },
+            email: { type: "string" },
+            telefon: { type: "string" },
+          },
+          required: ["name", "strasse", "plz", "ort", "email", "telefon"],
+          additionalProperties: false,
+        },
+        anreise: { type: "string" },
+        abreise: { type: "string" },
+        personen: { type: "number" },
+        hund: { type: "boolean" },
+        wuensche: {
+          type: "array",
+          items: { type: "string" },
+        },
+        confidence: {
+          type: "object",
+          properties: {
+            kunde: { type: "number" },
+            raeume: { type: "number" },
+            optionen: { type: "number" },
+          },
+          required: ["kunde", "raeume", "optionen"],
+          additionalProperties: false,
+        },
+      },
+      required: ["kunde", "anreise", "abreise", "personen", "hund", "wuensche", "confidence"],
+      additionalProperties: false,
+    },
+  },
+};
+
+function buildFewoSystemPrompt(katalogKontext: string): string {
+  return FEWO_SYSTEM_PROMPT + (katalogKontext ? `\n\n${katalogKontext}` : "");
+}
+
+async function loadFewoKatalogKontext(firmaId: string): Promise<string> {
+  const [unterkuenfte, extras] = await Promise.all([
+    prisma.unterkunft.findMany({
+      where: { firmaId, aktiv: true },
+      select: { name: true, kapazitaet: true, preisProNacht: true },
+    }),
+    prisma.fewoExtra.findMany({
+      where: { firmaId, aktiv: true },
+      select: { name: true, preis: true, einheit: true },
+    }),
+  ]);
+
+  if (unterkuenfte.length === 0 && extras.length === 0) return "";
+
+  let kontext = "## Verfügbare Unterkünfte & Extras\n";
+  if (unterkuenfte.length > 0) {
+    kontext += "Unterkünfte: " + unterkuenfte.map((u) => `${u.name} (max. ${u.kapazitaet} Pers., ${u.preisProNacht}€/Nacht)`).join(", ") + "\n";
+  }
+  if (extras.length > 0) {
+    kontext += "Extras: " + extras.map((e) => `${e.name} (${e.preis}€ ${e.einheit})`).join(", ") + "\n";
+  }
+  return kontext;
+}
+
+function parseFewoAnfrageRegex(rawText: string) {
+  const text = rawText;
+  const kunde = parseKunde(text);
+
+  // Datum-Parsing
+  let anreise = "";
+  let abreise = "";
+  const datumMatch = text.match(/(\d{1,2})\.?\s*[-–bis]+\s*(\d{1,2})\.?\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|[\d.]+)/i);
+  if (datumMatch) {
+    const monatMap: Record<string, string> = {
+      januar: "01", februar: "02", "märz": "03", april: "04", mai: "05", juni: "06",
+      juli: "07", august: "08", september: "09", oktober: "10", november: "11", dezember: "12",
+    };
+    const monat = monatMap[datumMatch[3].toLowerCase()] || datumMatch[3];
+    const year = new Date().getFullYear();
+    anreise = `${year}-${monat.padStart(2, "0")}-${datumMatch[1].padStart(2, "0")}`;
+    abreise = `${year}-${monat.padStart(2, "0")}-${datumMatch[2].padStart(2, "0")}`;
+  }
+
+  // Personen
+  let personen = 2;
+  const persMatch = text.match(/(\d+)\s*(?:Person|Erwachsen|Gäst|Personen)/i);
+  if (persMatch) personen = parseInt(persMatch[1]);
+
+  // Hund
+  const hund = /hund|haustier|vierbeiner/i.test(text);
+
+  // Wünsche
+  const wuensche: string[] = [];
+  if (/frühstück|fruehstueck/i.test(text)) wuensche.push("Frühstück");
+  if (/parkplatz|garage/i.test(text)) wuensche.push("Parkplatz");
+  if (/babybett|kinderbett/i.test(text)) wuensche.push("Babybett");
+  if (/endreinigung/i.test(text)) wuensche.push("Endreinigung");
+  if (/brötchen|broetchen/i.test(text)) wuensche.push("Brötchenservice");
+  if (/handtücher|handtuecher/i.test(text)) wuensche.push("Handtücher");
+  if (/bettwäsche|bettwaesche/i.test(text)) wuensche.push("Bettwäsche");
+
+  return {
+    kunde,
+    anreise,
+    abreise,
+    personen,
+    hund,
+    wuensche,
+    confidence: {
+      kunde: kunde.name ? 50 : 15,
+      raeume: anreise ? 60 : 10,
+      optionen: 40,
+    },
+  };
+}
+
+// ═══════════════════════════════════════════
 // MALER SYSTEM PROMPT (original)
 // ═══════════════════════════════════════════
 
@@ -445,7 +633,9 @@ export async function POST(request: Request) {
       });
       if (firma?.branche) branche = firma.branche;
 
-      if (branche === "SHOP") {
+      if (branche === "FEWO") {
+        katalogKontext = await loadFewoKatalogKontext(user.firmaId);
+      } else if (branche === "SHOP") {
         katalogKontext = await loadShopKatalogKontext(user.firmaId);
       } else {
         katalogKontext = await loadKatalogKontext(user.firmaId);
@@ -472,36 +662,43 @@ export async function POST(request: Request) {
       }
 
       const isShop = branche === "SHOP";
+      const isFewo = branche === "FEWO";
 
       if (!process.env.OPENAI_API_KEY) {
         if (textPart) {
           return NextResponse.json(
-            isShop ? parseShopAnfrageRegex(textPart) : parseAnfrageRegex(textPart)
+            isFewo ? parseFewoAnfrageRegex(textPart) : isShop ? parseShopAnfrageRegex(textPart) : parseAnfrageRegex(textPart)
           );
         }
         return NextResponse.json({ error: "Kein API Key für Bilderkennung" }, { status: 500 });
       }
 
-      const systemPrompt = isShop
-        ? buildShopSystemPrompt(katalogKontext)
-        : buildSystemPrompt(katalogKontext);
-      const responseFormat = isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
+      const systemPrompt = isFewo
+        ? buildFewoSystemPrompt(katalogKontext)
+        : isShop
+          ? buildShopSystemPrompt(katalogKontext)
+          : buildSystemPrompt(katalogKontext);
+      const responseFormat = isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
 
       const userContent: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail: "high" } }> = [];
 
       if (textPart) {
         userContent.push({
           type: "text",
-          text: isShop
-            ? `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere alle Produkte mit Mengen und Preisen.`
-            : `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen.`,
+          text: isFewo
+            ? `Der Gast hat folgende Anfrage geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere Reisedaten, Personen und Wünsche.`
+            : isShop
+              ? `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere alle Produkte mit Mengen und Preisen.`
+              : `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen.`,
         });
       } else {
         userContent.push({
           type: "text",
-          text: isShop
-            ? "Analysiere dieses Bild. Es zeigt eine Rechnung, Bestellung, Preisliste oder Produktliste. Extrahiere alle Produkte mit Namen, Mengen, Einheiten und Preisen:"
-            : "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere alle erkennbaren Daten:",
+          text: isFewo
+            ? "Analysiere diese Gästeanfrage. Extrahiere Reisedaten, Personenanzahl und Sonderwünsche:"
+            : isShop
+              ? "Analysiere dieses Bild. Es zeigt eine Rechnung, Bestellung, Preisliste oder Produktliste. Extrahiere alle Produkte mit Namen, Mengen, Einheiten und Preisen:"
+              : "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere alle erkennbaren Daten:",
         });
       }
 
@@ -530,7 +727,7 @@ export async function POST(request: Request) {
       }
 
       const parsed = JSON.parse(content);
-      return NextResponse.json(isShop ? parsed : validateParsedResult(parsed));
+      return NextResponse.json(isShop ? parsed : isFewo ? parsed : validateParsedResult(parsed));
     }
 
     // Handle JSON body (text only)
@@ -546,19 +743,22 @@ export async function POST(request: Request) {
     }
 
     const isShop = branche === "SHOP";
+    const isFewo = branche === "FEWO";
 
     // Fallback auf Regex wenn kein API Key
     if (!process.env.OPENAI_API_KEY) {
       console.log("AI Parse: Kein API Key, nutze Regex-Fallback");
       return NextResponse.json(
-        isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
       );
     }
 
-    const systemPrompt = isShop
-      ? buildShopSystemPrompt(katalogKontext)
-      : buildSystemPrompt(katalogKontext);
-    const responseFormat = isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
+    const systemPrompt = isFewo
+      ? buildFewoSystemPrompt(katalogKontext)
+      : isShop
+        ? buildShopSystemPrompt(katalogKontext)
+        : buildSystemPrompt(katalogKontext);
+    const responseFormat = isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -575,20 +775,21 @@ export async function POST(request: Request) {
     if (!content) {
       console.error("OpenAI: Leere Antwort, nutze Regex-Fallback");
       return NextResponse.json(
-        isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
       );
     }
 
     const parsed = JSON.parse(content);
-    return NextResponse.json(isShop ? parsed : validateParsedResult(parsed));
+    return NextResponse.json(isFewo ? parsed : isShop ? parsed : validateParsedResult(parsed));
   } catch (error) {
     console.error("AI Parse Fehler:", error);
 
     if (inputText) {
       console.log("OpenAI fehlgeschlagen, nutze Regex-Fallback");
       const isShop = branche === "SHOP";
+      const isFewo = branche === "FEWO";
       return NextResponse.json(
-        isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
       );
     }
 

@@ -10,5 +10,9 @@ export default async function FormularPage() {
     redirect("/app/shop-formular");
   }
 
+  if (branche === "FEWO") {
+    redirect("/app/fewo-formular");
+  }
+
   return <FormularClient />;
 }

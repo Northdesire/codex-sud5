@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Brain, ClipboardPaste, Mic, MicOff, Loader2, Check, ChevronRight,
-  User, Ruler, Paintbrush, Camera, ImageIcon, X, Package,
+  User, Ruler, Paintbrush, Camera, ImageIcon, X, Package, CalendarDays, Home,
 } from "lucide-react";
 import { toast } from "sonner";
 import { compressForUpload } from "@/lib/compress";
@@ -49,6 +49,28 @@ Firma TechStart GmbH
 Berliner Str. 42, 10115 Berlin
 Tel: 030 12345678
 bestellung@techstart.de`;
+
+const DEMO_TEXT_FEWO = `Hallo,
+
+wir würden gerne vom 15. bis 22. Juli bei Ihnen Urlaub machen. Wir sind 2 Erwachsene und 2 Kinder (8 und 12 Jahre) und haben einen Hund dabei.
+
+Haben Sie noch eine Ferienwohnung frei? Wir hätten gerne Frühstück und Bettwäsche. Ein Parkplatz wäre auch super.
+
+Können Sie uns ein Angebot machen?
+
+Mit freundlichen Grüßen
+Familie Weber
+Hauptstraße 15, 80331 München
+Tel: 0171 9876543
+weber@email.de`;
+
+interface FewoResultParsed {
+  anreise: string;
+  abreise: string;
+  personen: number;
+  hund: boolean;
+  wuensche: string[];
+}
 
 interface ArbeitsbereichArbeiten {
   waendeStreichen: boolean;
@@ -94,6 +116,12 @@ interface ParsedResult {
   extras?: Array<string | { bezeichnung: string; kategorie: string; schaetzMenge: number; einheit: string }>;
   // Shop-spezifisch
   produkte?: ShopProduktParsed[];
+  // FEWO-spezifisch
+  anreise?: string;
+  abreise?: string;
+  personen?: number;
+  hund?: boolean;
+  wuensche?: string[];
   // Gemeinsam
   confidence: { kunde: number; raeume: number; optionen: number };
 }
@@ -135,6 +163,14 @@ const ANALYSE_SCHRITTE_SHOP = [
   { icon: "✅", text: "Fertig!" },
 ];
 
+const ANALYSE_SCHRITTE_FEWO = [
+  { icon: "📖", text: "Text wird gelesen..." },
+  { icon: "👤", text: "Gästedaten extrahieren..." },
+  { icon: "📅", text: "Reisedaten erkennen..." },
+  { icon: "🎯", text: "Wünsche & Extras erfassen..." },
+  { icon: "✅", text: "Fertig!" },
+];
+
 export default function AIEingabePage() {
   const router = useRouter();
   const [branche, setBranche] = useState<Branche | null>(null);
@@ -152,8 +188,9 @@ export default function AIEingabePage() {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const isShop = branche === "SHOP";
-  const ANALYSE_SCHRITTE = isShop ? ANALYSE_SCHRITTE_SHOP : ANALYSE_SCHRITTE_MALER;
-  const DEMO_TEXT = isShop ? DEMO_TEXT_SHOP : DEMO_TEXT_MALER;
+  const isFewo = branche === "FEWO";
+  const ANALYSE_SCHRITTE = isFewo ? ANALYSE_SCHRITTE_FEWO : isShop ? ANALYSE_SCHRITTE_SHOP : ANALYSE_SCHRITTE_MALER;
+  const DEMO_TEXT = isFewo ? DEMO_TEXT_FEWO : isShop ? DEMO_TEXT_SHOP : DEMO_TEXT_MALER;
 
   useEffect(() => {
     fetch("/api/firma/branche")
@@ -239,7 +276,19 @@ export default function AIEingabePage() {
         }
       }
 
-      if (isShop) {
+      if (isFewo) {
+        // FEWO-Ergebnis: anreise/abreise/personen/hund/wuensche
+        const normalized: ParsedResult = {
+          kunde: data.kunde,
+          anreise: data.anreise || "",
+          abreise: data.abreise || "",
+          personen: data.personen || 2,
+          hund: data.hund || false,
+          wuensche: data.wuensche || [],
+          confidence: data.confidence,
+        };
+        setErgebnis(normalized);
+      } else if (isShop) {
         // Shop-Ergebnis: produkte-Array
         const normalized: ParsedResult = {
           kunde: data.kunde,
@@ -299,7 +348,9 @@ export default function AIEingabePage() {
     if (!ergebnis) return;
     sessionStorage.setItem("ai-ergebnis", JSON.stringify(ergebnis));
     sessionStorage.setItem("ai-originaltext", text);
-    if (isShop) {
+    if (isFewo) {
+      router.push("/app/fewo-formular");
+    } else if (isShop) {
       router.push("/app/shop-formular");
     } else {
       router.push("/app/formular");
@@ -384,9 +435,11 @@ export default function AIEingabePage() {
         <div>
           <h1 className="text-xl font-bold">AI-Eingabe</h1>
           <p className="text-sm text-muted-foreground">
-            {isShop
-              ? "Produktanfrage eingeben — AI erkennt Produkte und Mengen"
-              : "Wie möchtest du die Anfrage eingeben?"}
+            {isFewo
+              ? "Gästeanfrage eingeben — AI erkennt Reisedaten und Wünsche"
+              : isShop
+                ? "Produktanfrage eingeben — AI erkennt Produkte und Mengen"
+                : "Wie möchtest du die Anfrage eingeben?"}
           </p>
         </div>
 
@@ -455,20 +508,20 @@ export default function AIEingabePage() {
             </div>
           </button>
 
-          {/* Shop: Manuell-Button */}
-          {isShop && (
+          {/* Shop / FEWO: Manuell-Button */}
+          {(isShop || isFewo) && (
             <button
-              onClick={() => router.push("/app/shop-formular")}
+              onClick={() => router.push(isFewo ? "/app/fewo-formular" : "/app/shop-formular")}
               className="w-full rounded-2xl border-2 border-primary/20 p-5 text-left active:scale-[0.98] transition-transform hover:border-primary/40"
             >
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Package className="h-6 w-6" />
+                  {isFewo ? <Home className="h-6 w-6" /> : <Package className="h-6 w-6" />}
                 </div>
                 <div className="flex-1">
                   <h2 className="font-semibold">Manuell erstellen</h2>
                   <p className="text-sm text-muted-foreground">
-                    Produkte direkt aus dem Katalog wählen
+                    {isFewo ? "Unterkunft & Aufenthalt direkt eingeben" : "Produkte direkt aus dem Katalog wählen"}
                   </p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -496,9 +549,11 @@ export default function AIEingabePage() {
             <p className="text-sm text-muted-foreground">
               {transcribing
                 ? "Whisper transkribiert deine Sprache"
-                : isShop
-                  ? "Bestellung oder Produktanfrage einfügen"
-                  : "Kundenanfrage einfügen oder diktieren"}
+                : isFewo
+                  ? "Gästeanfrage einfügen oder diktieren"
+                  : isShop
+                    ? "Bestellung oder Produktanfrage einfügen"
+                    : "Kundenanfrage einfügen oder diktieren"}
             </p>
           </div>
           <button
@@ -782,8 +837,59 @@ export default function AIEingabePage() {
         </Card>
       )}
 
+      {/* FEWO: Aufenthalt */}
+      {isFewo && (
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">Aufenthalt</h3>
+              <Badge variant="outline" className="ml-auto text-xs">
+                {ergebnis.confidence.raeume}%
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {ergebnis.anreise && (
+                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Anreise</p>
+                  <p className="font-medium text-sm">
+                    {new Date(ergebnis.anreise + "T00:00:00").toLocaleDateString("de-DE")}
+                  </p>
+                </div>
+              )}
+              {ergebnis.abreise && (
+                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Abreise</p>
+                  <p className="font-medium text-sm">
+                    {new Date(ergebnis.abreise + "T00:00:00").toLocaleDateString("de-DE")}
+                  </p>
+                </div>
+              )}
+              <div className="rounded-lg bg-muted/50 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Personen</p>
+                <p className="font-medium text-sm">{ergebnis.personen}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Hund</p>
+                <p className="font-medium text-sm">{ergebnis.hund ? "Ja" : "Nein"}</p>
+              </div>
+            </div>
+            {ergebnis.wuensche && ergebnis.wuensche.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground mb-1">Wünsche:</p>
+                <div className="flex flex-wrap gap-1">
+                  {ergebnis.wuensche.map((w, i) => (
+                    <Badge key={i} variant="outline">{w}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Maler: Arbeitsbereiche */}
-      {!isShop && ergebnis.arbeitsbereiche && (
+      {!isShop && !isFewo && ergebnis.arbeitsbereiche && (
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center gap-2 mb-3">
@@ -834,7 +940,7 @@ export default function AIEingabePage() {
       )}
 
       {/* Maler: Qualität + Extras */}
-      {!isShop && (
+      {!isShop && !isFewo && (
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center gap-2 mb-3">
