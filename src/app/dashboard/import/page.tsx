@@ -372,7 +372,7 @@ export default function ImportPage() {
               ) : (
                 <>
                   <Upload className="h-5 w-5 mr-2" />
-                  {materialCount + leistungCount} Produkte importieren
+                  {items.filter((i) => i.selected).length} Produkte importieren
                 </>
               )}
             </Button>
