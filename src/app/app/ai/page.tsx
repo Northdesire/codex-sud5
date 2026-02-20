@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { compressForUpload } from "@/lib/compress";
-import type { Branche } from "@/lib/branche-config";
+import { useBranche, useBrancheLoading } from "@/lib/branche-context";
 
 const DEMO_TEXT_MALER = `Hallo Herr Schneider,
 
@@ -173,7 +173,8 @@ const ANALYSE_SCHRITTE_FEWO = [
 
 export default function AIEingabePage() {
   const router = useRouter();
-  const [branche, setBranche] = useState<Branche | null>(null);
+  const branche = useBranche();
+  const brancheLoading = useBrancheLoading();
   const [modus, setModus] = useState<"wahl" | "text" | "sprache">("wahl");
   const [text, setText] = useState("");
   const [analysiert, setAnalysiert] = useState(false);
@@ -191,13 +192,6 @@ export default function AIEingabePage() {
   const isFewo = branche === "FEWO";
   const ANALYSE_SCHRITTE = isFewo ? ANALYSE_SCHRITTE_FEWO : isShop ? ANALYSE_SCHRITTE_SHOP : ANALYSE_SCHRITTE_MALER;
   const DEMO_TEXT = isFewo ? DEMO_TEXT_FEWO : isShop ? DEMO_TEXT_SHOP : DEMO_TEXT_MALER;
-
-  useEffect(() => {
-    fetch("/api/firma/branche")
-      .then((r) => r.json())
-      .then((data) => setBranche(data.branche || "MALER"))
-      .catch(() => setBranche("MALER"));
-  }, []);
 
   async function handleImageSelect(file: File) {
     try {
@@ -420,7 +414,7 @@ export default function AIEingabePage() {
   }
 
   // Warten bis Branche geladen ist
-  if (!branche) {
+  if (brancheLoading) {
     return (
       <div className="px-5 pt-12 text-center">
         <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />

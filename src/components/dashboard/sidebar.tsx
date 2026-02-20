@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -8,31 +7,18 @@ import { LogOut, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { BRANCHE_CONFIG, type Branche, type SidebarItem } from "@/lib/branche-config";
+import { BRANCHE_CONFIG } from "@/lib/branche-config";
+import { useBranche, useBrancheLoading } from "@/lib/branche-context";
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [navItems, setNavItems] = useState<SidebarItem[]>(BRANCHE_CONFIG.MALER.sidebarItems);
-  const [beschreibung, setBeschreibung] = useState("Malerbetrieb-Software");
-  const [loading, setLoading] = useState(true);
+  const branche = useBranche();
+  const loading = useBrancheLoading();
 
-  useEffect(() => {
-    fetch("/api/firma/branche")
-      .then((r) => r.json())
-      .then((data) => {
-        const branche: Branche = data.branche || "MALER";
-        const config = BRANCHE_CONFIG[branche];
-        if (config) {
-          setNavItems(config.sidebarItems);
-          setBeschreibung(config.beschreibung);
-        }
-      })
-      .catch(() => {
-        // Fallback: MALER config already set
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const config = BRANCHE_CONFIG[branche];
+  const navItems = config.sidebarItems;
+  const beschreibung = config.beschreibung;
 
   async function handleLogout() {
     const supabase = createClient();

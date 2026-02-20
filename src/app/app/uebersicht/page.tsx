@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Plus, FileText, CheckCircle, XCircle, ArrowRight, Receipt } from "lucide-react";
 import { formatEuro } from "@/lib/kalkulation";
 import { toast } from "sonner";
+import { useBranche } from "@/lib/branche-context";
 
 interface Angebot {
   id: string;
@@ -58,10 +59,10 @@ type Tab = "angebote" | "rechnungen";
 
 export default function UebersichtPage() {
   const router = useRouter();
+  const branche = useBranche();
   const [tab, setTab] = useState<Tab>("angebote");
   const [angebote, setAngebote] = useState<Angebot[]>([]);
   const [rechnungen, setRechnungen] = useState<Rechnung[]>([]);
-  const [branche, setBranche] = useState<string>("MALER");
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [rechnungFilter, setRechnungFilter] = useState<"ALLE" | "OFFEN" | "BEZAHLT" | "STORNIERT">("ALLE");
@@ -69,27 +70,24 @@ export default function UebersichtPage() {
   const isShop = branche === "SHOP";
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/angebote").then((r) => r.json()),
-      fetch("/api/firma/branche").then((r) => r.json()),
-    ])
-      .then(([angeboteData, brancheData]) => {
-        if (Array.isArray(angeboteData)) setAngebote(angeboteData);
-        setBranche(brancheData.branche || "MALER");
+    const fetches: Promise<void>[] = [
+      fetch("/api/angebote")
+        .then((r) => r.json())
+        .then((data) => { if (Array.isArray(data)) setAngebote(data); }),
+    ];
 
-        // Load rechnungen if SHOP
-        if (brancheData.branche === "SHOP") {
-          fetch("/api/rechnungen")
-            .then((r) => r.json())
-            .then((data) => {
-              if (Array.isArray(data)) setRechnungen(data);
-            })
-            .catch(console.error);
-        }
-      })
+    if (branche === "SHOP") {
+      fetches.push(
+        fetch("/api/rechnungen")
+          .then((r) => r.json())
+          .then((data) => { if (Array.isArray(data)) setRechnungen(data); })
+      );
+    }
+
+    Promise.all(fetches)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [branche]);
 
   async function handleStatus(angebotId: string, status: "ANGENOMMEN" | "ABGELEHNT") {
     if (updatingId) return;

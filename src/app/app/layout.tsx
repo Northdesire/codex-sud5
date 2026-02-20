@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Home, Brain, FileText, BarChart3 } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { BrancheProvider, useBranche } from "@/lib/branche-context";
 import type { LucideIcon } from "lucide-react";
 
 interface NavItem {
@@ -35,16 +35,9 @@ const fewoNavItems: NavItem[] = [
   { href: "/app/uebersicht", icon: BarChart3, label: "Übersicht" },
 ];
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [branche, setBranche] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/firma/branche")
-      .then((res) => res.json())
-      .then((data) => setBranche(data.branche || "MALER"))
-      .catch(() => setBranche("MALER"));
-  }, []);
+  const branche = useBranche();
 
   const navItems = branche === "FEWO" ? fewoNavItems : branche === "SHOP" ? shopNavItems : baseNavItems;
 
@@ -80,5 +73,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
     </div>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <BrancheProvider>
+      <AppContent>{children}</AppContent>
+    </BrancheProvider>
   );
 }

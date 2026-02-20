@@ -13,7 +13,7 @@ export async function GET() {
         positionen: {
           orderBy: { sortierung: "asc" },
         },
-        firma: true,
+        firma: { select: { branche: true } },
         rechnung: { select: { id: true, nummer: true } },
       },
     });
