@@ -82,7 +82,6 @@ export default function FewoFormularPage() {
   const [abreise, setAbreise] = useState("");
   const [personen, setPersonen] = useState(2);
   const [selectedUnterkunftId, setSelectedUnterkunftId] = useState("");
-  const [selectedSaisonId, setSelectedSaisonId] = useState("");
   const [selectedExtras, setSelectedExtras] = useState<Set<string>>(new Set());
   const [mwstSatz] = useState(7);
 
@@ -93,8 +92,16 @@ export default function FewoFormularPage() {
     return Math.max(0, Math.round(diff / (1000 * 60 * 60 * 24)));
   }, [anreise, abreise]);
 
-  // Gewählte Saison
-  const erkAnnteSaison = saisons.find((s) => s.id === selectedSaisonId) || null;
+  // Saison erkennen anhand Anreisedatum
+  const erkAnnteSaison = useMemo(() => {
+    if (!anreise || saisons.length === 0) return null;
+    const d = new Date(anreise);
+    return saisons.find((s) => {
+      const von = new Date(s.von);
+      const bis = new Date(s.bis);
+      return d >= von && d <= bis;
+    }) || null;
+  }, [anreise, saisons]);
 
   const selectedUnterkunft = unterkuenfte.find((u) => u.id === selectedUnterkunftId) || null;
 
@@ -594,7 +601,7 @@ export default function FewoFormularPage() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Nächte</Label>
               <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm font-mono font-medium">
@@ -611,20 +618,12 @@ export default function FewoFormularPage() {
                 className="h-9"
               />
             </div>
-            <div>
-              <Label className="text-xs">Saison</Label>
-              <select
-                value={selectedSaisonId}
-                onChange={(e) => setSelectedSaisonId(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-              >
-                <option value="">Keine</option>
-                {saisons.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
           </div>
+          {erkAnnteSaison && (
+            <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+              <span>Saison: <strong>{erkAnnteSaison.name}</strong></span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
