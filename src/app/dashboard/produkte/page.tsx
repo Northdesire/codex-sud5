@@ -14,6 +14,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { AICatalogUpload } from "@/components/dashboard/ai-catalog-upload";
 
@@ -49,12 +50,17 @@ export default function ProduktePage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [alleProdukte, setAlleProdukte] = useState<Produkt[]>([]);
 
   const loadData = useCallback(async () => {
-    const url = filter === "ALLE" ? "/api/produkte" : `/api/produkte?kategorie=${encodeURIComponent(filter)}`;
-    const res = await fetch(url);
+    const res = await fetch("/api/produkte");
     const data = await res.json();
-    if (Array.isArray(data)) setProdukte(data);
+    if (Array.isArray(data)) {
+      setAlleProdukte(data);
+      setProdukte(filter === "ALLE" ? data : data.filter((p: Produkt) => p.kategorie === filter));
+    }
     setLoading(false);
   }, [filter]);
 
@@ -63,7 +69,7 @@ export default function ProduktePage() {
   }, [loadData]);
 
   // Alle vorhandenen Kategorien ermitteln
-  const kategorien = [...new Set(produkte.map((p) => p.kategorie))].sort();
+  const kategorien = [...new Set(alleProdukte.map((p) => p.kategorie))].sort();
 
   function openNew() {
     setEditId(null);
@@ -123,6 +129,37 @@ export default function ProduktePage() {
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selected.size === produkte.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(produkte.map((p) => p.id)));
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`${selected.size} Produkt${selected.size > 1 ? "e" : ""} wirklich löschen?`)) return;
+    setDeleting(true);
+    let deleted = 0;
+    for (const id of selected) {
+      const res = await fetch(`/api/produkte/${id}`, { method: "DELETE" });
+      if (res.ok) deleted++;
+    }
+    toast.success(`${deleted} Produkt${deleted > 1 ? "e" : ""} gelöscht`);
+    setSelected(new Set());
+    setDeleting(false);
+    loadData();
+  }
+
   function formatEuro(n: number) {
     return n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
   }
@@ -139,6 +176,12 @@ export default function ProduktePage() {
         description="Produktkatalog mit Einkaufs- und Verkaufspreisen"
         actions={
           <div className="flex gap-2">
+            {selected.size > 0 && (
+              <Button variant="destructive" onClick={handleBulkDelete} disabled={deleting}>
+                {deleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                {selected.size} löschen
+              </Button>
+            )}
             <AICatalogUpload filterTyp="produkt" onImported={loadData} />
             <Button onClick={openNew}>
               <Plus className="h-4 w-4 mr-2" />
@@ -186,6 +229,12 @@ export default function ProduktePage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <Checkbox
+                      checked={produkte.length > 0 && selected.size === produkte.length}
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Kategorie</TableHead>
                   <TableHead>Art.Nr.</TableHead>
@@ -199,6 +248,12 @@ export default function ProduktePage() {
               <TableBody>
                 {produkte.map((p) => (
                   <TableRow key={p.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(p.id)}
+                        onCheckedChange={() => toggleSelect(p.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{p.kategorie}</Badge>
