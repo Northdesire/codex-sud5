@@ -132,9 +132,13 @@ export default function UnterkuenftePage() {
 
   // ─── Unterkunft CRUD ─────────────────────
 
-  function openNewUnterkunft() {
+  function openNewUnterkunft(forKomplex?: Komplex) {
     setEditId(null);
-    setForm(emptyUnterkunftForm);
+    setForm({
+      ...emptyUnterkunftForm,
+      hatHausname: !!forKomplex,
+      hausname: forKomplex?.name ?? "",
+    });
     setDialogOpen(true);
   }
 
@@ -385,7 +389,7 @@ export default function UnterkuenftePage() {
         title="Unterkünfte"
         description="Zimmer und Ferienwohnungen verwalten"
         actions={
-          <Button onClick={openNewUnterkunft}>
+          <Button onClick={() => openNewUnterkunft()}>
             <Plus className="h-4 w-4 mr-2" />
             Neue Unterkunft
           </Button>
@@ -407,11 +411,17 @@ export default function UnterkuenftePage() {
             {grouped.map((g) => (
               <Card key={g.id}>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    {g.name}
-                    <Badge variant="secondary" className="ml-1">{g.items.length} Einheit(en)</Badge>
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      {g.name}
+                      <Badge variant="secondary" className="ml-1">{g.items.length} Einheit(en)</Badge>
+                    </CardTitle>
+                    <Button variant="outline" size="sm" onClick={() => openNewUnterkunft(g)}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Zimmer / Wohnung
+                    </Button>
+                  </div>
                   {g.beschreibung && (
                     <p className="text-sm text-muted-foreground">{g.beschreibung}</p>
                   )}
@@ -419,7 +429,7 @@ export default function UnterkuenftePage() {
                 <CardContent>
                   {g.items.length > 0 ? renderTable(g.items) : (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      Noch keine Unterkünfte in diesem Komplex
+                      Noch keine Zimmer/Wohnungen — klicken Sie oben auf &ldquo;Zimmer / Wohnung&rdquo;
                     </p>
                   )}
                 </CardContent>
