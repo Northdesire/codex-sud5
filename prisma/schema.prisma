@@ -70,6 +70,7 @@ model Firma {
   rechnungen      Rechnung[]
   kalkRegeln      KalkulationsRegeln?
   produkte        Produkt[]
+  komplexe        Komplex[]
   unterkuenfte    Unterkunft[]
   saisons         Saison[]
   fewoExtras      FewoExtra[]
@@ -237,16 +238,42 @@ model Produkt {
 // FEWO (Ferienwohnung / Hotel / Unterkunft)
 // ═══════════════════════════════════════════
 
+enum UnterkunftTyp {
+  EINZELZIMMER
+  DOPPELZIMMER
+  SUITE
+  FERIENWOHNUNG
+  BENUTZERDEFINIERT
+}
+
+model Komplex {
+  id            String       @id @default(cuid())
+  firmaId       String
+  firma         Firma        @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  name          String
+  beschreibung  String?
+  unterkuenfte  Unterkunft[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  @@unique([firmaId, name])
+}
+
 model Unterkunft {
-  id              String   @id @default(cuid())
+  id              String          @id @default(cuid())
   firmaId         String
-  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  firma           Firma           @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+
+  komplexId       String?
+  komplex         Komplex?        @relation(fields: [komplexId], references: [id], onDelete: SetNull)
 
   name            String
   beschreibung    String?
+  typ             UnterkunftTyp   @default(FERIENWOHNUNG)
   kapazitaet      Int
   preisProNacht   Float
-  aktiv           Boolean  @default(true)
+  aktiv           Boolean         @default(true)
+
+  saisonPreise    UnterkunftPreis[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -255,17 +282,29 @@ model Unterkunft {
 }
 
 model Saison {
-  id              String   @id @default(cuid())
+  id              String            @id @default(cuid())
   firmaId         String
-  firma           Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  firma           Firma             @relation(fields: [firmaId], references: [id], onDelete: Cascade)
 
   name            String
   von             DateTime
   bis             DateTime
   faktor          Float
 
+  unterkunftPreise UnterkunftPreis[]
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model UnterkunftPreis {
+  id            String     @id @default(cuid())
+  unterkunftId  String
+  unterkunft    Unterkunft @relation(fields: [unterkunftId], references: [id], onDelete: Cascade)
+  saisonId      String
+  saison        Saison     @relation(fields: [saisonId], references: [id], onDelete: Cascade)
+  preisProNacht Float
+  @@unique([unterkunftId, saisonId])
 }
 
 model FewoExtra {

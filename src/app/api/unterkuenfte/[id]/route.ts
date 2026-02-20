@@ -12,6 +12,10 @@ export async function GET(
 
     const unterkunft = await prisma.unterkunft.findFirst({
       where: { id, firmaId: user.firmaId },
+      include: {
+        komplex: true,
+        saisonPreise: { include: { saison: true } },
+      },
     });
     if (!unterkunft) {
       return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
@@ -39,15 +43,41 @@ export async function PUT(
       return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
     }
 
-    const unterkunft = await prisma.unterkunft.update({
-      where: { id },
-      data: {
-        name: body.name,
-        beschreibung: body.beschreibung || null,
-        kapazitaet: parseInt(body.kapazitaet),
-        preisProNacht: parseFloat(body.preisProNacht),
-        aktiv: body.aktiv ?? true,
-      },
+    const saisonPreise: Array<{ saisonId: string; preisProNacht: number }> = body.saisonPreise || [];
+
+    const unterkunft = await prisma.$transaction(async (tx) => {
+      await tx.unterkunft.update({
+        where: { id },
+        data: {
+          name: body.name,
+          beschreibung: body.beschreibung || null,
+          typ: body.typ || existing.typ,
+          kapazitaet: parseInt(body.kapazitaet),
+          preisProNacht: parseFloat(body.preisProNacht),
+          aktiv: body.aktiv ?? true,
+          komplexId: body.komplexId || null,
+        },
+      });
+
+      // Replace all season prices
+      await tx.unterkunftPreis.deleteMany({ where: { unterkunftId: id } });
+      if (saisonPreise.length > 0) {
+        await tx.unterkunftPreis.createMany({
+          data: saisonPreise.map((sp) => ({
+            unterkunftId: id,
+            saisonId: sp.saisonId,
+            preisProNacht: parseFloat(String(sp.preisProNacht)),
+          })),
+        });
+      }
+
+      return tx.unterkunft.findUnique({
+        where: { id },
+        include: {
+          komplex: true,
+          saisonPreise: { include: { saison: true } },
+        },
+      });
     });
 
     return NextResponse.json(unterkunft);

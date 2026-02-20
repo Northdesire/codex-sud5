@@ -122,6 +122,9 @@ export default function SaisonsPage() {
         }
       />
       <div className="p-8 space-y-4">
+        <div className="rounded-md bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+          Preise pro Unterkunft und Saison legen Sie auf der <a href="/dashboard/unterkuenfte" className="underline font-medium text-foreground hover:text-primary">Unterkünfte-Seite</a> fest.
+        </div>
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

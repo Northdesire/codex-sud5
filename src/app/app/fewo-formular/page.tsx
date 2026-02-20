@@ -13,13 +13,29 @@ import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Home, Star } f
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
+interface SaisonPreis {
+  id: string;
+  saisonId: string;
+  preisProNacht: number;
+  saison: Saison;
+}
+
+interface Komplex {
+  id: string;
+  name: string;
+}
+
 interface Unterkunft {
   id: string;
   name: string;
   beschreibung: string | null;
+  typ: string;
   kapazitaet: number;
   preisProNacht: number;
   aktiv: boolean;
+  komplexId: string | null;
+  komplex: Komplex | null;
+  saisonPreise: SaisonPreis[];
 }
 
 interface Saison {
@@ -91,11 +107,23 @@ export default function FewoFormularPage() {
   const saisonFaktor = erkAnnteSaison?.faktor ?? 1.0;
   const selectedUnterkunft = unterkuenfte.find((u) => u.id === selectedUnterkunftId) || null;
 
+  // Effektiver Preis pro Nacht: SaisonPreis > Basispreis × Faktor
+  const effektiverPreisProNacht = useMemo(() => {
+    if (!selectedUnterkunft) return 0;
+    if (erkAnnteSaison) {
+      const sp = selectedUnterkunft.saisonPreise?.find(
+        (p) => p.saisonId === erkAnnteSaison.id
+      );
+      if (sp) return sp.preisProNacht;
+    }
+    return selectedUnterkunft.preisProNacht * saisonFaktor;
+  }, [selectedUnterkunft, erkAnnteSaison, saisonFaktor]);
+
   // Kalkulation
   const unterkunftNetto = useMemo(() => {
     if (!selectedUnterkunft || naechte === 0) return 0;
-    return Math.round(naechte * selectedUnterkunft.preisProNacht * saisonFaktor * 100) / 100;
-  }, [selectedUnterkunft, naechte, saisonFaktor]);
+    return Math.round(naechte * effektiverPreisProNacht * 100) / 100;
+  }, [selectedUnterkunft, naechte, effektiverPreisProNacht]);
 
   const extrasNetto = useMemo(() => {
     let sum = 0;
@@ -292,14 +320,14 @@ export default function FewoFormularPage() {
     let posNr = 1;
 
     // Unterkunft als Hauptposition
-    const saisonHinweis = erkAnnteSaison ? ` (${erkAnnteSaison.name}, Faktor ${saisonFaktor.toFixed(2)})` : "";
+    const saisonHinweis = erkAnnteSaison ? ` (${erkAnnteSaison.name})` : "";
     positionen.push({
       posNr: posNr++,
       typ: "PRODUKT",
       bezeichnung: `${selectedUnterkunft.name}${saisonHinweis} — ${naechte} Nächte`,
       menge: naechte,
       einheit: "Nacht",
-      einzelpreis: Math.round(selectedUnterkunft.preisProNacht * saisonFaktor * 100) / 100,
+      einzelpreis: Math.round(effektiverPreisProNacht * 100) / 100,
       gesamtpreis: unterkunftNetto,
     });
 
@@ -407,14 +435,14 @@ export default function FewoFormularPage() {
 
       const positionen = [];
       let posNr = 1;
-      const saisonHinweis = erkAnnteSaison ? ` (${erkAnnteSaison.name})` : "";
+      const pdfSaisonHinweis = erkAnnteSaison ? ` (${erkAnnteSaison.name})` : "";
       positionen.push({
         posNr: posNr++,
         typ: "PRODUKT" as const,
-        bezeichnung: `${selectedUnterkunft.name}${saisonHinweis} — ${naechte} Nächte`,
+        bezeichnung: `${selectedUnterkunft.name}${pdfSaisonHinweis} — ${naechte} Nächte`,
         menge: naechte,
         einheit: "Nacht",
-        einzelpreis: Math.round(selectedUnterkunft.preisProNacht * saisonFaktor * 100) / 100,
+        einzelpreis: Math.round(effektiverPreisProNacht * 100) / 100,
         gesamtpreis: unterkunftNetto,
       });
       for (const extraId of selectedExtras) {
@@ -630,11 +658,30 @@ export default function FewoFormularPage() {
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="">— Unterkunft wählen —</option>
-                {unterkuenfte.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.)
-                  </option>
-                ))}
+                {(() => {
+                  const withKomplex = unterkuenfte.filter((u) => u.komplex);
+                  const withoutKomplex = unterkuenfte.filter((u) => !u.komplex);
+                  const komplexNames = [...new Set(withKomplex.map((u) => u.komplex!.name))];
+
+                  return (
+                    <>
+                      {komplexNames.map((kName) => (
+                        <optgroup key={kName} label={kName}>
+                          {withKomplex.filter((u) => u.komplex!.name === kName).map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.)
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      {withoutKomplex.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.)
+                        </option>
+                      ))}
+                    </>
+                  );
+                })()}
               </select>
               {selectedUnterkunft && (
                 <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
@@ -642,11 +689,11 @@ export default function FewoFormularPage() {
                     <span>Grundpreis/Nacht</span>
                     <span className="font-mono">{formatEuro(selectedUnterkunft.preisProNacht)}</span>
                   </div>
-                  {saisonFaktor !== 1 && (
+                  {effektiverPreisProNacht !== selectedUnterkunft.preisProNacht && (
                     <div className="flex justify-between text-sm">
-                      <span>Saisonpreis/Nacht ({saisonFaktor.toFixed(2)}x)</span>
+                      <span>Saisonpreis/Nacht{erkAnnteSaison ? ` (${erkAnnteSaison.name})` : ""}</span>
                       <span className="font-mono font-medium">
-                        {formatEuro(Math.round(selectedUnterkunft.preisProNacht * saisonFaktor * 100) / 100)}
+                        {formatEuro(Math.round(effektiverPreisProNacht * 100) / 100)}
                       </span>
                     </div>
                   )}

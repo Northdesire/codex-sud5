@@ -356,6 +356,7 @@ function FirmaContent() {
                   onChange={(e) => update("mwstSatz", parseFloat(e.target.value) || 0)}
                 />
               </div>
+              {firma.branche !== "FEWO" && (
               <div className="space-y-2">
                 <Label>Stundensatz (EUR)</Label>
                 <Input
@@ -365,6 +366,7 @@ function FirmaContent() {
                   onChange={(e) => update("stundensatz", parseFloat(e.target.value) || 0)}
                 />
               </div>
+              )}
               <div className="space-y-2">
                 <Label>Zahlungsziel (Tage)</Label>
                 <Input
