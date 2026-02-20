@@ -136,7 +136,7 @@ const ANALYSE_SCHRITTE_SHOP = [
 
 export default function AIEingabePage() {
   const router = useRouter();
-  const [branche, setBranche] = useState<Branche>("MALER");
+  const [branche, setBranche] = useState<Branche | null>(null);
   const [modus, setModus] = useState<"wahl" | "text" | "sprache">("wahl");
   const [text, setText] = useState("");
   const [analysiert, setAnalysiert] = useState(false);
@@ -157,10 +157,8 @@ export default function AIEingabePage() {
   useEffect(() => {
     fetch("/api/firma/branche")
       .then((r) => r.json())
-      .then((data) => {
-        if (data.branche) setBranche(data.branche);
-      })
-      .catch(() => {});
+      .then((data) => setBranche(data.branche || "MALER"))
+      .catch(() => setBranche("MALER"));
   }, []);
 
   function handleImageSelect(file: File) {
@@ -197,7 +195,7 @@ export default function AIEingabePage() {
         const formData = new FormData();
         formData.append("image", image);
         if (text.trim()) formData.append("text", text);
-        formData.append("branche", branche);
+        formData.append("branche", branche!);
         res = await fetch("/api/ai/parse", {
           method: "POST",
           body: formData,
@@ -354,6 +352,15 @@ export default function AIEingabePage() {
     mediaRecorder.start();
     setRecording(true);
     setModus("text");
+  }
+
+  // Warten bis Branche geladen ist
+  if (!branche) {
+    return (
+      <div className="px-5 pt-12 text-center">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+      </div>
+    );
   }
 
   // --- SCHRITT: MODUS WÄHLEN ---

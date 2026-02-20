@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Brain, FileText, FileSpreadsheet, BarChart3, Receipt } from "lucide-react";
+import { Home, Brain, FileText, FileSpreadsheet, BarChart3 } from "lucide-react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import type { LucideIcon } from "lucide-react";
 
@@ -25,7 +25,7 @@ const baseNavItems: NavItem[] = [
 const shopNavItems: NavItem[] = [
   { href: "/app", icon: Home, label: "Start" },
   { href: "/app/ai", icon: Brain, label: "AI-Eingabe" },
-  { href: "/app/rechnungen", icon: Receipt, label: "Rechnungen" },
+  { href: "/app/shop-formular", icon: FileText, label: "Formular" },
   { href: "/app/angebot", icon: FileSpreadsheet, label: "Angebot" },
   { href: "/app/uebersicht", icon: BarChart3, label: "Übersicht" },
 ];
