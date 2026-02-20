@@ -5,7 +5,6 @@ import { Header } from "@/components/dashboard/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -20,14 +19,12 @@ interface Saison {
   name: string;
   von: string;
   bis: string;
-  faktor: number;
 }
 
 const emptyForm = {
   name: "",
   von: "",
   bis: "",
-  faktor: "1.0",
 };
 
 export default function SaisonsPage() {
@@ -61,13 +58,12 @@ export default function SaisonsPage() {
       name: s.name,
       von: s.von.split("T")[0],
       bis: s.bis.split("T")[0],
-      faktor: s.faktor.toString(),
     });
     setDialogOpen(true);
   }
 
   async function handleSave() {
-    if (!form.name || !form.von || !form.bis || !form.faktor) {
+    if (!form.name || !form.von || !form.bis) {
       toast.error("Alle Felder sind Pflichtfelder");
       return;
     }
@@ -79,7 +75,7 @@ export default function SaisonsPage() {
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, faktor: "1.0" }),
     });
 
     if (res.ok) {
@@ -103,17 +99,11 @@ export default function SaisonsPage() {
     }
   }
 
-  function faktorLabel(faktor: number) {
-    if (faktor > 1) return { text: `+${Math.round((faktor - 1) * 100)}%`, color: "text-orange-600 border-orange-200" };
-    if (faktor < 1) return { text: `${Math.round((faktor - 1) * 100)}%`, color: "text-emerald-600 border-emerald-200" };
-    return { text: "Basis", color: "" };
-  }
-
   return (
     <>
       <Header
         title="Saisons"
-        description="Saisonzeiten mit Preisfaktoren definieren"
+        description="Saisonzeiten definieren (z.B. Haupt-, Hoch-, Nebensaison)"
         actions={
           <Button onClick={openNew}>
             <Plus className="h-4 w-4 mr-2" />
@@ -132,7 +122,7 @@ export default function SaisonsPage() {
         ) : saisons.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p className="text-lg font-medium">Noch keine Saisons angelegt</p>
-            <p className="text-sm mt-1">Saisons sind optional — ohne Saison gilt immer der Grundpreis (Faktor 1.0)</p>
+            <p className="text-sm mt-1">Legen Sie z.B. Hauptsaison, Hochsaison und Nebensaison an</p>
           </div>
         ) : (
           <div className="rounded-lg border bg-card">
@@ -142,37 +132,27 @@ export default function SaisonsPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Von</TableHead>
                   <TableHead>Bis</TableHead>
-                  <TableHead>Faktor</TableHead>
                   <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {saisons.map((s) => {
-                  const fl = faktorLabel(s.faktor);
-                  return (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-medium">{s.name}</TableCell>
-                      <TableCell>{new Date(s.von).toLocaleDateString("de-DE")}</TableCell>
-                      <TableCell>{new Date(s.bis).toLocaleDateString("de-DE")}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono">{s.faktor.toFixed(2)}</span>
-                          <Badge variant="outline" className={fl.color}>{fl.text}</Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id, s.name)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {saisons.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell>{new Date(s.von).toLocaleDateString("de-DE")}</TableCell>
+                    <TableCell>{new Date(s.bis).toLocaleDateString("de-DE")}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id, s.name)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -190,7 +170,7 @@ export default function SaisonsPage() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Hauptsaison"
+                placeholder="z.B. Hauptsaison, Hochsaison, Nebensaison"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -210,20 +190,6 @@ export default function SaisonsPage() {
                   onChange={(e) => setForm({ ...form, bis: e.target.value })}
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Preisfaktor *</Label>
-              <Input
-                type="number"
-                step="0.05"
-                min="0.1"
-                max="5.0"
-                value={form.faktor}
-                onChange={(e) => setForm({ ...form, faktor: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                1.0 = Normalpreis, 1.3 = +30%, 0.8 = -20%
-              </p>
             </div>
           </div>
           <DialogFooter>

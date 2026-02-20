@@ -625,13 +625,6 @@ export default function FewoFormularPage() {
             <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
               <Star className="h-4 w-4 text-amber-500" />
               <span>Saison: <strong>{erkAnnteSaison.name}</strong></span>
-              <Badge variant="outline" className={
-                saisonFaktor > 1 ? "text-orange-600 border-orange-200" :
-                saisonFaktor < 1 ? "text-emerald-600 border-emerald-200" : ""
-              }>
-                {saisonFaktor > 1 ? `+${Math.round((saisonFaktor - 1) * 100)}%` :
-                 saisonFaktor < 1 ? `${Math.round((saisonFaktor - 1) * 100)}%` : "Basis"}
-              </Badge>
             </div>
           )}
         </CardContent>
