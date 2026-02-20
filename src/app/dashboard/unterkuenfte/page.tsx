@@ -84,13 +84,9 @@ const emptyUnterkunftForm = {
   kapazitaet: "4",
   preisProNacht: "",
   aktiv: true,
-  komplexId: "",
+  hatHausname: false,
+  hausname: "",
   saisonPreise: {} as Record<string, string>, // saisonId → preis string
-};
-
-const emptyKomplexForm = {
-  name: "",
-  beschreibung: "",
 };
 
 // ═══════════════════════════════════════════
@@ -108,12 +104,6 @@ export default function UnterkuenftePage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyUnterkunftForm);
   const [saving, setSaving] = useState(false);
-
-  // Komplex Dialog
-  const [komplexDialogOpen, setKomplexDialogOpen] = useState(false);
-  const [editKomplexId, setEditKomplexId] = useState<string | null>(null);
-  const [komplexForm, setKomplexForm] = useState(emptyKomplexForm);
-  const [komplexSaving, setKomplexSaving] = useState(false);
 
   // Preise kopieren Dialog
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
@@ -161,7 +151,8 @@ export default function UnterkuenftePage() {
       kapazitaet: u.kapazitaet.toString(),
       preisProNacht: u.preisProNacht.toString(),
       aktiv: u.aktiv,
-      komplexId: u.komplexId ?? "",
+      hatHausname: !!u.komplex,
+      hausname: u.komplex?.name ?? "",
       saisonPreise: sp,
     });
     setDialogOpen(true);
@@ -172,37 +163,70 @@ export default function UnterkuenftePage() {
       toast.error("Name und Basispreis/Nacht sind Pflichtfelder");
       return;
     }
+    if (form.hatHausname && !form.hausname.trim()) {
+      toast.error("Bitte Hausnamen eingeben oder 'Nein' wählen");
+      return;
+    }
     setSaving(true);
 
-    const saisonPreise = Object.entries(form.saisonPreise)
-      .filter(([, v]) => v && parseFloat(v) > 0)
-      .map(([saisonId, preis]) => ({ saisonId, preisProNacht: parseFloat(preis) }));
+    try {
+      // Resolve hausname → komplexId
+      let komplexId: string | null = null;
+      if (form.hatHausname && form.hausname.trim()) {
+        const existing = komplexe.find(
+          (k) => k.name.toLowerCase() === form.hausname.trim().toLowerCase()
+        );
+        if (existing) {
+          komplexId = existing.id;
+        } else {
+          // Create new Komplex
+          const kRes = await fetch("/api/komplexe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: form.hausname.trim() }),
+          });
+          if (!kRes.ok) {
+            toast.error("Fehler beim Anlegen des Hauses");
+            setSaving(false);
+            return;
+          }
+          const newKomplex = await kRes.json();
+          komplexId = newKomplex.id;
+        }
+      }
 
-    const payload = {
-      name: form.name,
-      beschreibung: form.beschreibung,
-      typ: form.typ,
-      kapazitaet: form.kapazitaet,
-      preisProNacht: form.preisProNacht,
-      aktiv: form.aktiv,
-      komplexId: form.komplexId || null,
-      saisonPreise,
-    };
+      const saisonPreise = Object.entries(form.saisonPreise)
+        .filter(([, v]) => v && parseFloat(v) > 0)
+        .map(([saisonId, preis]) => ({ saisonId, preisProNacht: parseFloat(preis) }));
 
-    const url = editId ? `/api/unterkuenfte/${editId}` : "/api/unterkuenfte";
-    const method = editId ? "PUT" : "POST";
+      const payload = {
+        name: form.name,
+        beschreibung: form.beschreibung,
+        typ: form.typ,
+        kapazitaet: form.kapazitaet,
+        preisProNacht: form.preisProNacht,
+        aktiv: form.aktiv,
+        komplexId,
+        saisonPreise,
+      };
 
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      const url = editId ? `/api/unterkuenfte/${editId}` : "/api/unterkuenfte";
+      const method = editId ? "PUT" : "POST";
 
-    if (res.ok) {
-      toast.success(editId ? "Unterkunft aktualisiert" : "Unterkunft erstellt");
-      setDialogOpen(false);
-      loadData();
-    } else {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        toast.success(editId ? "Unterkunft aktualisiert" : "Unterkunft erstellt");
+        setDialogOpen(false);
+        loadData();
+      } else {
+        toast.error("Fehler beim Speichern");
+      }
+    } catch {
       toast.error("Fehler beim Speichern");
     }
     setSaving(false);
@@ -213,57 +237,6 @@ export default function UnterkuenftePage() {
     const res = await fetch(`/api/unterkuenfte/${id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Unterkunft gelöscht");
-      loadData();
-    } else {
-      toast.error("Fehler beim Löschen");
-    }
-  }
-
-  // ─── Komplex CRUD ────────────────────────
-
-  function openNewKomplex() {
-    setEditKomplexId(null);
-    setKomplexForm(emptyKomplexForm);
-    setKomplexDialogOpen(true);
-  }
-
-  function openEditKomplex(k: Komplex) {
-    setEditKomplexId(k.id);
-    setKomplexForm({ name: k.name, beschreibung: k.beschreibung ?? "" });
-    setKomplexDialogOpen(true);
-  }
-
-  async function handleSaveKomplex() {
-    if (!komplexForm.name) {
-      toast.error("Name ist Pflichtfeld");
-      return;
-    }
-    setKomplexSaving(true);
-
-    const url = editKomplexId ? `/api/komplexe/${editKomplexId}` : "/api/komplexe";
-    const method = editKomplexId ? "PUT" : "POST";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(komplexForm),
-    });
-
-    if (res.ok) {
-      toast.success(editKomplexId ? "Komplex aktualisiert" : "Komplex erstellt");
-      setKomplexDialogOpen(false);
-      loadData();
-    } else {
-      toast.error("Fehler beim Speichern");
-    }
-    setKomplexSaving(false);
-  }
-
-  async function handleDeleteKomplex(id: string, name: string) {
-    if (!confirm(`Komplex "${name}" wirklich löschen? Unterkünfte bleiben erhalten.`)) return;
-    const res = await fetch(`/api/komplexe/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast.success("Komplex gelöscht");
       loadData();
     } else {
       toast.error("Fehler beim Löschen");
@@ -410,18 +383,12 @@ export default function UnterkuenftePage() {
     <>
       <Header
         title="Unterkünfte"
-        description="Komplexe, Zimmer und Ferienwohnungen verwalten"
+        description="Zimmer und Ferienwohnungen verwalten"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={openNewKomplex}>
-              <Building2 className="h-4 w-4 mr-2" />
-              Neuer Komplex
-            </Button>
-            <Button onClick={openNewUnterkunft}>
-              <Plus className="h-4 w-4 mr-2" />
-              Neue Unterkunft
-            </Button>
-          </div>
+          <Button onClick={openNewUnterkunft}>
+            <Plus className="h-4 w-4 mr-2" />
+            Neue Unterkunft
+          </Button>
         }
       />
       <div className="p-8 space-y-6">
@@ -432,7 +399,7 @@ export default function UnterkuenftePage() {
         ) : unterkuenfte.length === 0 && komplexe.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p className="text-lg font-medium">Noch keine Unterkünfte angelegt</p>
-            <p className="text-sm mt-1">Erstellen Sie zuerst einen Komplex (optional) und dann Unterkünfte</p>
+            <p className="text-sm mt-1">Klicken Sie auf &ldquo;Neue Unterkunft&rdquo; um loszulegen</p>
           </div>
         ) : (
           <>
@@ -440,21 +407,11 @@ export default function UnterkuenftePage() {
             {grouped.map((g) => (
               <Card key={g.id}>
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      {g.name}
-                      <Badge variant="secondary" className="ml-1">{g.items.length} Einheit(en)</Badge>
-                    </CardTitle>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEditKomplex(g)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteKomplex(g.id, g.name)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    {g.name}
+                    <Badge variant="secondary" className="ml-1">{g.items.length} Einheit(en)</Badge>
+                  </CardTitle>
                   {g.beschreibung && (
                     <p className="text-sm text-muted-foreground">{g.beschreibung}</p>
                   )}
@@ -492,19 +449,42 @@ export default function UnterkuenftePage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Komplex */}
+            {/* Hausname */}
             <div className="space-y-2">
-              <Label>Komplex (optional)</Label>
-              <select
-                value={form.komplexId}
-                onChange={(e) => setForm({ ...form, komplexId: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Kein Komplex</option>
-                {komplexe.map((k) => (
-                  <option key={k.id} value={k.id}>{k.name}</option>
-                ))}
-              </select>
+              <Label>Gehört zu einem Haus / Hotel?</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={form.hatHausname ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setForm({ ...form, hatHausname: true })}
+                >
+                  Ja
+                </Button>
+                <Button
+                  type="button"
+                  variant={!form.hatHausname ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setForm({ ...form, hatHausname: false, hausname: "" })}
+                >
+                  Nein
+                </Button>
+              </div>
+              {form.hatHausname && (
+                <Input
+                  value={form.hausname}
+                  onChange={(e) => setForm({ ...form, hausname: e.target.value })}
+                  placeholder="z.B. Hotel Kaap2, Haus Schwabenland"
+                  list="hausname-suggestions"
+                />
+              )}
+              {form.hatHausname && komplexe.length > 0 && (
+                <datalist id="hausname-suggestions">
+                  {komplexe.map((k) => (
+                    <option key={k.id} value={k.name} />
+                  ))}
+                </datalist>
+              )}
             </div>
 
             {/* Typ */}
@@ -601,44 +581,6 @@ export default function UnterkuenftePage() {
             <Button onClick={handleSaveUnterkunft} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editId ? "Speichern" : "Erstellen"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ═══ Komplex Create/Edit Dialog ═══ */}
-      <Dialog open={komplexDialogOpen} onOpenChange={setKomplexDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editKomplexId ? "Komplex bearbeiten" : "Neuer Komplex"}</DialogTitle>
-            <DialogDescription>
-              {editKomplexId ? "Komplex-Daten ändern" : "Neuen Komplex (Hotel, Ferienhaus, etc.) anlegen"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Name *</Label>
-              <Input
-                value={komplexForm.name}
-                onChange={(e) => setKomplexForm({ ...komplexForm, name: e.target.value })}
-                placeholder="Hotel Kaap2"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Beschreibung</Label>
-              <Textarea
-                value={komplexForm.beschreibung}
-                onChange={(e) => setKomplexForm({ ...komplexForm, beschreibung: e.target.value })}
-                placeholder="Direkt am Deich, 14 Zimmer"
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setKomplexDialogOpen(false)}>Abbrechen</Button>
-            <Button onClick={handleSaveKomplex} disabled={komplexSaving}>
-              {komplexSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {editKomplexId ? "Speichern" : "Erstellen"}
             </Button>
           </DialogFooter>
         </DialogContent>
