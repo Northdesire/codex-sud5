@@ -272,6 +272,7 @@ model Unterkunft {
   kapazitaet      Int
   preisProNacht   Float
   aktiv           Boolean         @default(true)
+  icalUrl         String?
 
   saisonPreise    UnterkunftPreis[]
 
@@ -290,6 +291,7 @@ model Saison {
   von             DateTime
   bis             DateTime
   faktor          Float
+  mindestaufenthalt Int @default(1)
 
   unterkunftPreise UnterkunftPreis[]
 

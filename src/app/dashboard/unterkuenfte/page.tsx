@@ -40,6 +40,7 @@ interface Unterkunft {
   komplexId: string | null;
   komplex: Komplex | null;
   saisonPreise: SaisonPreis[];
+  icalUrl: string | null;
 }
 
 interface Komplex {
@@ -87,6 +88,7 @@ const emptyUnterkunftForm = {
   hatHausname: false,
   hausname: "",
   saisonPreise: {} as Record<string, string>, // saisonId → preis string
+  icalUrl: "",
 };
 
 // ═══════════════════════════════════════════
@@ -158,6 +160,7 @@ export default function UnterkuenftePage() {
       hatHausname: !!u.komplex,
       hausname: u.komplex?.name ?? "",
       saisonPreise: sp,
+      icalUrl: u.icalUrl ?? "",
     });
     setDialogOpen(true);
   }
@@ -212,6 +215,7 @@ export default function UnterkuenftePage() {
         aktiv: form.aktiv,
         komplexId,
         saisonPreise,
+        icalUrl: form.icalUrl || null,
       };
 
       const url = editId ? `/api/unterkuenfte/${editId}` : "/api/unterkuenfte";
@@ -594,6 +598,19 @@ export default function UnterkuenftePage() {
                 </div>
               </div>
             )}
+
+            {/* iCal URL */}
+            <div className="space-y-2">
+              <Label>iCal-URL (optional)</Label>
+              <Input
+                value={form.icalUrl}
+                onChange={(e) => setForm({ ...form, icalUrl: e.target.value })}
+                placeholder="https://www.airbnb.com/calendar/ical/12345.ics"
+              />
+              <p className="text-xs text-muted-foreground">
+                Kalender-URL z.B. von Airbnb oder Booking.com zur Verfügbarkeitsprüfung
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Abbrechen</Button>

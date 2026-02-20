@@ -28,12 +28,14 @@ interface Saison {
   name: string;
   von: string;
   bis: string;
+  mindestaufenthalt: number;
 }
 
 const emptyForm = {
   name: "Hauptsaison",
   von: "",
   bis: "",
+  mindestaufenthalt: "1",
 };
 
 export default function SaisonsPage() {
@@ -67,6 +69,7 @@ export default function SaisonsPage() {
       name: s.name,
       von: s.von.split("T")[0],
       bis: s.bis.split("T")[0],
+      mindestaufenthalt: (s.mindestaufenthalt ?? 1).toString(),
     });
     setDialogOpen(true);
   }
@@ -84,7 +87,7 @@ export default function SaisonsPage() {
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, faktor: "1.0" }),
+      body: JSON.stringify({ ...form, faktor: "1.0", mindestaufenthalt: form.mindestaufenthalt }),
     });
 
     if (res.ok) {
@@ -141,6 +144,7 @@ export default function SaisonsPage() {
                   <TableHead>Typ</TableHead>
                   <TableHead>Von</TableHead>
                   <TableHead>Bis</TableHead>
+                  <TableHead>Min. Nächte</TableHead>
                   <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -154,6 +158,7 @@ export default function SaisonsPage() {
                     </TableCell>
                     <TableCell>{new Date(s.von).toLocaleDateString("de-DE")}</TableCell>
                     <TableCell>{new Date(s.bis).toLocaleDateString("de-DE")}</TableCell>
+                    <TableCell>{s.mindestaufenthalt > 1 ? `${s.mindestaufenthalt} Nächte` : "—"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
@@ -207,6 +212,16 @@ export default function SaisonsPage() {
                   onChange={(e) => setForm({ ...form, bis: e.target.value })}
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Mindestaufenthalt (Nächte)</Label>
+              <Input
+                type="number"
+                min="1"
+                value={form.mindestaufenthalt}
+                onChange={(e) => setForm({ ...form, mindestaufenthalt: e.target.value })}
+                placeholder="1"
+              />
             </div>
           </div>
           <DialogFooter>

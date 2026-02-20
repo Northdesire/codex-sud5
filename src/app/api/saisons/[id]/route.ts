@@ -46,6 +46,7 @@ export async function PUT(
         von: new Date(body.von),
         bis: new Date(body.bis),
         faktor: parseFloat(body.faktor),
+        mindestaufenthalt: parseInt(body.mindestaufenthalt) || 1,
       },
     });
 

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Home, Percent } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Home, Percent, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
@@ -35,6 +35,7 @@ interface Unterkunft {
   komplexId: string | null;
   komplex: Komplex | null;
   saisonPreise: SaisonPreis[];
+  icalUrl: string | null;
 }
 
 interface Saison {
@@ -43,6 +44,7 @@ interface Saison {
   von: string;
   bis: string;
   faktor: number;
+  mindestaufenthalt: number;
 }
 
 interface FewoExtra {
@@ -87,6 +89,14 @@ export default function FewoFormularPage() {
   const [rabattProzent, setRabattProzent] = useState("");
   const [rabattGrund, setRabattGrund] = useState("");
   const [mwstSatz] = useState(7);
+
+  // Custom Extras
+  const [customExtras, setCustomExtras] = useState<Array<{
+    id: string; name: string; preis: string; einheit: string;
+  }>>([]);
+
+  // iCal Verfügbarkeit
+  const [verfuegbarkeit, setVerfuegbarkeit] = useState<Record<string, { verfuegbar: boolean; konflikt?: string }>>({});
 
   // Nächte berechnen
   const naechte = useMemo(() => {
@@ -169,8 +179,29 @@ export default function FewoFormularPage() {
           sum += extra.preis;
       }
     }
+    // Custom Extras
+    for (const ce of customExtras) {
+      const p = parseFloat(ce.preis) || 0;
+      if (p <= 0) continue;
+      switch (ce.einheit) {
+        case "pauschal":
+          sum += p;
+          break;
+        case "pro Nacht":
+          sum += p * naechte;
+          break;
+        case "pro Person":
+          sum += p * personen;
+          break;
+        case "pro Nacht/Person":
+          sum += p * naechte * personen;
+          break;
+        default:
+          sum += p;
+      }
+    }
     return Math.round(sum * 100) / 100;
-  }, [selectedExtras, extras, naechte, personen]);
+  }, [selectedExtras, extras, naechte, personen, customExtras]);
 
   const rabattNetto = useMemo(() => {
     const pct = parseFloat(rabattProzent);
@@ -309,6 +340,22 @@ export default function FewoFormularPage() {
     }
   }, [unterkuenfte, selectedUnterkunftId]);
 
+  // iCal Verfügbarkeit prüfen wenn Anreise + Abreise gesetzt
+  useEffect(() => {
+    if (!anreise || !abreise) return;
+    const hasIcal = unterkuenfte.some((u) => u.icalUrl);
+    if (!hasIcal) return;
+
+    fetch(`/api/unterkuenfte/verfuegbarkeit?von=${anreise}&bis=${abreise}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && typeof data === "object" && !data.error) {
+          setVerfuegbarkeit(data);
+        }
+      })
+      .catch(() => {});
+  }, [anreise, abreise, unterkuenfte]);
+
   function toggleExtra(id: string) {
     setSelectedExtras((prev) => {
       const next = new Set(prev);
@@ -325,6 +372,17 @@ export default function FewoFormularPage() {
       case "pro Person": return extra.preis * personen;
       case "pro Nacht/Person": return extra.preis * naechte * personen;
       default: return extra.preis;
+    }
+  }
+
+  function customExtraBetrag(ce: { preis: string; einheit: string }): number {
+    const p = parseFloat(ce.preis) || 0;
+    switch (ce.einheit) {
+      case "pauschal": return p;
+      case "pro Nacht": return p * naechte;
+      case "pro Person": return p * personen;
+      case "pro Nacht/Person": return p * naechte * personen;
+      default: return p;
     }
   }
 
@@ -393,6 +451,43 @@ export default function FewoFormularPage() {
         menge,
         einheit,
         einzelpreis: ep,
+        gesamtpreis: Math.round(betrag * 100) / 100,
+      });
+    }
+
+    // Custom Extras als Zuschlag-Positionen
+    for (const ce of customExtras) {
+      const p = parseFloat(ce.preis) || 0;
+      if (!ce.name || p <= 0) continue;
+      const betrag = customExtraBetrag(ce);
+      let menge = 1;
+      let einheit = ce.einheit;
+
+      switch (ce.einheit) {
+        case "pro Nacht":
+          menge = naechte;
+          einheit = "Nacht";
+          break;
+        case "pro Person":
+          menge = personen;
+          einheit = "Person";
+          break;
+        case "pro Nacht/Person":
+          menge = naechte * personen;
+          einheit = "Nacht/Pers.";
+          break;
+        default:
+          menge = 1;
+          einheit = "pauschal";
+      }
+
+      positionen.push({
+        posNr: posNr++,
+        typ: "ZUSCHLAG",
+        bezeichnung: ce.name,
+        menge,
+        einheit,
+        einzelpreis: p,
         gesamtpreis: Math.round(betrag * 100) / 100,
       });
     }
@@ -497,6 +592,20 @@ export default function FewoFormularPage() {
           menge: 1,
           einheit: extra.einheit,
           einzelpreis: extra.preis,
+          gesamtpreis: Math.round(betrag * 100) / 100,
+        });
+      }
+      for (const ce of customExtras) {
+        const p = parseFloat(ce.preis) || 0;
+        if (!ce.name || p <= 0) continue;
+        const betrag = customExtraBetrag(ce);
+        positionen.push({
+          posNr: posNr++,
+          typ: "ZUSCHLAG" as const,
+          bezeichnung: ce.name,
+          menge: 1,
+          einheit: ce.einheit,
+          einzelpreis: p,
           gesamtpreis: Math.round(betrag * 100) / 100,
         });
       }
@@ -674,8 +783,16 @@ export default function FewoFormularPage() {
             </div>
           </div>
           {erkAnnteSaison ? (
-            <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
-              <span>Saison: <strong>{erkAnnteSaison.name}</strong></span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+                <span>Saison: <strong>{erkAnnteSaison.name}</strong></span>
+              </div>
+              {erkAnnteSaison.mindestaufenthalt > 1 && naechte > 0 && naechte < erkAnnteSaison.mindestaufenthalt && (
+                <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{erkAnnteSaison.name}: Mindestaufenthalt {erkAnnteSaison.mindestaufenthalt} Nächte (aktuell: {naechte})</span>
+                </div>
+              )}
             </div>
           ) : anreise && saisons.length > 0 ? (
             <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -711,26 +828,37 @@ export default function FewoFormularPage() {
                   const withoutKomplex = unterkuenfte.filter((u) => !u.komplex);
                   const komplexNames = [...new Set(withKomplex.map((u) => u.komplex!.name))];
 
+                  const belegtSuffix = (u: Unterkunft) => {
+                    const v = verfuegbarkeit[u.id];
+                    return v && !v.verfuegbar ? " (belegt)" : "";
+                  };
+
                   return (
                     <>
                       {komplexNames.map((kName) => (
                         <optgroup key={kName} label={kName}>
                           {withKomplex.filter((u) => u.komplex!.name === kName).map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.)
+                            <option key={u.id} value={u.id} disabled={verfuegbarkeit[u.id]?.verfuegbar === false}>
+                              {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.){belegtSuffix(u)}
                             </option>
                           ))}
                         </optgroup>
                       ))}
                       {withoutKomplex.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.)
+                        <option key={u.id} value={u.id} disabled={verfuegbarkeit[u.id]?.verfuegbar === false}>
+                          {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.){belegtSuffix(u)}
                         </option>
                       ))}
                     </>
                   );
                 })()}
               </select>
+              {selectedUnterkunftId && verfuegbarkeit[selectedUnterkunftId]?.verfuegbar === false && (
+                <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Diese Unterkunft ist im gewählten Zeitraum belegt (laut iCal-Kalender)</span>
+                </div>
+              )}
               {selectedUnterkunft && (() => {
                 const preise = selectedUnterkunft.saisonPreise ?? [];
                 const hatSaisonPreis = erkAnnteSaison && preise.some(
@@ -819,6 +947,89 @@ export default function FewoFormularPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Eigenes Extra */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center justify-between">
+            <span>Eigene Extras</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setCustomExtras((prev) => [
+                  ...prev,
+                  { id: crypto.randomUUID(), name: "", preis: "", einheit: "pauschal" },
+                ])
+              }
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Hinzufügen
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        {customExtras.length > 0 && (
+          <CardContent className="space-y-3">
+            {customExtras.map((ce, idx) => (
+              <div key={ce.id} className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={ce.name}
+                    onChange={(e) => {
+                      const updated = [...customExtras];
+                      updated[idx] = { ...ce, name: e.target.value };
+                      setCustomExtras(updated);
+                    }}
+                    placeholder="Name des Extras"
+                    className="h-8 flex-1"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => setCustomExtras((prev) => prev.filter((_, i) => i !== idx))}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={ce.preis}
+                    onChange={(e) => {
+                      const updated = [...customExtras];
+                      updated[idx] = { ...ce, preis: e.target.value };
+                      setCustomExtras(updated);
+                    }}
+                    placeholder="Preis (EUR)"
+                    className="h-8"
+                  />
+                  <select
+                    value={ce.einheit}
+                    onChange={(e) => {
+                      const updated = [...customExtras];
+                      updated[idx] = { ...ce, einheit: e.target.value };
+                      setCustomExtras(updated);
+                    }}
+                    className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="pauschal">pauschal</option>
+                    <option value="pro Nacht">pro Nacht</option>
+                    <option value="pro Person">pro Person</option>
+                    <option value="pro Nacht/Person">pro Nacht/Person</option>
+                  </select>
+                </div>
+                {ce.name && parseFloat(ce.preis) > 0 && naechte > 0 && (
+                  <div className="text-xs text-muted-foreground text-right font-mono">
+                    = {formatEuro(Math.round(customExtraBetrag(ce) * 100) / 100)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        )}
+      </Card>
 
       {/* Rabatt */}
       <Card>

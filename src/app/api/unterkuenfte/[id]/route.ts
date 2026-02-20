@@ -56,6 +56,7 @@ export async function PUT(
           preisProNacht: parseFloat(body.preisProNacht),
           aktiv: body.aktiv ?? true,
           komplexId: body.komplexId || null,
+          icalUrl: body.icalUrl || null,
         },
       });
 

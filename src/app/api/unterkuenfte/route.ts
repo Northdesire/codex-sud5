@@ -39,6 +39,7 @@ export async function POST(request: Request) {
           preisProNacht: parseFloat(body.preisProNacht),
           aktiv: body.aktiv ?? true,
           komplexId: body.komplexId || null,
+          icalUrl: body.icalUrl || null,
         },
       });
 
