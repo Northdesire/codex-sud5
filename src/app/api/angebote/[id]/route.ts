@@ -15,6 +15,7 @@ export async function GET(
       include: {
         positionen: { orderBy: { sortierung: "asc" } },
         firma: true,
+        rechnung: { select: { id: true, nummer: true } },
       },
     });
 

@@ -63,6 +63,7 @@ interface AngebotDetail {
     zahlungsziel: number;
     mwstSatz: number;
   };
+  rechnung?: { id: string; nummer: string } | null;
 }
 
 const statusConfig: Record<
@@ -540,18 +541,29 @@ export default function AngebotDetailPage() {
         )}
 
         {data.status === "ANGENOMMEN" && isShop && (
-          <Button
-            className="h-12 col-span-2 bg-green-600 hover:bg-green-700"
-            onClick={handleRechnungErstellen}
-            disabled={creatingRechnung}
-          >
-            {creatingRechnung ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
+          data.rechnung ? (
+            <Button
+              className="h-12 col-span-2"
+              variant="outline"
+              onClick={() => router.push(`/app/rechnungen/${data.rechnung!.id}`)}
+            >
               <Receipt className="h-4 w-4 mr-1" />
-            )}
-            Rechnung erstellen
-          </Button>
+              Zur Rechnung {data.rechnung.nummer}
+            </Button>
+          ) : (
+            <Button
+              className="h-12 col-span-2 bg-green-600 hover:bg-green-700"
+              onClick={handleRechnungErstellen}
+              disabled={creatingRechnung}
+            >
+              {creatingRechnung ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Receipt className="h-4 w-4 mr-1" />
+              )}
+              Rechnung erstellen
+            </Button>
+          )
         )}
 
         <Button variant="outline" className="h-12" onClick={handleBearbeiten}>

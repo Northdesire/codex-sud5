@@ -34,7 +34,9 @@ interface FirmaData {
   zahlungsziel: number;
   angebotsGueltig: number;
   nrPrefix: string;
+  nrCounter: number;
   rechnungNrPrefix: string;
+  rechnungNrCounter: number;
   agbText: string | null;
   logoUrl: string | null;
   googleReviewUrl: string | null;
@@ -380,13 +382,22 @@ function FirmaContent() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Angebotsnr.-Prefix</Label>
                 <Input
                   value={firma.nrPrefix}
                   onChange={(e) => update("nrPrefix", e.target.value)}
                   placeholder="ANG-"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Nächste Angebotsnr.</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={firma.nrCounter}
+                  onChange={(e) => update("nrCounter", parseInt(e.target.value) || 1)}
                 />
               </div>
               <div className="space-y-2">
@@ -399,13 +410,22 @@ function FirmaContent() {
               </div>
             </div>
             {firma.branche === "SHOP" && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Rechnungsnr.-Prefix</Label>
                   <Input
                     value={firma.rechnungNrPrefix ?? "RE-"}
                     onChange={(e) => update("rechnungNrPrefix", e.target.value)}
                     placeholder="RE-"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nächste Rechnungsnr.</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={firma.rechnungNrCounter}
+                    onChange={(e) => update("rechnungNrCounter", parseInt(e.target.value) || 1)}
                   />
                 </div>
               </div>
