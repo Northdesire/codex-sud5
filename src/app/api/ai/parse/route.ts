@@ -166,7 +166,11 @@ function parseShopAnfrageRegex(rawText: string) {
 // FEWO SYSTEM PROMPT + RESPONSE FORMAT
 // ═══════════════════════════════════════════
 
-const FEWO_SYSTEM_PROMPT = `Du bist ein Assistent für einen deutschen Ferienwohnungs-/Unterkunftsvermieter. Du analysierst Gästeanfragen (E-Mails, WhatsApp, Formulare) und extrahierst strukturierte Daten für die Angebotserstellung.
+function getFewoSystemPrompt() {
+  const currentYear = new Date().getFullYear();
+  return `Du bist ein Assistent für einen deutschen Ferienwohnungs-/Unterkunftsvermieter. Du analysierst Gästeanfragen (E-Mails, WhatsApp, Formulare) und extrahierst strukturierte Daten für die Angebotserstellung.
+
+Das aktuelle Jahr ist ${currentYear}.
 
 ## Deine Aufgabe
 
@@ -195,11 +199,12 @@ Extrahiere folgende Informationen:
 ## Erkennungsregeln
 
 **Datumsformate:**
-- "15. Juli" oder "15.7." → aktuelles oder nächstes Jahr
-- "15.-22. Juli" → anreise: 15. Juli, abreise: 22. Juli
-- "vom 15. bis 22. Juli" → anreise/abreise
-- "eine Woche ab 15. Juli" → anreise: 15. Juli, abreise: 22. Juli
-- "KW 28" → Montag bis Sonntag der Kalenderwoche
+- Wenn KEIN Jahr angegeben ist, IMMER ${currentYear} verwenden
+- "15. Juli" oder "15.7." → ${currentYear}-07-15
+- "15.-22. Juli" → anreise: ${currentYear}-07-15, abreise: ${currentYear}-07-22
+- "vom 15. bis 22. Juli" → anreise/abreise mit Jahr ${currentYear}
+- "eine Woche ab 15. Juli" → anreise: ${currentYear}-07-15, abreise: ${currentYear}-07-22
+- "KW 28" → Montag bis Sonntag der Kalenderwoche im Jahr ${currentYear}
 
 **Personenangaben:**
 - "2 Erwachsene und 2 Kinder" → personen: 4
@@ -222,7 +227,9 @@ WICHTIG:
 - Dezimalpunkte verwenden
 - Leere Strings "" für fehlende Felder, NICHT null
 - Confidence IMMER als ganze Zahl 0-100 angeben
-- Daten im Format YYYY-MM-DD (z.B. "2025-07-15")`;
+- Daten im Format YYYY-MM-DD (z.B. "${currentYear}-07-15")
+- Wenn kein Jahr genannt wird, IMMER das aktuelle Jahr ${currentYear} nehmen`;
+}
 
 const FEWO_RESPONSE_FORMAT = {
   type: "json_schema" as const,
@@ -271,7 +278,7 @@ const FEWO_RESPONSE_FORMAT = {
 };
 
 function buildFewoSystemPrompt(katalogKontext: string): string {
-  return FEWO_SYSTEM_PROMPT + (katalogKontext ? `\n\n${katalogKontext}` : "");
+  return getFewoSystemPrompt() + (katalogKontext ? `\n\n${katalogKontext}` : "");
 }
 
 async function loadFewoKatalogKontext(firmaId: string): Promise<string> {
