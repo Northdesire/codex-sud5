@@ -203,15 +203,16 @@ export default function FewoFormularPage() {
     return Math.round(sum * 100) / 100;
   }, [selectedExtras, extras, naechte, personen, customExtras]);
 
-  const rabattNetto = useMemo(() => {
+  // Preise sind brutto (inkl. 7% USt) — Netto rausrechnen
+  const rabattBrutto = useMemo(() => {
     const pct = parseFloat(rabattProzent);
     if (!pct || pct <= 0) return 0;
     return Math.round((unterkunftNetto + extrasNetto) * (pct / 100) * 100) / 100;
   }, [unterkunftNetto, extrasNetto, rabattProzent]);
 
-  const netto = unterkunftNetto + extrasNetto - rabattNetto;
-  const mwstBetrag = Math.round(netto * (mwstSatz / 100) * 100) / 100;
-  const brutto = Math.round((netto + mwstBetrag) * 100) / 100;
+  const brutto = Math.round((unterkunftNetto + extrasNetto - rabattBrutto) * 100) / 100;
+  const netto = Math.round((brutto / (1 + mwstSatz / 100)) * 100) / 100;
+  const mwstBetrag = Math.round((brutto - netto) * 100) / 100;
 
   // Daten laden
   useEffect(() => {
@@ -503,15 +504,15 @@ export default function FewoFormularPage() {
     }
 
     // Rabatt als eigene Position
-    if (rabattNetto > 0) {
+    if (rabattBrutto > 0) {
       positionen.push({
         posNr: posNr++,
         typ: "RABATT",
         bezeichnung: rabattGrund ? `Rabatt (${rabattProzent}%) — ${rabattGrund}` : `Rabatt (${rabattProzent}%)`,
         menge: 1,
         einheit: "pauschal",
-        einzelpreis: -rabattNetto,
-        gesamtpreis: -rabattNetto,
+        einzelpreis: -rabattBrutto,
+        gesamtpreis: -rabattBrutto,
       });
     }
 
@@ -524,7 +525,7 @@ export default function FewoFormularPage() {
         arbeitsNetto: unterkunftNetto,
         anfahrt: 0,
         zuschlagNetto: extrasNetto,
-        rabattNetto,
+        rabattNetto: rabattBrutto,
         netto,
         mwstSatz,
         mwstBetrag,
@@ -619,15 +620,15 @@ export default function FewoFormularPage() {
           gesamtpreis: Math.round(betrag * 100) / 100,
         });
       }
-      if (rabattNetto > 0) {
+      if (rabattBrutto > 0) {
         positionen.push({
           posNr: posNr++,
           typ: "RABATT" as const,
           bezeichnung: rabattGrund ? `Rabatt (${rabattProzent}%) — ${rabattGrund}` : `Rabatt (${rabattProzent}%)`,
           menge: 1,
           einheit: "pauschal",
-          einzelpreis: -rabattNetto,
-          gesamtpreis: -rabattNetto,
+          einzelpreis: -rabattBrutto,
+          gesamtpreis: -rabattBrutto,
         });
       }
 
@@ -638,7 +639,7 @@ export default function FewoFormularPage() {
         arbeitsNetto: unterkunftNetto,
         anfahrt: 0,
         zuschlagNetto: extrasNetto,
-        rabattNetto,
+        rabattNetto: rabattBrutto,
         netto,
         mwstSatz,
         mwstBetrag,
@@ -1076,9 +1077,9 @@ export default function FewoFormularPage() {
               />
             </div>
           </div>
-          {rabattNetto > 0 && (
+          {rabattBrutto > 0 && (
             <div className="rounded-md bg-green-50 dark:bg-green-950/30 px-3 py-2 text-sm text-green-700 dark:text-green-400">
-              Rabatt: −{formatEuro(rabattNetto)}
+              Rabatt: −{formatEuro(rabattBrutto)}
             </div>
           )}
         </CardContent>
@@ -1098,25 +1099,24 @@ export default function FewoFormularPage() {
                 <p className="font-mono">{formatEuro(extrasNetto)}</p>
               </div>
             )}
-            {rabattNetto > 0 && (
+            {rabattBrutto > 0 && (
               <div className="flex justify-between text-sm text-green-600">
                 <p>Rabatt ({rabattProzent}%){rabattGrund ? ` — ${rabattGrund}` : ""}</p>
-                <p className="font-mono">−{formatEuro(rabattNetto)}</p>
+                <p className="font-mono">−{formatEuro(rabattBrutto)}</p>
               </div>
             )}
             <Separator />
-            <div className="flex justify-between text-sm font-medium">
-              <p>Netto</p>
-              <p className="font-mono">{formatEuro(netto)}</p>
+            <div className="flex justify-between text-lg font-bold">
+              <p>Gesamt (brutto)</p>
+              <p className="font-mono text-primary">{formatEuro(brutto)}</p>
             </div>
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <p>MwSt. ({mwstSatz}%)</p>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <p>darin enthalten {mwstSatz}% USt.</p>
               <p className="font-mono">{formatEuro(mwstBetrag)}</p>
             </div>
-            <Separator />
-            <div className="flex justify-between text-lg font-bold">
-              <p>Brutto</p>
-              <p className="font-mono text-primary">{formatEuro(brutto)}</p>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <p>Netto</p>
+              <p className="font-mono">{formatEuro(netto)}</p>
             </div>
           </CardContent>
         </Card>
