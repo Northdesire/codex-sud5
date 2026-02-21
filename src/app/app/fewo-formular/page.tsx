@@ -333,12 +333,22 @@ export default function FewoFormularPage() {
     }
   }, [unterkuenfte, extras]);
 
-  // Auto-select erste Unterkunft wenn nur eine vorhanden
+  // Auto-select erste passende Unterkunft (Kapazität >= Personen)
   useEffect(() => {
-    if (unterkuenfte.length === 1 && !selectedUnterkunftId) {
-      setSelectedUnterkunftId(unterkuenfte[0].id);
+    if (unterkuenfte.length === 0) return;
+    const passende = unterkuenfte.filter((u) => u.kapazitaet >= personen);
+    // Wenn aktuell gewählte Unterkunft noch passt → nichts ändern
+    if (selectedUnterkunftId) {
+      const current = unterkuenfte.find((u) => u.id === selectedUnterkunftId);
+      if (current && current.kapazitaet >= personen) return;
     }
-  }, [unterkuenfte, selectedUnterkunftId]);
+    // Erste passende auto-selecten
+    if (passende.length > 0) {
+      setSelectedUnterkunftId(passende[0].id);
+    } else {
+      setSelectedUnterkunftId("");
+    }
+  }, [unterkuenfte, personen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // iCal Verfügbarkeit prüfen wenn Anreise + Abreise gesetzt
   useEffect(() => {
@@ -828,25 +838,29 @@ export default function FewoFormularPage() {
                   const withoutKomplex = unterkuenfte.filter((u) => !u.komplex);
                   const komplexNames = [...new Set(withKomplex.map((u) => u.komplex!.name))];
 
-                  const belegtSuffix = (u: Unterkunft) => {
+                  const statusSuffix = (u: Unterkunft) => {
+                    if (u.kapazitaet < personen) return ` (max. ${u.kapazitaet} Pers.)`;
                     const v = verfuegbarkeit[u.id];
-                    return v && !v.verfuegbar ? " (belegt)" : "";
+                    if (v && !v.verfuegbar) return " (belegt)";
+                    return "";
                   };
+                  const isDisabled = (u: Unterkunft) =>
+                    u.kapazitaet < personen || verfuegbarkeit[u.id]?.verfuegbar === false;
 
                   return (
                     <>
                       {komplexNames.map((kName) => (
                         <optgroup key={kName} label={kName}>
                           {withKomplex.filter((u) => u.komplex!.name === kName).map((u) => (
-                            <option key={u.id} value={u.id} disabled={verfuegbarkeit[u.id]?.verfuegbar === false}>
-                              {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.){belegtSuffix(u)}
+                            <option key={u.id} value={u.id} disabled={isDisabled(u)}>
+                              {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.){statusSuffix(u)}
                             </option>
                           ))}
                         </optgroup>
                       ))}
                       {withoutKomplex.map((u) => (
-                        <option key={u.id} value={u.id} disabled={verfuegbarkeit[u.id]?.verfuegbar === false}>
-                          {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.){belegtSuffix(u)}
+                        <option key={u.id} value={u.id} disabled={isDisabled(u)}>
+                          {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.){statusSuffix(u)}
                         </option>
                       ))}
                     </>
