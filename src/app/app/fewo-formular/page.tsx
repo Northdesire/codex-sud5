@@ -73,6 +73,7 @@ export default function FewoFormularPage() {
   const [savedAngebotId, setSavedAngebotId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [editAngebotId, setEditAngebotId] = useState<string | null>(null);
+  const [originalText, setOriginalText] = useState("");
 
   // Stammdaten
   const [unterkuenfte, setUnterkuenfte] = useState<Unterkunft[]>([]);
@@ -269,6 +270,13 @@ export default function FewoFormularPage() {
       } catch {
         // ignore
       }
+    }
+
+    // Original-Anfragetext laden (für KI-personalisierte Mails)
+    const aiOriginal = sessionStorage.getItem("ai-originaltext");
+    if (aiOriginal) {
+      setOriginalText(aiOriginal);
+      sessionStorage.removeItem("ai-originaltext");
     }
   }, []);
 
@@ -550,6 +558,7 @@ export default function FewoFormularPage() {
         mwstBetrag,
         brutto,
         eingabeMethode: "FORMULAR",
+        originalText: originalText || undefined,
         einleitungsText: einleitungsText || undefined,
         schlussText: schlussText || undefined,
         anreise,

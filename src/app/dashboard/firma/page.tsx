@@ -40,6 +40,7 @@ interface FirmaData {
   agbText: string | null;
   logoUrl: string | null;
   googleReviewUrl: string | null;
+  wissenstext: string | null;
   branche?: string;
 }
 
@@ -440,6 +441,18 @@ function FirmaContent() {
                 placeholder="Es gelten unsere AGB..."
                 rows={4}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Wissenstext für KI-Mails</Label>
+              <Textarea
+                value={firma.wissenstext ?? ""}
+                onChange={(e) => update("wissenstext", e.target.value)}
+                placeholder="z.B. Kein Parkplatz direkt am Haus, öffentlicher Parkplatz 450m entfernt..."
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">
+                Dieses Wissen nutzt die KI, um Gästeanfragen in der Angebots-Mail persönlich zu beantworten.
+              </p>
             </div>
           </CardContent>
         </Card>

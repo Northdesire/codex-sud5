@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import OpenAI from "openai";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { generateAngebotPDFBuffer } from "@/lib/pdf";
@@ -74,22 +75,71 @@ export async function POST(
 
     const filename = `${angebot.nummer}_${angebot.kundeName.replace(/\s+/g, "_")}.pdf`;
 
-    // E-Mail senden
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    // E-Mail-Text generieren (KI oder Fallback)
+    let emailHtml: string;
+    const firma = angebot.firma;
 
-    await resend.emails.send({
-      from: `${angebot.firma.firmenname} <${fromEmail}>`,
-      to: angebot.kundeEmail,
-      subject: `Angebot ${angebot.nummer} — ${angebot.firma.firmenname}`,
-      html: `
+    if (firma.wissenstext && angebot.originalText && process.env.OPENAI_API_KEY) {
+      try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: `Du bist ein freundlicher Gastgeber. Schreibe eine persönliche E-Mail als Antwort auf eine Gästeanfrage.
+
+Firmenwissen: ${firma.wissenstext}
+Gästeanfrage: ${angebot.originalText}
+Angebot: ${angebot.nummer}, ${angebot.brutto.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}, Anreise: ${angebot.anreise ? angebot.anreise.toLocaleDateString("de-DE") : "—"}, Abreise: ${angebot.abreise ? angebot.abreise.toLocaleDateString("de-DE") : "—"}, ${angebot.naechte ?? "—"} Nächte, ${angebot.personen ?? "—"} Personen
+
+Regeln:
+- Begrüße den Gast mit Namen (${angebot.kundeName})
+- Beantworte spezifische Fragen aus der Anfrage anhand des Firmenwissens
+- Erwähne das beigefügte Angebot mit Betrag und Gültigkeit (${angebot.gueltigBis.toLocaleDateString("de-DE")})
+- Halte es kurz, freundlich, persönlich
+- Schließe mit dem Namen des Inhabers (${firma.inhaberName})
+- Gib NUR den HTML-Body zurück (kein <html>/<body> Tag, nur Absätze mit <p>)`,
+            },
+            {
+              role: "user",
+              content: "Schreibe jetzt die E-Mail.",
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1000,
+        });
+
+        emailHtml = completion.choices[0]?.message?.content || "";
+      } catch (aiError) {
+        console.error("KI-Mail Fehler, nutze Fallback:", aiError);
+        emailHtml = "";
+      }
+    } else {
+      emailHtml = "";
+    }
+
+    // Fallback: statischer Text
+    if (!emailHtml) {
+      emailHtml = `
         <p>Sehr geehrte(r) ${angebot.kundeName},</p>
         <p>vielen Dank für Ihre Anfrage. Anbei erhalten Sie unser Angebot <strong>${angebot.nummer}</strong>.</p>
         <p><strong>Gesamtbetrag: ${angebot.brutto.toLocaleString("de-DE", { style: "currency", currency: "EUR" })}</strong> (inkl. MwSt.)</p>
         <p>Das Angebot ist gültig bis zum ${angebot.gueltigBis.toLocaleDateString("de-DE")}.</p>
         <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
-        <p>Mit freundlichen Grüßen<br>${angebot.firma.inhaberName}<br>${angebot.firma.firmenname}<br>Tel: ${angebot.firma.telefon}<br>${angebot.firma.email}</p>
-      `,
+        <p>Mit freundlichen Grüßen<br>${firma.inhaberName}<br>${firma.firmenname}<br>Tel: ${firma.telefon}<br>${firma.email}</p>
+      `;
+    }
+
+    // E-Mail senden
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+
+    await resend.emails.send({
+      from: `${firma.firmenname} <${fromEmail}>`,
+      to: angebot.kundeEmail,
+      subject: `Angebot ${angebot.nummer} — ${firma.firmenname}`,
+      html: emailHtml,
       attachments: [
         {
           filename,

@@ -52,6 +52,7 @@ model Firma {
   agbText         String?
 
   googleReviewUrl String?
+  wissenstext     String?   // Freitext-Wissen für KI-gestützte Antworten
 
   rechnungNrPrefix  String  @default("RE-")
   rechnungNrCounter Int     @default(1)

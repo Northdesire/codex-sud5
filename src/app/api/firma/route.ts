@@ -26,7 +26,7 @@ export async function PUT(request: Request) {
       "iban", "bic", "bankname", "logoUrl",
       "mwstSatz", "stundensatz", "zahlungsziel", "angebotsGueltig",
       "nrPrefix", "nrCounter", "rechnungNrPrefix", "rechnungNrCounter",
-      "agbText", "googleReviewUrl",
+      "agbText", "googleReviewUrl", "wissenstext",
     ];
 
     const data: Record<string, unknown> = {};
