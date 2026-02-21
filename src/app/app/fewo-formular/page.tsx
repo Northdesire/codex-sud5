@@ -742,23 +742,21 @@ export default function FewoFormularPage() {
               className="h-9"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">E-Mail</Label>
-              <Input
-                value={kunde.email}
-                onChange={(e) => setKunde({ ...kunde, email: e.target.value })}
-                className="h-9"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Telefon</Label>
-              <Input
-                value={kunde.telefon}
-                onChange={(e) => setKunde({ ...kunde, telefon: e.target.value })}
-                className="h-9"
-              />
-            </div>
+          <div>
+            <Label className="text-xs">E-Mail</Label>
+            <Input
+              value={kunde.email}
+              onChange={(e) => setKunde({ ...kunde, email: e.target.value })}
+              className="h-9"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Telefon</Label>
+            <Input
+              value={kunde.telefon}
+              onChange={(e) => setKunde({ ...kunde, telefon: e.target.value })}
+              className="h-9"
+            />
           </div>
           <div>
             <Label className="text-xs">Straße</Label>
