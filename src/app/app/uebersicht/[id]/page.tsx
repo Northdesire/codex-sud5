@@ -591,7 +591,7 @@ export default function AngebotDetailPage() {
           </>
         )}
 
-        {data.status === "ANGENOMMEN" && isShop && (
+        {data.status === "ANGENOMMEN" && (
           data.rechnung ? (
             <Button
               className="h-12 col-span-2"

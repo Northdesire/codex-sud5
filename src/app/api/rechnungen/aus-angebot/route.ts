@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const firma = await prisma.firma.findUnique({
       where: { id: user.firmaId },
     });
-    if (!firma || firma.branche !== "SHOP") {
+    if (!firma) {
       return NextResponse.json(
         { error: "Rechnungen nur für SHOP-Branche verfügbar" },
         { status: 403 }
