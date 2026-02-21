@@ -140,7 +140,7 @@ Regeln:
 
     const { data: sendResult, error: sendError } = await resend.emails.send({
       from: fromField,
-      to: angebot.kundeEmail,
+      to: angebot.kundeEmail.trim(),
       subject: `Angebot ${angebot.nummer} — ${firma.firmenname}`,
       html: emailHtml,
       attachments: [

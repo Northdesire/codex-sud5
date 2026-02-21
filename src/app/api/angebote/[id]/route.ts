@@ -67,7 +67,7 @@ export async function PUT(
             kundeStrasse: body.kundeStrasse ?? existing.kundeStrasse,
             kundePlz: body.kundePlz ?? existing.kundePlz,
             kundeOrt: body.kundeOrt ?? existing.kundeOrt,
-            kundeEmail: body.kundeEmail ?? existing.kundeEmail,
+            kundeEmail: body.kundeEmail?.trim() ?? existing.kundeEmail,
             kundeTelefon: body.kundeTelefon ?? existing.kundeTelefon,
             materialNetto: body.materialNetto,
             arbeitsNetto: body.arbeitsNetto,

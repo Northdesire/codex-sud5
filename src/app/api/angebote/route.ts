@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
               strasse: kunde.strasse || existing.strasse,
               plz: kunde.plz || existing.plz,
               ort: kunde.ort || existing.ort,
-              email: kunde.email || existing.email,
+              email: kunde.email?.trim() || existing.email,
               telefon: kunde.telefon || existing.telefon,
             },
           });
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
               strasse: kunde.strasse || null,
               plz: kunde.plz || null,
               ort: kunde.ort || null,
-              email: kunde.email || null,
+              email: kunde.email?.trim() || null,
               telefon: kunde.telefon || null,
             },
           });
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
           kundeStrasse: kunde.strasse || null,
           kundePlz: kunde.plz || null,
           kundeOrt: kunde.ort || null,
-          kundeEmail: kunde.email || null,
+          kundeEmail: kunde.email?.trim() || null,
           kundeTelefon: kunde.telefon || null,
           materialNetto,
           arbeitsNetto,
