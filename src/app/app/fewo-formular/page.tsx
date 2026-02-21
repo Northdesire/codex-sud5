@@ -91,7 +91,7 @@ export default function FewoFormularPage() {
   const [anreise, setAnreise] = useState("");
   const [abreise, setAbreise] = useState("");
   const [personen, setPersonen] = useState(2);
-  const [selectedUnterkunftId, setSelectedUnterkunftId] = useState("");
+  const [selectedUnterkunftIds, setSelectedUnterkunftIds] = useState<string[]>([]);
   const [selectedExtras, setSelectedExtras] = useState<Set<string>>(new Set());
   const [rabattProzent, setRabattProzent] = useState("");
   const [rabattGrund, setRabattGrund] = useState("");
@@ -123,46 +123,42 @@ export default function FewoFormularPage() {
     }) || null;
   }, [anreise, saisons]);
 
-  const selectedUnterkunft = unterkuenfte.find((u) => u.id === selectedUnterkunftId) || null;
+  const selectedUnterkuenfte = useMemo(() =>
+    selectedUnterkunftIds
+      .map(id => unterkuenfte.find(u => u.id === id))
+      .filter((u): u is Unterkunft => !!u),
+    [selectedUnterkunftIds, unterkuenfte]
+  );
+  const hasUnterkunft = selectedUnterkuenfte.length > 0;
 
-  // Extras filtern: nur die passend zum Unterkunft-Typ anzeigen
+  // Extras filtern: nur die passend zu IRGENDEINEM gewählten Unterkunft-Typ
   const filteredExtras = useMemo(() => {
-    if (!selectedUnterkunft) return extras;
+    if (!hasUnterkunft) return extras;
+    const typen = new Set(selectedUnterkuenfte.map(u => u.typ));
     return extras.filter(
-      (e) => e.unterkunftTypen.length === 0 || e.unterkunftTypen.includes(selectedUnterkunft.typ)
+      (e) => e.unterkunftTypen.length === 0 || e.unterkunftTypen.some(t => typen.has(t))
     );
-  }, [extras, selectedUnterkunft]);
+  }, [extras, selectedUnterkuenfte, hasUnterkunft]);
 
-  // Effektiver Preis pro Nacht: SaisonPreis wenn vorhanden, sonst Basispreis
-  const effektiverPreisProNacht = useMemo(() => {
-    if (!selectedUnterkunft) return 0;
-
-    console.log("[PREIS-DEBUG] erkAnnteSaison:", erkAnnteSaison);
-    console.log("[PREIS-DEBUG] unterkunft.saisonPreise:", selectedUnterkunft.saisonPreise);
-
+  // Effektiver Preis pro Nacht für eine bestimmte Unterkunft
+  function getEffektiverPreis(unterkunft: Unterkunft): number {
     if (erkAnnteSaison) {
-      const preise = selectedUnterkunft.saisonPreise ?? [];
-
-      // Erst exakte saisonId suchen
+      const preise = unterkunft.saisonPreise ?? [];
       const sp = preise.find((p) => p.saisonId === erkAnnteSaison.id);
-      console.log("[PREIS-DEBUG] exakter Match:", sp);
       if (sp) return sp.preisProNacht;
-
-      // Fallback: nach Saison-Name suchen (falls neue Zeiträume angelegt wurden)
       const spByName = preise.find((p) => p.saison?.name === erkAnnteSaison.name);
-      console.log("[PREIS-DEBUG] Name-Match:", spByName);
       if (spByName) return spByName.preisProNacht;
-
-      console.log("[PREIS-DEBUG] KEIN Saisonpreis gefunden → Basispreis");
     }
-    return selectedUnterkunft.preisProNacht;
-  }, [selectedUnterkunft, erkAnnteSaison]);
+    return unterkunft.preisProNacht;
+  }
 
-  // Kalkulation
+  // Kalkulation: summiert über alle gewählten Unterkünfte
   const unterkunftNetto = useMemo(() => {
-    if (!selectedUnterkunft || naechte === 0) return 0;
-    return Math.round(naechte * effektiverPreisProNacht * 100) / 100;
-  }, [selectedUnterkunft, naechte, effektiverPreisProNacht]);
+    if (!hasUnterkunft || naechte === 0) return 0;
+    return Math.round(
+      selectedUnterkuenfte.reduce((sum, u) => sum + naechte * getEffektiverPreis(u), 0) * 100
+    ) / 100;
+  }, [selectedUnterkuenfte, hasUnterkunft, naechte, erkAnnteSaison]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const extrasNetto = useMemo(() => {
     let sum = 0;
@@ -337,14 +333,16 @@ export default function FewoFormularPage() {
     if (!posRaw) return;
     try {
       const positionen: Array<{ typ: string; bezeichnung: string }> = JSON.parse(posRaw);
-      // Unterkunft matchen
-      const unterkunftPos = positionen.find((p) => p.typ === "PRODUKT");
-      if (unterkunftPos) {
+      // Alle Unterkunft-Positionen matchen
+      const unterkunftPositionen = positionen.filter((p) => p.typ === "PRODUKT");
+      const matchedIds: string[] = [];
+      for (const pos of unterkunftPositionen) {
         const match = unterkuenfte.find(
-          (u) => unterkunftPos.bezeichnung.toLowerCase().includes(u.name.toLowerCase())
+          (u) => pos.bezeichnung.toLowerCase().includes(u.name.toLowerCase())
         );
-        if (match) setSelectedUnterkunftId(match.id);
+        if (match) matchedIds.push(match.id);
       }
+      if (matchedIds.length > 0) setSelectedUnterkunftIds(matchedIds);
       // Extras matchen
       const extraPositionen = positionen.filter((p) => p.typ === "ZUSCHLAG");
       const matched = new Set<string>();
@@ -361,20 +359,12 @@ export default function FewoFormularPage() {
     }
   }, [unterkuenfte, extras]);
 
-  // Auto-select erste passende Unterkunft (Kapazität >= Personen)
+  // Auto-select erste passende Unterkunft (nur bei leerem Array)
   useEffect(() => {
-    if (unterkuenfte.length === 0) return;
+    if (unterkuenfte.length === 0 || selectedUnterkunftIds.length > 0) return;
     const passende = unterkuenfte.filter((u) => u.kapazitaet >= personen);
-    // Wenn aktuell gewählte Unterkunft noch passt → nichts ändern
-    if (selectedUnterkunftId) {
-      const current = unterkuenfte.find((u) => u.id === selectedUnterkunftId);
-      if (current && current.kapazitaet >= personen) return;
-    }
-    // Erste passende auto-selecten
     if (passende.length > 0) {
-      setSelectedUnterkunftId(passende[0].id);
-    } else {
-      setSelectedUnterkunftId("");
+      setSelectedUnterkunftIds([passende[0].id]);
     }
   }, [unterkuenfte, personen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -429,7 +419,7 @@ export default function FewoFormularPage() {
       toast.error("Bitte Gastnamen angeben");
       return;
     }
-    if (!selectedUnterkunft) {
+    if (!hasUnterkunft) {
       toast.error("Bitte Unterkunft auswählen");
       return;
     }
@@ -443,17 +433,20 @@ export default function FewoFormularPage() {
     const positionen = [];
     let posNr = 1;
 
-    // Unterkunft als Hauptposition
+    // Unterkünfte als Hauptpositionen (je 1 PRODUKT-Position pro Unterkunft)
     const saisonHinweis = erkAnnteSaison ? ` (${erkAnnteSaison.name})` : "";
-    positionen.push({
-      posNr: posNr++,
-      typ: "PRODUKT",
-      bezeichnung: `${selectedUnterkunft.name}${saisonHinweis} — ${naechte} Nächte`,
-      menge: naechte,
-      einheit: "Nacht",
-      einzelpreis: Math.round(effektiverPreisProNacht * 100) / 100,
-      gesamtpreis: unterkunftNetto,
-    });
+    for (const u of selectedUnterkuenfte) {
+      const preis = getEffektiverPreis(u);
+      positionen.push({
+        posNr: posNr++,
+        typ: "PRODUKT",
+        bezeichnung: `${u.name}${saisonHinweis} — ${naechte} Nächte`,
+        menge: naechte,
+        einheit: "Nacht",
+        einzelpreis: Math.round(preis * 100) / 100,
+        gesamtpreis: Math.round(naechte * preis * 100) / 100,
+      });
+    }
 
     // Extras als Zuschlag-Positionen
     for (const extraId of selectedExtras) {
@@ -606,7 +599,7 @@ export default function FewoFormularPage() {
   }
 
   async function handlePDF() {
-    if (!selectedUnterkunft || naechte === 0) return;
+    if (!hasUnterkunft || naechte === 0) return;
     setPdfLoading(true);
 
     try {
@@ -615,15 +608,18 @@ export default function FewoFormularPage() {
       const positionen = [];
       let posNr = 1;
       const pdfSaisonHinweis = erkAnnteSaison ? ` (${erkAnnteSaison.name})` : "";
-      positionen.push({
-        posNr: posNr++,
-        typ: "PRODUKT" as const,
-        bezeichnung: `${selectedUnterkunft.name}${pdfSaisonHinweis} — ${naechte} Nächte`,
-        menge: naechte,
-        einheit: "Nacht",
-        einzelpreis: Math.round(effektiverPreisProNacht * 100) / 100,
-        gesamtpreis: unterkunftNetto,
-      });
+      for (const u of selectedUnterkuenfte) {
+        const preis = getEffektiverPreis(u);
+        positionen.push({
+          posNr: posNr++,
+          typ: "PRODUKT" as const,
+          bezeichnung: `${u.name}${pdfSaisonHinweis} — ${naechte} Nächte`,
+          menge: naechte,
+          einheit: "Nacht",
+          einzelpreis: Math.round(preis * 100) / 100,
+          gesamtpreis: Math.round(naechte * preis * 100) / 100,
+        });
+      }
       for (const extraId of selectedExtras) {
         const extra = extras.find((e) => e.id === extraId);
         if (!extra) continue;
@@ -850,9 +846,21 @@ export default function FewoFormularPage() {
       {/* Unterkunft */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Home className="h-4 w-4" />
-            Unterkunft
+          <CardTitle className="text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              Unterkünfte
+            </span>
+            {unterkuenfte.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedUnterkunftIds(prev => [...prev, ""])}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Zimmer hinzufügen
+              </Button>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -862,106 +870,119 @@ export default function FewoFormularPage() {
             </p>
           ) : (
             <>
-              <select
-                value={selectedUnterkunftId}
-                onChange={(e) => setSelectedUnterkunftId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">— Unterkunft wählen —</option>
-                {(() => {
-                  const withKomplex = unterkuenfte.filter((u) => u.komplex);
-                  const withoutKomplex = unterkuenfte.filter((u) => !u.komplex);
-                  const komplexNames = [...new Set(withKomplex.map((u) => u.komplex!.name))];
+              {selectedUnterkunftIds.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Noch kein Zimmer gewählt. Klicke &ldquo;Zimmer hinzufügen&rdquo;.
+                </p>
+              )}
+              {selectedUnterkunftIds.map((uid, idx) => {
+                const u = unterkuenfte.find(x => x.id === uid) || null;
+                const preis = u ? getEffektiverPreis(u) : 0;
 
-                  const statusSuffix = (u: Unterkunft) => {
-                    if (u.kapazitaet < personen) return ` (max. ${u.kapazitaet} Pers.)`;
-                    const v = verfuegbarkeit[u.id];
+                const renderOptions = () => {
+                  const withKomplex = unterkuenfte.filter((x) => x.komplex);
+                  const withoutKomplex = unterkuenfte.filter((x) => !x.komplex);
+                  const komplexNames = [...new Set(withKomplex.map((x) => x.komplex!.name))];
+
+                  const statusSuffix = (x: Unterkunft) => {
+                    const v = verfuegbarkeit[x.id];
                     if (v && !v.verfuegbar) return " (belegt)";
                     return "";
                   };
-                  const isDisabled = (u: Unterkunft) =>
-                    u.kapazitaet < personen || verfuegbarkeit[u.id]?.verfuegbar === false;
 
-                  // Effektiven Preis pro Unterkunft berechnen (Saison wenn vorhanden)
-                  const preisLabel = (u: Unterkunft) => {
-                    if (erkAnnteSaison) {
-                      const preise = u.saisonPreise ?? [];
-                      const sp = preise.find((p) => p.saisonId === erkAnnteSaison.id)
-                        || preise.find((p) => p.saison?.name === erkAnnteSaison.name);
-                      if (sp) return formatEuro(sp.preisProNacht);
-                    }
-                    return formatEuro(u.preisProNacht);
-                  };
+                  const preisLabel = (x: Unterkunft) => formatEuro(getEffektiverPreis(x));
 
                   return (
                     <>
                       {komplexNames.map((kName) => (
                         <optgroup key={kName} label={kName}>
-                          {withKomplex.filter((u) => u.komplex!.name === kName).map((u) => (
-                            <option key={u.id} value={u.id} disabled={isDisabled(u)}>
-                              {u.name} — {preisLabel(u)}/Nacht (max. {u.kapazitaet} Pers.){statusSuffix(u)}
+                          {withKomplex.filter((x) => x.komplex!.name === kName).map((x) => (
+                            <option key={x.id} value={x.id}>
+                              {x.name} — {preisLabel(x)}/Nacht (max. {x.kapazitaet} Pers.){statusSuffix(x)}
                             </option>
                           ))}
                         </optgroup>
                       ))}
-                      {withoutKomplex.map((u) => (
-                        <option key={u.id} value={u.id} disabled={isDisabled(u)}>
-                          {u.name} — {preisLabel(u)}/Nacht (max. {u.kapazitaet} Pers.){statusSuffix(u)}
+                      {withoutKomplex.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.name} — {preisLabel(x)}/Nacht (max. {x.kapazitaet} Pers.){statusSuffix(x)}
                         </option>
                       ))}
                     </>
                   );
-                })()}
-              </select>
-              {selectedUnterkunftId && verfuegbarkeit[selectedUnterkunftId]?.verfuegbar === false && (
-                <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>Diese Unterkunft ist im gewählten Zeitraum belegt (laut iCal-Kalender)</span>
-                </div>
-              )}
-              {selectedUnterkunft && (() => {
-                const preise = selectedUnterkunft.saisonPreise ?? [];
-                const hatSaisonPreis = erkAnnteSaison && preise.some(
-                  (p) => p.saisonId === erkAnnteSaison.id || p.saison?.name === erkAnnteSaison.name
-                );
+                };
+
                 return (
-                  <div className="space-y-2">
-                    <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span>
-                          {erkAnnteSaison && effektiverPreisProNacht !== selectedUnterkunft.preisProNacht
-                            ? `Preis/Nacht (${erkAnnteSaison.name})`
-                            : "Preis/Nacht"}
-                        </span>
-                        <span className="font-mono font-medium">
-                          {formatEuro(Math.round(effektiverPreisProNacht * 100) / 100)}
-                        </span>
-                      </div>
-                      {naechte > 0 && (
-                        <>
-                          <Separator className="my-1" />
-                          <div className="flex justify-between text-sm font-medium">
-                            <span>{naechte} Nächte</span>
-                            <span className="font-mono">{formatEuro(unterkunftNetto)}</span>
-                          </div>
-                        </>
-                      )}
-                      {selectedUnterkunft.beschreibung && (
-                        <p className="text-xs text-muted-foreground mt-1">{selectedUnterkunft.beschreibung}</p>
-                      )}
+                  <div key={idx} className="space-y-2 rounded-md border p-3">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={uid}
+                        onChange={(e) => {
+                          const updated = [...selectedUnterkunftIds];
+                          updated[idx] = e.target.value;
+                          setSelectedUnterkunftIds(updated);
+                        }}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                      >
+                        <option value="">— Unterkunft wählen —</option>
+                        {renderOptions()}
+                      </select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0"
+                        onClick={() => setSelectedUnterkunftIds(prev => prev.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
-                    {erkAnnteSaison && !hatSaisonPreis && (
-                      <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                        Saison &ldquo;{erkAnnteSaison.name}&rdquo; erkannt, aber kein Saisonpreis
-                        für diese Unterkunft hinterlegt. Es wird der Grundpreis verwendet.
-                        <a href="/dashboard/unterkuenfte" className="underline ml-1 font-medium">
-                          Saisonpreise festlegen
-                        </a>
+                    {uid && verfuegbarkeit[uid]?.verfuegbar === false && (
+                      <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>Belegt im gewählten Zeitraum (laut iCal)</span>
                       </div>
                     )}
+                    {u && (
+                      <div className="flex justify-between text-sm text-muted-foreground px-1">
+                        <span>{u.name} — max. {u.kapazitaet} Pers.</span>
+                        <span className="font-mono">{formatEuro(preis)}/Nacht</span>
+                      </div>
+                    )}
+                    {u && erkAnnteSaison && (() => {
+                      const preise = u.saisonPreise ?? [];
+                      const hatSaisonPreis = preise.some(
+                        (p) => p.saisonId === erkAnnteSaison.id || p.saison?.name === erkAnnteSaison.name
+                      );
+                      if (!hatSaisonPreis) return (
+                        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                          Saison &ldquo;{erkAnnteSaison.name}&rdquo; erkannt, aber kein Saisonpreis hinterlegt → Grundpreis.
+                        </div>
+                      );
+                      return null;
+                    })()}
                   </div>
                 );
-              })()}
+              })}
+              {/* Summary */}
+              {hasUnterkunft && naechte > 0 && (
+                <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Kapazität gesamt</span>
+                    <span className="font-mono font-medium">
+                      {selectedUnterkuenfte.reduce((s, u) => s + u.kapazitaet, 0)} Personen
+                    </span>
+                  </div>
+                  <Separator className="my-1" />
+                  <div className="flex justify-between text-sm font-medium">
+                    <span>
+                      {selectedUnterkuenfte.length > 1
+                        ? `${selectedUnterkuenfte.length} Unterkünfte × ${naechte} Nächte`
+                        : `${naechte} Nächte`}
+                    </span>
+                    <span className="font-mono">{formatEuro(unterkunftNetto)}</span>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>
@@ -1131,11 +1152,15 @@ export default function FewoFormularPage() {
       </Card>
 
       {/* Summenblock */}
-      {selectedUnterkunft && naechte > 0 && (
+      {hasUnterkunft && naechte > 0 && (
         <Card>
           <CardContent className="pt-5 space-y-2">
             <div className="flex justify-between text-sm">
-              <p>Unterkunft ({naechte} Nächte)</p>
+              <p>
+                {selectedUnterkuenfte.length > 1
+                  ? `${selectedUnterkuenfte.length} Unterkünfte (${naechte} Nächte)`
+                  : `Unterkunft (${naechte} Nächte)`}
+              </p>
               <p className="font-mono">{formatEuro(unterkunftNetto)}</p>
             </div>
             {extrasNetto > 0 && (
@@ -1230,7 +1255,7 @@ export default function FewoFormularPage() {
             variant="outline"
             className="h-12"
             onClick={handlePDF}
-            disabled={pdfLoading || !selectedUnterkunft || naechte === 0}
+            disabled={pdfLoading || !hasUnterkunft || naechte === 0}
           >
             {pdfLoading ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -1242,7 +1267,7 @@ export default function FewoFormularPage() {
           <Button
             className="h-12 col-span-2"
             onClick={handleSave}
-            disabled={saving || !selectedUnterkunft || naechte === 0}
+            disabled={saving || !hasUnterkunft || naechte === 0}
           >
             {saving ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
