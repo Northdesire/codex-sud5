@@ -359,12 +359,25 @@ export default function FewoFormularPage() {
     }
   }, [unterkuenfte, extras]);
 
-  // Auto-select erste passende Unterkunft (nur bei leerem Array)
+  // Auto-select: Erst einzelne passende Unterkunft, sonst greedy Kombination
   useEffect(() => {
     if (unterkuenfte.length === 0 || selectedUnterkunftIds.length > 0) return;
-    const passende = unterkuenfte.filter((u) => u.kapazitaet >= personen);
-    if (passende.length > 0) {
-      setSelectedUnterkunftIds([passende[0].id]);
+    // 1) Einzelne Unterkunft die reicht?
+    const einzeln = unterkuenfte.find((u) => u.kapazitaet >= personen);
+    if (einzeln) {
+      setSelectedUnterkunftIds([einzeln.id]);
+      return;
+    }
+    // 2) Greedy: Zimmer der Reihe nach hinzufügen bis Kapazität reicht
+    let kapazitaet = 0;
+    const ids: string[] = [];
+    for (const u of unterkuenfte) {
+      ids.push(u.id);
+      kapazitaet += u.kapazitaet;
+      if (kapazitaet >= personen) break;
+    }
+    if (kapazitaet >= personen) {
+      setSelectedUnterkunftIds(ids);
     }
   }, [unterkuenfte, personen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -880,8 +893,11 @@ export default function FewoFormularPage() {
                 const preis = u ? getEffektiverPreis(u) : 0;
 
                 const renderOptions = () => {
-                  const withKomplex = unterkuenfte.filter((x) => x.komplex);
-                  const withoutKomplex = unterkuenfte.filter((x) => !x.komplex);
+                  // Bereits gewählte Zimmer ausschließen (außer aktuelle Zeile)
+                  const andereIds = new Set(selectedUnterkunftIds.filter((_, i) => i !== idx));
+                  const verfuegbar = unterkuenfte.filter(x => !andereIds.has(x.id));
+                  const withKomplex = verfuegbar.filter((x) => x.komplex);
+                  const withoutKomplex = verfuegbar.filter((x) => !x.komplex);
                   const komplexNames = [...new Set(withKomplex.map((x) => x.komplex!.name))];
 
                   const statusSuffix = (x: Unterkunft) => {
