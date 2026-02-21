@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Home, Percent, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Home, Percent, Plus, Trash2, AlertTriangle, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
@@ -70,6 +70,8 @@ export default function FewoFormularPage() {
   const [saving, setSaving] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savedAngebotId, setSavedAngebotId] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const [editAngebotId, setEditAngebotId] = useState<string | null>(null);
 
   // Stammdaten
@@ -564,9 +566,11 @@ export default function FewoFormularPage() {
 
       if (!res.ok) throw new Error("Speichern fehlgeschlagen");
 
+      const result = await res.json();
+      const angId = editAngebotId || result.id;
       setSaved(true);
+      setSavedAngebotId(angId);
       toast.success(editAngebotId ? "Angebot aktualisiert!" : "Angebot gespeichert!");
-      router.push(editAngebotId ? `/app/uebersicht/${editAngebotId}` : "/app/uebersicht");
     } catch (error) {
       console.error("Speichern Fehler:", error);
       toast.error("Fehler beim Speichern");
@@ -1136,33 +1140,76 @@ export default function FewoFormularPage() {
       )}
 
       {/* Aktionen */}
-      <div className="grid grid-cols-3 gap-2">
-        <Button
-          variant="outline"
-          className="h-12"
-          onClick={handlePDF}
-          disabled={pdfLoading || !selectedUnterkunft || naechte === 0}
-        >
-          {pdfLoading ? (
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4 mr-1" />
-          )}
-          PDF
-        </Button>
-        <Button
-          className="h-12 col-span-2"
-          onClick={handleSave}
-          disabled={saving || saved || !selectedUnterkunft || naechte === 0}
-        >
-          {saving ? (
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4 mr-1" />
-          )}
-          {saved ? "Gespeichert" : editAngebotId ? "Änderungen speichern" : "Angebot speichern"}
-        </Button>
-      </div>
+      {saved && savedAngebotId ? (
+        <div className="space-y-2">
+          <Button
+            className="w-full h-12"
+            onClick={async () => {
+              if (!kunde.email) {
+                toast.error("Keine E-Mail-Adresse beim Gast hinterlegt");
+                return;
+              }
+              setSending(true);
+              try {
+                const res = await fetch(`/api/angebote/${savedAngebotId}/senden`, { method: "POST" });
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  throw new Error(err.error || "Senden fehlgeschlagen");
+                }
+                toast.success("Angebot per E-Mail versendet!");
+                router.push(`/app/uebersicht/${savedAngebotId}`);
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Fehler beim Senden");
+              } finally {
+                setSending(false);
+              }
+            }}
+            disabled={sending || !kunde.email}
+          >
+            {sending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Mail className="h-4 w-4 mr-2" />
+            )}
+            Angebot per Mail versenden
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full h-10"
+            onClick={() => router.push(`/app/uebersicht/${savedAngebotId}`)}
+          >
+            Zur Übersicht
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          <Button
+            variant="outline"
+            className="h-12"
+            onClick={handlePDF}
+            disabled={pdfLoading || !selectedUnterkunft || naechte === 0}
+          >
+            {pdfLoading ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-1" />
+            )}
+            PDF
+          </Button>
+          <Button
+            className="h-12 col-span-2"
+            onClick={handleSave}
+            disabled={saving || !selectedUnterkunft || naechte === 0}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-1" />
+            )}
+            {editAngebotId ? "Änderungen speichern" : "Angebot speichern"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
