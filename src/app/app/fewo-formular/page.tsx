@@ -243,8 +243,10 @@ export default function FewoFormularPage() {
         if (parsed.abreise) setAbreise(parsed.abreise);
         if (parsed.personen) setPersonen(parsed.personen);
         // Wünsche → Extras auto-matchen (wird nach Extras-Laden gemacht)
-        if (parsed.wuensche) {
-          sessionStorage.setItem("fewo-wuensche", JSON.stringify(parsed.wuensche));
+        const wuensche: string[] = parsed.wuensche || [];
+        if (parsed.hund) wuensche.push("Hund");
+        if (wuensche.length > 0) {
+          sessionStorage.setItem("fewo-wuensche", JSON.stringify(wuensche));
         }
         sessionStorage.removeItem("ai-ergebnis");
       } catch {
@@ -848,20 +850,31 @@ export default function FewoFormularPage() {
                   const isDisabled = (u: Unterkunft) =>
                     u.kapazitaet < personen || verfuegbarkeit[u.id]?.verfuegbar === false;
 
+                  // Effektiven Preis pro Unterkunft berechnen (Saison wenn vorhanden)
+                  const preisLabel = (u: Unterkunft) => {
+                    if (erkAnnteSaison) {
+                      const preise = u.saisonPreise ?? [];
+                      const sp = preise.find((p) => p.saisonId === erkAnnteSaison.id)
+                        || preise.find((p) => p.saison?.name === erkAnnteSaison.name);
+                      if (sp) return formatEuro(sp.preisProNacht);
+                    }
+                    return formatEuro(u.preisProNacht);
+                  };
+
                   return (
                     <>
                       {komplexNames.map((kName) => (
                         <optgroup key={kName} label={kName}>
                           {withKomplex.filter((u) => u.komplex!.name === kName).map((u) => (
                             <option key={u.id} value={u.id} disabled={isDisabled(u)}>
-                              {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.){statusSuffix(u)}
+                              {u.name} — {preisLabel(u)}/Nacht (max. {u.kapazitaet} Pers.){statusSuffix(u)}
                             </option>
                           ))}
                         </optgroup>
                       ))}
                       {withoutKomplex.map((u) => (
                         <option key={u.id} value={u.id} disabled={isDisabled(u)}>
-                          {u.name} — {formatEuro(u.preisProNacht)}/Nacht (max. {u.kapazitaet} Pers.){statusSuffix(u)}
+                          {u.name} — {preisLabel(u)}/Nacht (max. {u.kapazitaet} Pers.){statusSuffix(u)}
                         </option>
                       ))}
                     </>
