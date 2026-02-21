@@ -882,17 +882,15 @@ export default function FewoFormularPage() {
                   <div className="space-y-2">
                     <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span>Grundpreis/Nacht</span>
-                        <span className="font-mono">{formatEuro(selectedUnterkunft.preisProNacht)}</span>
+                        <span>
+                          {erkAnnteSaison && effektiverPreisProNacht !== selectedUnterkunft.preisProNacht
+                            ? `Preis/Nacht (${erkAnnteSaison.name})`
+                            : "Preis/Nacht"}
+                        </span>
+                        <span className="font-mono font-medium">
+                          {formatEuro(Math.round(effektiverPreisProNacht * 100) / 100)}
+                        </span>
                       </div>
-                      {effektiverPreisProNacht !== selectedUnterkunft.preisProNacht && (
-                        <div className="flex justify-between text-sm text-primary">
-                          <span>Saisonpreis/Nacht ({erkAnnteSaison?.name})</span>
-                          <span className="font-mono font-medium">
-                            {formatEuro(Math.round(effektiverPreisProNacht * 100) / 100)}
-                          </span>
-                        </div>
-                      )}
                       {naechte > 0 && (
                         <>
                           <Separator className="my-1" />
