@@ -68,7 +68,7 @@ export async function POST(
       arbeitsNetto: angebot.arbeitsNetto,
       anfahrt: angebot.anfahrt,
       netto: angebot.netto,
-      mwstSatz: angebot.firma.mwstSatz,
+      mwstSatz: angebot.firma.branche === "FEWO" ? 7.0 : angebot.firma.mwstSatz,
       mwstBetrag: angebot.mwstBetrag,
       brutto: angebot.brutto,
     });

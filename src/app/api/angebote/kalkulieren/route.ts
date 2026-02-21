@@ -171,7 +171,7 @@ async function loadKalkData(firmaId: string) {
     materialKat: l.materialKat,
   }));
 
-  const mwstSatz = firma?.mwstSatz ?? 19.0;
+  const mwstSatz = firma?.branche === "FEWO" ? 7.0 : (firma?.mwstSatz ?? 19.0);
 
   const zuschlagInfos: ZuschlagInfo[] = zuschlaege.map((z) => ({
     name: z.name,
