@@ -134,9 +134,12 @@ Regeln:
     // E-Mail senden
     const resend = new Resend(process.env.RESEND_API_KEY);
     const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    const fromField = fromEmail === "onboarding@resend.dev"
+      ? "Acme <onboarding@resend.dev>"
+      : `${firma.firmenname} <${fromEmail}>`;
 
-    await resend.emails.send({
-      from: `${firma.firmenname} <${fromEmail}>`,
+    const { data: sendResult, error: sendError } = await resend.emails.send({
+      from: fromField,
       to: angebot.kundeEmail,
       subject: `Angebot ${angebot.nummer} — ${firma.firmenname}`,
       html: emailHtml,
@@ -147,6 +150,16 @@ Regeln:
         },
       ],
     });
+
+    if (sendError) {
+      console.error("Resend Fehler:", sendError);
+      return NextResponse.json(
+        { error: `E-Mail Fehler: ${sendError.message}` },
+        { status: 500 }
+      );
+    }
+
+    console.log("Resend OK:", sendResult);
 
     // Status auf OFFEN setzen
     await prisma.angebot.update({
