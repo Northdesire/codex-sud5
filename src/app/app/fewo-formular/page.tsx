@@ -1192,13 +1192,28 @@ export default function FewoFormularPage() {
             )}
             Angebot per Mail versenden
           </Button>
-          <Button
-            variant="outline"
-            className="w-full h-10"
-            onClick={() => router.push(`/app/uebersicht/${savedAngebotId}`)}
-          >
-            Zur Übersicht
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              className="h-10"
+              onClick={handlePDF}
+              disabled={pdfLoading}
+            >
+              {pdfLoading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-1" />
+              )}
+              PDF
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10"
+              onClick={() => router.push(`/app/uebersicht/${savedAngebotId}`)}
+            >
+              Zur Übersicht
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-2">
