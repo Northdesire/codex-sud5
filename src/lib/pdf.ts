@@ -255,11 +255,15 @@ function buildPDF(data: PDFData, JsPDF: any): InstanceType<typeof jsPDF> {
   doc.setTextColor(0);
 
   // Group positions by type
+  const produkte = data.positionen.filter((p) => p.typ === "PRODUKT");
   const leistungen = data.positionen.filter((p) => p.typ === "LEISTUNG");
   const materialien = data.positionen.filter((p) => p.typ === "MATERIAL");
   const zuschlaege = data.positionen.filter((p) => p.typ === "ZUSCHLAG");
   const rabattPositionen = data.positionen.filter((p) => p.typ === "RABATT");
   const anfahrtPos = data.positionen.find((p) => p.typ === "ANFAHRT");
+
+  // FeWo-Modus: hat PRODUKT-Positionen (Unterkünfte), keine Leistungen/Material
+  const isFewo = produkte.length > 0 && leistungen.length === 0 && materialien.length === 0;
 
   let rowIndex = 0;
 
@@ -308,6 +312,11 @@ function buildPDF(data: PDFData, JsPDF: any): InstanceType<typeof jsPDF> {
   }
 
   // Render sections
+  if (produkte.length > 0) {
+    renderSectionHeader("Unterkunft");
+    for (const p of produkte) renderRow(p);
+  }
+
   if (leistungen.length > 0) {
     renderSectionHeader("Arbeitsleistungen");
     for (const p of leistungen) renderRow(p);
@@ -356,65 +365,100 @@ function buildPDF(data: PDFData, JsPDF: any): InstanceType<typeof jsPDF> {
   doc.setFont("helvetica", "normal");
   doc.setTextColor(80);
 
-  doc.text("Arbeitsleistungen:", sumX, y);
-  doc.text(euro(data.arbeitsNetto), colGP, y, { align: "right" });
-  y += 4;
+  if (isFewo) {
+    // FeWo: Preise sind brutto — Gesamtbetrag, dann USt-Aufschlüsselung
+    if (data.rabattNetto && data.rabattNetto > 0) {
+      doc.setTextColor(0, 128, 0);
+      doc.text("Rabatt:", sumX, y);
+      doc.text(`- ${euro(data.rabattNetto)}`, colGP, y, { align: "right" });
+      doc.setTextColor(80);
+      y += 4;
+    }
 
-  doc.text("Material:", sumX, y);
-  doc.text(euro(data.materialNetto), colGP, y, { align: "right" });
-  y += 4;
+    // Brutto (Gesamtbetrag)
+    doc.setDrawColor(30);
+    doc.setLineWidth(0.5);
+    doc.line(sumX, y, pageWidth - mR, y);
+    y += 5;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text("Gesamtbetrag:", sumX, y);
+    doc.text(euro(data.brutto), colGP, y, { align: "right" });
+    y += 5;
 
-  if (data.anfahrt > 0) {
-    doc.text("Anfahrt:", sumX, y);
-    doc.text(euro(data.anfahrt), colGP, y, { align: "right" });
-    y += 4;
-  }
-
-  if (data.zuschlagNetto && data.zuschlagNetto > 0) {
-    doc.text("Zuschläge:", sumX, y);
-    doc.text(euro(data.zuschlagNetto), colGP, y, { align: "right" });
-    y += 4;
-  }
-
-  if (data.rabattNetto && data.rabattNetto > 0) {
-    doc.setTextColor(0, 128, 0);
-    doc.text("Rabatt:", sumX, y);
-    doc.text(`- ${euro(data.rabattNetto)}`, colGP, y, { align: "right" });
+    // USt-Info
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
     doc.setTextColor(80);
+    doc.text(`darin enth. ${data.mwstSatz}% USt.:`, sumX, y);
+    doc.text(euro(data.mwstBetrag), colGP, y, { align: "right" });
     y += 4;
+    doc.text("Nettobetrag:", sumX, y);
+    doc.text(euro(data.netto), colGP, y, { align: "right" });
+    y += 10;
+  } else {
+    // Maler/Shop: Netto-basiert
+    doc.text("Arbeitsleistungen:", sumX, y);
+    doc.text(euro(data.arbeitsNetto), colGP, y, { align: "right" });
+    y += 4;
+
+    doc.text("Material:", sumX, y);
+    doc.text(euro(data.materialNetto), colGP, y, { align: "right" });
+    y += 4;
+
+    if (data.anfahrt > 0) {
+      doc.text("Anfahrt:", sumX, y);
+      doc.text(euro(data.anfahrt), colGP, y, { align: "right" });
+      y += 4;
+    }
+
+    if (data.zuschlagNetto && data.zuschlagNetto > 0) {
+      doc.text("Zuschläge:", sumX, y);
+      doc.text(euro(data.zuschlagNetto), colGP, y, { align: "right" });
+      y += 4;
+    }
+
+    if (data.rabattNetto && data.rabattNetto > 0) {
+      doc.setTextColor(0, 128, 0);
+      doc.text("Rabatt:", sumX, y);
+      doc.text(`- ${euro(data.rabattNetto)}`, colGP, y, { align: "right" });
+      doc.setTextColor(80);
+      y += 4;
+    }
+
+    // Netto
+    doc.setDrawColor(180);
+    doc.setLineWidth(0.2);
+    doc.line(sumX, y, pageWidth - mR, y);
+    y += 4;
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30);
+    doc.setFontSize(9);
+    doc.text("Nettobetrag:", sumX, y);
+    doc.text(euro(data.netto), colGP, y, { align: "right" });
+    y += 4.5;
+
+    // MwSt
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(80);
+    doc.text(`MwSt. ${data.mwstSatz}%:`, sumX, y);
+    doc.text(euro(data.mwstBetrag), colGP, y, { align: "right" });
+    y += 4;
+
+    // Brutto
+    doc.setDrawColor(30);
+    doc.setLineWidth(0.5);
+    doc.line(sumX, y, pageWidth - mR, y);
+    y += 5;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text("Bruttobetrag:", sumX, y);
+    doc.text(euro(data.brutto), colGP, y, { align: "right" });
+    y += 10;
   }
-
-  // Netto
-  doc.setDrawColor(180);
-  doc.setLineWidth(0.2);
-  doc.line(sumX, y, pageWidth - mR, y);
-  y += 4;
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(30);
-  doc.setFontSize(9);
-  doc.text("Nettobetrag:", sumX, y);
-  doc.text(euro(data.netto), colGP, y, { align: "right" });
-  y += 4.5;
-
-  // MwSt
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(80);
-  doc.text(`MwSt. ${data.mwstSatz}%:`, sumX, y);
-  doc.text(euro(data.mwstBetrag), colGP, y, { align: "right" });
-  y += 4;
-
-  // Brutto
-  doc.setDrawColor(30);
-  doc.setLineWidth(0.5);
-  doc.line(sumX, y, pageWidth - mR, y);
-  y += 5;
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0);
-  doc.text("Bruttobetrag:", sumX, y);
-  doc.text(euro(data.brutto), colGP, y, { align: "right" });
-  y += 10;
 
   // ═══ SCHLUSSTEXT ═══
   checkPageBreak(20);
