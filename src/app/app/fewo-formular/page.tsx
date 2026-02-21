@@ -78,6 +78,10 @@ export default function FewoFormularPage() {
   const [unterkuenfte, setUnterkuenfte] = useState<Unterkunft[]>([]);
   const [saisons, setSaisons] = useState<Saison[]>([]);
   const [extras, setExtras] = useState<FewoExtra[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [firma, setFirma] = useState<any>(null);
+  const [einleitungsText, setEinleitungsText] = useState("");
+  const [schlussText, setSchlussText] = useState("");
 
   // Formular
   const [kunde, setKunde] = useState<Kunde>({
@@ -222,10 +226,21 @@ export default function FewoFormularPage() {
       fetch("/api/unterkuenfte").then((r) => r.json()),
       fetch("/api/saisons").then((r) => r.json()),
       fetch("/api/fewo-extras").then((r) => r.json()),
-    ]).then(([u, s, e]) => {
+      fetch("/api/firma").then((r) => r.json()),
+      fetch("/api/textvorlagen").then((r) => r.json()),
+    ]).then(([u, s, e, f, tv]) => {
       if (Array.isArray(u)) setUnterkuenfte(u.filter((x: Unterkunft) => x.aktiv));
       if (Array.isArray(s)) setSaisons(s);
       if (Array.isArray(e)) setExtras(e.filter((x: FewoExtra) => x.aktiv));
+      if (f && !f.error) setFirma(f);
+      if (Array.isArray(tv)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const intro = tv.find((v: any) => v.typ === "ANGEBOT_INTRO" && v.aktiv);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const schluss = tv.find((v: any) => v.typ === "ANGEBOT_SCHLUSS" && v.aktiv);
+        if (intro) setEinleitungsText(intro.text);
+        if (schluss) setSchlussText(schluss.text);
+      }
     }).catch(() => {});
 
     // Edit-Modus prüfen
@@ -535,6 +550,8 @@ export default function FewoFormularPage() {
         mwstBetrag,
         brutto,
         eingabeMethode: "FORMULAR",
+        einleitungsText: einleitungsText || undefined,
+        schlussText: schlussText || undefined,
         anreise,
         abreise,
         naechte,
@@ -651,10 +668,12 @@ export default function FewoFormularPage() {
         mwstBetrag,
         brutto,
         kunde,
-        firma: null,
+        firma,
         nummer: "Entwurf",
         datum: new Date(),
-        gueltigBis: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        gueltigBis: new Date(Date.now() + (firma?.angebotsGueltig || 14) * 24 * 60 * 60 * 1000),
+        einleitungsText: einleitungsText || undefined,
+        schlussText: schlussText || undefined,
       });
 
       const url = URL.createObjectURL(blob);
