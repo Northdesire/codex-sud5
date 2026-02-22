@@ -116,8 +116,8 @@ export default function FahrradFormularPage() {
 
   const hasBikes = selectedBikes.length > 0;
 
-  // Fahrrad-Netto
-  const fahrradNetto = useMemo(() => {
+  // Fahrrad-Brutto (alle Preise sind brutto)
+  const fahrradBrutto = useMemo(() => {
     if (!hasBikes || tage === 0) return 0;
     return Math.round(
       selectedBikes.reduce((sum, bike) => {
@@ -128,8 +128,8 @@ export default function FahrradFormularPage() {
     ) / 100;
   }, [selectedBikes, hasBikes, tage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Extras Netto
-  const extrasNetto = useMemo(() => {
+  // Extras-Brutto (alle Preise sind brutto)
+  const extrasBrutto = useMemo(() => {
     let sum = 0;
     for (const extraId of selectedExtras) {
       const extra = extras.find((e) => e.id === extraId);
@@ -156,16 +156,17 @@ export default function FahrradFormularPage() {
     return Math.round(sum * 100) / 100;
   }, [selectedExtras, extras, tage, personen, customExtras]);
 
-  // Rabatt
-  const rabattNetto = useMemo(() => {
+  // Rabatt (auf Brutto)
+  const rabattBrutto = useMemo(() => {
     const pct = parseFloat(rabattProzent);
     if (!pct || pct <= 0) return 0;
-    return Math.round((fahrradNetto + extrasNetto) * (pct / 100) * 100) / 100;
-  }, [fahrradNetto, extrasNetto, rabattProzent]);
+    return Math.round((fahrradBrutto + extrasBrutto) * (pct / 100) * 100) / 100;
+  }, [fahrradBrutto, extrasBrutto, rabattProzent]);
 
-  const netto = Math.round((fahrradNetto + extrasNetto - rabattNetto) * 100) / 100;
-  const mwstBetrag = Math.round(netto * (mwstSatz / 100) * 100) / 100;
-  const brutto = Math.round((netto + mwstBetrag) * 100) / 100;
+  // Alle Preise sind brutto → MwSt rückwärts herausrechnen
+  const brutto = Math.round((fahrradBrutto + extrasBrutto - rabattBrutto) * 100) / 100;
+  const netto = Math.round(brutto / (1 + mwstSatz / 100) * 100) / 100;
+  const mwstBetrag = Math.round((brutto - netto) * 100) / 100;
 
   // Daten laden
   useEffect(() => {
@@ -447,15 +448,15 @@ export default function FahrradFormularPage() {
     }
 
     // Rabatt
-    if (rabattNetto > 0) {
+    if (rabattBrutto > 0) {
       positionen.push({
         posNr: posNr++,
         typ: "RABATT",
         bezeichnung: rabattGrund ? `Rabatt (${rabattProzent}%) \u2014 ${rabattGrund}` : `Rabatt (${rabattProzent}%)`,
         menge: 1,
         einheit: "pauschal",
-        einzelpreis: -rabattNetto,
-        gesamtpreis: -rabattNetto,
+        einzelpreis: -rabattBrutto,
+        gesamtpreis: -rabattBrutto,
       });
     }
 
@@ -485,10 +486,10 @@ export default function FahrradFormularPage() {
         positionen,
         raeume: [],
         materialNetto: 0,
-        arbeitsNetto: fahrradNetto,
+        arbeitsNetto: Math.round(fahrradBrutto / (1 + mwstSatz / 100) * 100) / 100,
         anfahrt: 0,
-        zuschlagNetto: extrasNetto,
-        rabattNetto,
+        zuschlagNetto: Math.round(extrasBrutto / (1 + mwstSatz / 100) * 100) / 100,
+        rabattNetto: Math.round(rabattBrutto / (1 + mwstSatz / 100) * 100) / 100,
         netto,
         mwstSatz,
         mwstBetrag,
@@ -552,10 +553,10 @@ export default function FahrradFormularPage() {
         positionen,
         raeume: [],
         materialNetto: 0,
-        arbeitsNetto: fahrradNetto,
+        arbeitsNetto: Math.round(fahrradBrutto / (1 + mwstSatz / 100) * 100) / 100,
         anfahrt: 0,
-        zuschlagNetto: extrasNetto,
-        rabattNetto,
+        zuschlagNetto: Math.round(extrasBrutto / (1 + mwstSatz / 100) * 100) / 100,
+        rabattNetto: Math.round(rabattBrutto / (1 + mwstSatz / 100) * 100) / 100,
         netto,
         mwstSatz,
         mwstBetrag,
@@ -883,7 +884,7 @@ export default function FahrradFormularPage() {
                   <Separator className="my-1" />
                   <div className="flex justify-between text-sm font-medium">
                     <span>Fahrräder ({tage} {tage === 1 ? "Tag" : "Tage"})</span>
-                    <span className="font-mono">{formatEuro(fahrradNetto)}</span>
+                    <span className="font-mono">{formatEuro(fahrradBrutto)}</span>
                   </div>
                 </div>
               )}
@@ -1047,9 +1048,9 @@ export default function FahrradFormularPage() {
               />
             </div>
           </div>
-          {rabattNetto > 0 && (
+          {rabattBrutto > 0 && (
             <div className="rounded-md bg-green-50 dark:bg-green-950/30 px-3 py-2 text-sm text-green-700 dark:text-green-400">
-              Rabatt: \u2212{formatEuro(rabattNetto)}
+              Rabatt: \u2212{formatEuro(rabattBrutto)}
             </div>
           )}
         </CardContent>
@@ -1061,18 +1062,18 @@ export default function FahrradFormularPage() {
           <CardContent className="pt-5 space-y-2">
             <div className="flex justify-between text-sm">
               <p>Fahrräder ({tage} {tage === 1 ? "Tag" : "Tage"})</p>
-              <p className="font-mono">{formatEuro(fahrradNetto)}</p>
+              <p className="font-mono">{formatEuro(fahrradBrutto)}</p>
             </div>
-            {extrasNetto > 0 && (
+            {extrasBrutto > 0 && (
               <div className="flex justify-between text-sm">
                 <p>Extras</p>
-                <p className="font-mono">{formatEuro(extrasNetto)}</p>
+                <p className="font-mono">{formatEuro(extrasBrutto)}</p>
               </div>
             )}
-            {rabattNetto > 0 && (
+            {rabattBrutto > 0 && (
               <div className="flex justify-between text-sm text-green-600">
                 <p>Rabatt ({rabattProzent}%){rabattGrund ? ` \u2014 ${rabattGrund}` : ""}</p>
-                <p className="font-mono">\u2212{formatEuro(rabattNetto)}</p>
+                <p className="font-mono">\u2212{formatEuro(rabattBrutto)}</p>
               </div>
             )}
             <Separator />
