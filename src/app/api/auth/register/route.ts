@@ -22,7 +22,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const selectedBranche = branche === "SHOP" ? "SHOP" : branche === "FEWO" ? "FEWO" : "MALER";
+    const validBranchen = ["MALER", "SHOP", "FEWO", "FAHRRAD"] as const;
+    const selectedBranche = validBranchen.includes(branche) ? branche : "MALER";
 
     // Firma + User + (ggf. Kalkulationsregeln) in einer Transaktion erstellen
     const result = await prisma.$transaction(async (tx) => {
