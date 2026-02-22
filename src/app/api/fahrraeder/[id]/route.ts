@@ -18,7 +18,7 @@ export async function PUT(
       return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
     }
 
-    const staffelPreise: Array<{ staffelId: string; preisProTag: number }> = body.staffelPreise || [];
+    const preise: Array<{ tag: number; gesamtpreis: number }> = body.preise || [];
 
     const fahrrad = await prisma.$transaction(async (tx) => {
       await tx.fahrrad.update({
@@ -27,19 +27,18 @@ export async function PUT(
           name: body.name,
           kategorie: body.kategorie || "",
           beschreibung: body.beschreibung || null,
-          preisProTag: parseFloat(body.preisProTag),
           aktiv: body.aktiv ?? true,
         },
       });
 
-      // Staffelpreise: alle löschen und neu anlegen
+      // Preise: alle löschen und neu anlegen
       await tx.fahrradPreis.deleteMany({ where: { fahrradId: id } });
-      if (staffelPreise.length > 0) {
+      if (preise.length > 0) {
         await tx.fahrradPreis.createMany({
-          data: staffelPreise.map((sp) => ({
+          data: preise.map((p) => ({
             fahrradId: id,
-            staffelId: sp.staffelId,
-            preisProTag: parseFloat(String(sp.preisProTag)),
+            tag: p.tag,
+            gesamtpreis: parseFloat(String(p.gesamtpreis)),
           })),
         });
       }
@@ -47,7 +46,7 @@ export async function PUT(
       return tx.fahrrad.findUnique({
         where: { id },
         include: {
-          staffelPreise: { include: { staffel: true } },
+          preise: { orderBy: { tag: "asc" } },
         },
       });
     });

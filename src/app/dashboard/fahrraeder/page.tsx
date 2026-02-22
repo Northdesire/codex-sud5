@@ -15,17 +15,10 @@ import {
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 
-interface StaffelPreis {
+interface FahrradPreis {
   id: string;
-  staffelId: string;
-  preisProTag: number;
-  staffel: MietdauerStaffel;
-}
-
-interface MietdauerStaffel {
-  id: string;
-  name: string;
-  bisTag: number;
+  tag: number;
+  gesamtpreis: number;
 }
 
 interface Fahrrad {
@@ -33,23 +26,22 @@ interface Fahrrad {
   name: string;
   kategorie: string;
   beschreibung: string | null;
-  preisProTag: number;
   aktiv: boolean;
-  staffelPreise: StaffelPreis[];
+  preise: FahrradPreis[];
 }
+
+const TAGE = Array.from({ length: 14 }, (_, i) => i + 1);
 
 const emptyForm = {
   name: "",
   kategorie: "",
   beschreibung: "",
-  preisProTag: "",
   aktiv: true,
-  staffelPreise: {} as Record<string, string>,
+  preise: {} as Record<number, string>,
 };
 
 export default function FahrraederPage() {
   const [fahrraeder, setFahrraeder] = useState<Fahrrad[]>([]);
-  const [staffeln, setStaffeln] = useState<MietdauerStaffel[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -58,14 +50,9 @@ export default function FahrraederPage() {
   const [filter, setFilter] = useState("");
 
   const loadData = useCallback(async () => {
-    const [fRes, sRes] = await Promise.all([
-      fetch("/api/fahrraeder"),
-      fetch("/api/mietdauer-staffeln"),
-    ]);
-    const fData = await fRes.json();
-    const sData = await sRes.json();
-    if (Array.isArray(fData)) setFahrraeder(fData);
-    if (Array.isArray(sData)) setStaffeln(sData);
+    const res = await fetch("/api/fahrraeder");
+    const data = await res.json();
+    if (Array.isArray(data)) setFahrraeder(data);
     setLoading(false);
   }, []);
 
@@ -75,39 +62,38 @@ export default function FahrraederPage() {
 
   function openNew() {
     setEditId(null);
-    setForm({ ...emptyForm, staffelPreise: {} });
+    setForm({ ...emptyForm, preise: {} });
     setDialogOpen(true);
   }
 
   function openEdit(f: Fahrrad) {
     setEditId(f.id);
-    const sp: Record<string, string> = {};
-    for (const p of f.staffelPreise) {
-      sp[p.staffelId] = p.preisProTag.toString();
+    const preise: Record<number, string> = {};
+    for (const p of f.preise) {
+      preise[p.tag] = p.gesamtpreis.toString();
     }
     setForm({
       name: f.name,
       kategorie: f.kategorie,
       beschreibung: f.beschreibung || "",
-      preisProTag: f.preisProTag.toString(),
       aktiv: f.aktiv,
-      staffelPreise: sp,
+      preise,
     });
     setDialogOpen(true);
   }
 
   async function handleSave() {
-    if (!form.name || !form.preisProTag) {
-      toast.error("Name und Basispreis sind Pflichtfelder");
+    if (!form.name) {
+      toast.error("Name ist ein Pflichtfeld");
       return;
     }
     setSaving(true);
 
-    const staffelPreise = Object.entries(form.staffelPreise)
-      .filter(([, v]) => v && parseFloat(v) > 0)
-      .map(([staffelId, preisProTag]) => ({
-        staffelId,
-        preisProTag: parseFloat(preisProTag),
+    const preise = TAGE
+      .filter((tag) => form.preise[tag] && parseFloat(form.preise[tag]) > 0)
+      .map((tag) => ({
+        tag,
+        gesamtpreis: parseFloat(form.preise[tag]),
       }));
 
     const url = editId ? `/api/fahrraeder/${editId}` : "/api/fahrraeder";
@@ -116,7 +102,7 @@ export default function FahrraederPage() {
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, staffelPreise }),
+      body: JSON.stringify({ ...form, preise }),
     });
 
     if (res.ok) {
@@ -144,6 +130,11 @@ export default function FahrraederPage() {
     return n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
   }
 
+  function getPreis(f: Fahrrad, tag: number): number | null {
+    const p = f.preise.find((p) => p.tag === tag);
+    return p ? p.gesamtpreis : null;
+  }
+
   const kategorien = [...new Set(fahrraeder.map((f) => f.kategorie).filter(Boolean))];
   const filtered = filter
     ? fahrraeder.filter((f) => f.kategorie === filter)
@@ -153,7 +144,7 @@ export default function FahrraederPage() {
     <>
       <Header
         title="Fahrräder"
-        description="Fahrradkatalog mit Tagespreisen und Staffelpreisen"
+        description="Fahrradkatalog mit Mietpreisen (1–14 Tage)"
         actions={
           <Button onClick={openNew}>
             <Plus className="h-4 w-4 mr-2" />
@@ -183,14 +174,6 @@ export default function FahrraederPage() {
             ))}
           </div>
         )}
-        {staffeln.length > 0 && (
-          <div className="rounded-md bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-            Staffelpreise pro Fahrrad werden hier beim Bearbeiten gesetzt. Staffeln verwalten Sie auf der{" "}
-            <a href="/dashboard/mietdauer" className="underline font-medium text-foreground hover:text-primary">
-              Mietdauer-Staffeln-Seite
-            </a>.
-          </div>
-        )}
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -207,12 +190,9 @@ export default function FahrraederPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Kategorie</TableHead>
-                  <TableHead className="text-right">Basispreis/Tag</TableHead>
-                  {staffeln.map((s) => (
-                    <TableHead key={s.id} className="text-right text-xs">
-                      {s.name}
-                    </TableHead>
-                  ))}
+                  <TableHead className="text-right">1 Tag</TableHead>
+                  <TableHead className="text-right">7 Tage</TableHead>
+                  <TableHead className="text-right">14 Tage</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
@@ -225,16 +205,14 @@ export default function FahrraederPage() {
                       <Badge variant="secondary">{f.kategorie}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium">
-                      {formatEuro(f.preisProTag)}
+                      {getPreis(f, 1) != null ? formatEuro(getPreis(f, 1)!) : "—"}
                     </TableCell>
-                    {staffeln.map((s) => {
-                      const sp = f.staffelPreise.find((p) => p.staffelId === s.id);
-                      return (
-                        <TableCell key={s.id} className="text-right font-mono text-sm">
-                          {sp ? formatEuro(sp.preisProTag) : "—"}
-                        </TableCell>
-                      );
-                    })}
+                    <TableCell className="text-right font-mono text-sm">
+                      {getPreis(f, 7) != null ? formatEuro(getPreis(f, 7)!) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {getPreis(f, 14) != null ? formatEuro(getPreis(f, 14)!) : "—"}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={f.aktiv ? "default" : "secondary"}>
                         {f.aktiv ? "Aktiv" : "Inaktiv"}
@@ -259,7 +237,7 @@ export default function FahrraederPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editId ? "Fahrrad bearbeiten" : "Neues Fahrrad"}</DialogTitle>
           </DialogHeader>
@@ -299,41 +277,33 @@ export default function FahrraederPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Basispreis pro Tag (EUR) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={form.preisProTag}
-                onChange={(e) => setForm({ ...form, preisProTag: e.target.value })}
-                placeholder="15.00"
-              />
-              <p className="text-xs text-muted-foreground">Fallback-Preis, wenn keine Staffel passt</p>
-            </div>
-            {staffeln.length > 0 && (
-              <div className="space-y-2">
-                <Label>Staffelpreise pro Tag</Label>
-                <div className="space-y-2">
-                  {staffeln.map((s) => (
-                    <div key={s.id} className="flex items-center gap-3">
-                      <span className="text-sm w-32 shrink-0">{s.name}</span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={form.staffelPreise[s.id] || ""}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            staffelPreise: { ...form.staffelPreise, [s.id]: e.target.value },
-                          })
-                        }
-                        placeholder="—"
-                        className="h-9"
-                      />
-                    </div>
-                  ))}
-                </div>
+              <Label>Mietpreise (Gesamtpreis in EUR)</Label>
+              <p className="text-xs text-muted-foreground">
+                Gesamtpreis pro Mietdauer — nicht pro Tag. Leere Felder werden ignoriert.
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {TAGE.map((tag) => (
+                  <div key={tag} className="flex items-center gap-2">
+                    <span className="text-sm w-14 shrink-0 text-right tabular-nums">
+                      {tag} {tag === 1 ? "Tag" : "Tage"}
+                    </span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={form.preise[tag] || ""}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          preise: { ...form.preise, [tag]: e.target.value },
+                        })
+                      }
+                      placeholder="—"
+                      className="h-9"
+                    />
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Abbrechen</Button>

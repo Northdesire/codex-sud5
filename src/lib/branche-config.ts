@@ -18,7 +18,6 @@ import {
   CalendarRange,
   Star,
   Bike,
-  Clock,
   Plus,
   HelpCircle,
 } from "lucide-react";
@@ -378,7 +377,6 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/dashboard/firma", label: "Firmendaten", icon: Building2 },
       { href: "/dashboard/kunden", label: "Kunden", icon: Users },
       { href: "/dashboard/fahrraeder", label: "Fahrräder", icon: Bike },
-      { href: "/dashboard/mietdauer", label: "Mietdauer-Staffeln", icon: Clock },
       { href: "/dashboard/fahrrad-extras", label: "Extras", icon: Plus },
       { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
       { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
@@ -407,18 +405,8 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
         color: "text-emerald-600",
       },
       {
-        key: "hasMietdauerStaffeln",
-        nr: 3,
-        title: "Mietdauer-Staffeln (optional)",
-        icon: Clock,
-        href: "/dashboard/mietdauer",
-        warum: "Staffelpreise machen längere Mieten günstiger. Definiere Tage-Bereiche und setze dann Staffelpreise pro Fahrrad.",
-        beispiel: 'Lege z.B. an: "1\u20133 Tage" (bisTag: 3), "4\u20137 Tage" (bisTag: 7), "ab 8 Tage" (bisTag: 9999).',
-        color: "text-amber-600",
-      },
-      {
         key: "hasAngebote",
-        nr: 4,
+        nr: 3,
         title: "Erstes Angebot erstellen",
         icon: Sparkles,
         href: "/app/fahrrad-formular",
@@ -439,7 +427,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       hasSaisons: false,
       hasFewoExtras: false,
       hasFahrraeder: true,
-      hasMietdauerStaffeln: true,
+      hasMietdauerStaffeln: false,
       hasFahrradExtras: true,
     },
     registerPlaceholders: {
@@ -454,7 +442,6 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
     dashboardStats: [
       { key: "kunden", label: "Kunden", icon: Users, href: "/dashboard/kunden", color: "text-blue-600" },
       { key: "fahrraeder", label: "Fahrräder", icon: Bike, href: "/dashboard/fahrraeder", color: "text-emerald-600" },
-      { key: "staffeln", label: "Staffeln", icon: Clock, href: "/dashboard/mietdauer", color: "text-amber-600" },
       { key: "angebote", label: "Angebote", icon: FileSpreadsheet, href: "/dashboard/angebote", color: "text-purple-600" },
     ],
     quickActions: [

@@ -77,7 +77,6 @@ model Firma {
   saisons         Saison[]
   fewoExtras      FewoExtra[]
   fahrraeder         Fahrrad[]
-  mietdauerStaffeln  MietdauerStaffel[]
   fahrradExtras      FahrradExtra[]
 }
 
@@ -661,32 +660,20 @@ model Fahrrad {
   name          String
   kategorie     String
   beschreibung  String?
-  preisProTag   Float
   aktiv         Boolean        @default(true)
-  staffelPreise FahrradPreis[]
+  preise        FahrradPreis[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   @@unique([firmaId, name])
 }
 
-model MietdauerStaffel {
-  id       String         @id @default(cuid())
-  firmaId  String
-  firma    Firma          @relation(fields: [firmaId], references: [id], onDelete: Cascade)
-  name     String
-  bisTag   Int
-  preise   FahrradPreis[]
-  @@unique([firmaId, bisTag])
-}
-
 model FahrradPreis {
-  id          String           @id @default(cuid())
+  id          String  @id @default(cuid())
   fahrradId   String
-  fahrrad     Fahrrad          @relation(fields: [fahrradId], references: [id], onDelete: Cascade)
-  staffelId   String
-  staffel     MietdauerStaffel @relation(fields: [staffelId], references: [id], onDelete: Cascade)
-  preisProTag Float
-  @@unique([fahrradId, staffelId])
+  fahrrad     Fahrrad @relation(fields: [fahrradId], references: [id], onDelete: Cascade)
+  tag         Int     // 1-14 (Anzahl Miettage)
+  gesamtpreis Float   // Gesamtpreis für diese Mietdauer (NICHT pro Tag)
+  @@unique([fahrradId, tag])
 }
 
 model FahrradExtra {

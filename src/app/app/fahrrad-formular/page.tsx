@@ -12,17 +12,10 @@ import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Bike, Percent,
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
-interface StaffelPreis {
+interface FahrradPreis {
   id: string;
-  staffelId: string;
-  preisProTag: number;
-  staffel: MietdauerStaffel;
-}
-
-interface MietdauerStaffel {
-  id: string;
-  name: string;
-  bisTag: number;
+  tag: number;
+  gesamtpreis: number;
 }
 
 interface Fahrrad {
@@ -30,9 +23,8 @@ interface Fahrrad {
   name: string;
   kategorie: string;
   beschreibung: string | null;
-  preisProTag: number;
   aktiv: boolean;
-  staffelPreise: StaffelPreis[];
+  preise: FahrradPreis[];
 }
 
 interface FahrradExtra {
@@ -63,7 +55,6 @@ export default function FahrradFormularPage() {
 
   // Stammdaten
   const [fahrraeder, setFahrraeder] = useState<Fahrrad[]>([]);
-  const [staffeln, setStaffeln] = useState<MietdauerStaffel[]>([]);
   const [extras, setExtras] = useState<FahrradExtra[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [firma, setFirma] = useState<any>(null);
@@ -95,21 +86,16 @@ export default function FahrradFormularPage() {
     return Math.max(0, Math.round(diff / (1000 * 60 * 60 * 24)));
   }, [mietbeginn, mietende]);
 
-  // Passende Staffel finden
-  const erkannteStaffel = useMemo(() => {
-    if (tage === 0 || staffeln.length === 0) return null;
-    // Sortiere nach bisTag aufsteigend, finde niedrigstes bisTag >= tage
-    const sorted = [...staffeln].sort((a, b) => a.bisTag - b.bisTag);
-    return sorted.find((s) => s.bisTag >= tage) || null;
-  }, [tage, staffeln]);
-
-  // Effektiver Tagespreis für ein Fahrrad
-  function getEffektiverPreis(fahrrad: Fahrrad): number {
-    if (erkannteStaffel) {
-      const sp = fahrrad.staffelPreise.find((p) => p.staffelId === erkannteStaffel.id);
-      if (sp) return sp.preisProTag;
-    }
-    return fahrrad.preisProTag;
+  // Gesamtpreis für ein Fahrrad bei gegebener Tagesanzahl
+  function getPreisFuerTage(fahrrad: Fahrrad, anzahlTage: number): number | null {
+    if (anzahlTage <= 0 || fahrrad.preise.length === 0) return null;
+    // Exakten Tag suchen
+    const exact = fahrrad.preise.find((p) => p.tag === anzahlTage);
+    if (exact) return exact.gesamtpreis;
+    // Falls tage > 14: höchsten verfügbaren Tag verwenden
+    const sorted = [...fahrrad.preise].sort((a, b) => b.tag - a.tag);
+    if (anzahlTage > 14 && sorted.length > 0) return sorted[0].gesamtpreis;
+    return null;
   }
 
   // Gewählte Fahrräder (nur die mit Menge > 0)
@@ -126,11 +112,12 @@ export default function FahrradFormularPage() {
     if (!hasBikes || tage === 0) return 0;
     return Math.round(
       selectedBikes.reduce((sum, bike) => {
-        const preis = getEffektiverPreis(bike);
-        return sum + tage * preis * bike.menge;
+        const preis = getPreisFuerTage(bike, tage);
+        if (preis == null) return sum;
+        return sum + preis * bike.menge;
       }, 0) * 100
     ) / 100;
-  }, [selectedBikes, hasBikes, tage, erkannteStaffel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedBikes, hasBikes, tage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Extras Netto
   const extrasNetto = useMemo(() => {
@@ -175,13 +162,11 @@ export default function FahrradFormularPage() {
   useEffect(() => {
     Promise.all([
       fetch("/api/fahrraeder").then((r) => r.json()),
-      fetch("/api/mietdauer-staffeln").then((r) => r.json()),
       fetch("/api/fahrrad-extras").then((r) => r.json()),
       fetch("/api/firma").then((r) => r.json()),
       fetch("/api/textvorlagen").then((r) => r.json()),
-    ]).then(([f, s, e, fi, tv]) => {
+    ]).then(([f, e, fi, tv]) => {
       if (Array.isArray(f)) setFahrraeder(f.filter((x: Fahrrad) => x.aktiv));
-      if (Array.isArray(s)) setStaffeln(s);
       if (Array.isArray(e)) setExtras(e.filter((x: FahrradExtra) => x.aktiv));
       if (fi && !fi.error) setFirma(fi);
       if (Array.isArray(tv)) {
@@ -237,7 +222,6 @@ export default function FahrradFormularPage() {
       const bikePos = positionen.filter((p) => p.typ === "PRODUKT");
       const sel: Record<string, number> = {};
       for (const pos of bikePos) {
-        // Parse "2x E-Bike Standard — 5 Tage à 12,00 €" pattern
         const mengeMatch = pos.bezeichnung.match(/^(\d+)\u00d7\s+(.+?)\s+\u2014/);
         if (mengeMatch) {
           const menge = parseInt(mengeMatch[1]);
@@ -296,19 +280,19 @@ export default function FahrradFormularPage() {
   function buildPositionen() {
     const positionen = [];
     let posNr = 1;
-    const staffelHinweis = erkannteStaffel ? ` (${erkannteStaffel.name})` : "";
 
     // Fahrräder als PRODUKT-Positionen
     for (const bike of selectedBikes) {
-      const preis = getEffektiverPreis(bike);
+      const preis = getPreisFuerTage(bike, tage);
+      if (preis == null) continue;
       positionen.push({
         posNr: posNr++,
         typ: "PRODUKT",
-        bezeichnung: `${bike.menge}\u00d7 ${bike.name}${staffelHinweis} \u2014 ${tage} Tage \u00e0 ${formatEuro(preis)}`,
-        menge: tage * bike.menge,
-        einheit: "Tag",
+        bezeichnung: `${bike.menge}\u00d7 ${bike.name} \u2014 ${tage} Tage`,
+        menge: bike.menge,
+        einheit: "Stk.",
         einzelpreis: Math.round(preis * 100) / 100,
-        gesamtpreis: Math.round(tage * preis * bike.menge * 100) / 100,
+        gesamtpreis: Math.round(preis * bike.menge * 100) / 100,
       });
     }
 
@@ -630,11 +614,6 @@ export default function FahrradFormularPage() {
               />
             </div>
           </div>
-          {erkannteStaffel && (
-            <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
-              <span>Staffel: <strong>{erkannteStaffel.name}</strong></span>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -663,7 +642,7 @@ export default function FahrradFormularPage() {
                     <div className="space-y-2">
                       {bikes.map((bike) => {
                         const menge = bikeSelection[bike.id] || 0;
-                        const preis = getEffektiverPreis(bike);
+                        const preis = tage > 0 ? getPreisFuerTage(bike, tage) : null;
                         return (
                           <div
                             key={bike.id}
@@ -674,10 +653,11 @@ export default function FahrradFormularPage() {
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium">{bike.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {formatEuro(preis)}/Tag
-                                {erkannteStaffel && bike.staffelPreise.some((p) => p.staffelId === erkannteStaffel.id) && (
-                                  <span className="ml-1 text-primary">(Staffelpreis)</span>
-                                )}
+                                {preis != null
+                                  ? `${formatEuro(preis)} für ${tage} ${tage === 1 ? "Tag" : "Tage"}`
+                                  : tage > 0
+                                    ? "Kein Preis hinterlegt"
+                                    : "Mietdauer wählen"}
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5">
@@ -712,9 +692,9 @@ export default function FahrradFormularPage() {
                                 <Plus className="h-3.5 w-3.5" />
                               </Button>
                             </div>
-                            {menge > 0 && tage > 0 && (
+                            {menge > 0 && preis != null && (
                               <span className="text-sm font-mono font-medium shrink-0 ml-1">
-                                {formatEuro(Math.round(tage * preis * menge * 100) / 100)}
+                                {formatEuro(Math.round(preis * menge * 100) / 100)}
                               </span>
                             )}
                           </div>
@@ -729,7 +709,7 @@ export default function FahrradFormularPage() {
                 <div className="space-y-2">
                   {fahrraeder.filter((f) => !f.kategorie).map((bike) => {
                     const menge = bikeSelection[bike.id] || 0;
-                    const preis = getEffektiverPreis(bike);
+                    const preis = tage > 0 ? getPreisFuerTage(bike, tage) : null;
                     return (
                       <div
                         key={bike.id}
@@ -739,7 +719,13 @@ export default function FahrradFormularPage() {
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">{bike.name}</p>
-                          <p className="text-xs text-muted-foreground">{formatEuro(preis)}/Tag</p>
+                          <p className="text-xs text-muted-foreground">
+                            {preis != null
+                              ? `${formatEuro(preis)} für ${tage} ${tage === 1 ? "Tag" : "Tage"}`
+                              : tage > 0
+                                ? "Kein Preis hinterlegt"
+                                : "Mietdauer wählen"}
+                          </p>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Button
@@ -773,9 +759,9 @@ export default function FahrradFormularPage() {
                             <Plus className="h-3.5 w-3.5" />
                           </Button>
                         </div>
-                        {menge > 0 && tage > 0 && (
+                        {menge > 0 && preis != null && (
                           <span className="text-sm font-mono font-medium shrink-0 ml-1">
-                            {formatEuro(Math.round(tage * preis * menge * 100) / 100)}
+                            {formatEuro(Math.round(preis * menge * 100) / 100)}
                           </span>
                         )}
                       </div>
@@ -787,17 +773,18 @@ export default function FahrradFormularPage() {
               {hasBikes && tage > 0 && (
                 <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
                   {selectedBikes.map((bike) => {
-                    const preis = getEffektiverPreis(bike);
+                    const preis = getPreisFuerTage(bike, tage);
+                    if (preis == null) return null;
                     return (
                       <div key={bike.id} className="flex justify-between text-sm">
                         <span>{bike.menge}\u00d7 {bike.name}</span>
-                        <span className="font-mono">{formatEuro(Math.round(tage * preis * bike.menge * 100) / 100)}</span>
+                        <span className="font-mono">{formatEuro(Math.round(preis * bike.menge * 100) / 100)}</span>
                       </div>
                     );
                   })}
                   <Separator className="my-1" />
                   <div className="flex justify-between text-sm font-medium">
-                    <span>Fahrräder ({tage} Tage)</span>
+                    <span>Fahrräder ({tage} {tage === 1 ? "Tag" : "Tage"})</span>
                     <span className="font-mono">{formatEuro(fahrradNetto)}</span>
                   </div>
                 </div>
@@ -975,7 +962,7 @@ export default function FahrradFormularPage() {
         <Card>
           <CardContent className="pt-5 space-y-2">
             <div className="flex justify-between text-sm">
-              <p>Fahrräder ({tage} Tage)</p>
+              <p>Fahrräder ({tage} {tage === 1 ? "Tag" : "Tage"})</p>
               <p className="font-mono">{formatEuro(fahrradNetto)}</p>
             </div>
             {extrasNetto > 0 && (

@@ -9,7 +9,7 @@ export async function GET() {
     const fahrraeder = await prisma.fahrrad.findMany({
       where: { firmaId: user.firmaId },
       include: {
-        staffelPreise: { include: { staffel: true } },
+        preise: { orderBy: { tag: "asc" } },
       },
       orderBy: { name: "asc" },
     });
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const body = await request.json();
 
-    const staffelPreise: Array<{ staffelId: string; preisProTag: number }> = body.staffelPreise || [];
+    const preise: Array<{ tag: number; gesamtpreis: number }> = body.preise || [];
 
     const fahrrad = await prisma.$transaction(async (tx) => {
       const created = await tx.fahrrad.create({
@@ -34,17 +34,16 @@ export async function POST(request: Request) {
           name: body.name,
           kategorie: body.kategorie || "",
           beschreibung: body.beschreibung || null,
-          preisProTag: parseFloat(body.preisProTag),
           aktiv: body.aktiv ?? true,
         },
       });
 
-      if (staffelPreise.length > 0) {
+      if (preise.length > 0) {
         await tx.fahrradPreis.createMany({
-          data: staffelPreise.map((sp) => ({
+          data: preise.map((p) => ({
             fahrradId: created.id,
-            staffelId: sp.staffelId,
-            preisProTag: parseFloat(String(sp.preisProTag)),
+            tag: p.tag,
+            gesamtpreis: parseFloat(String(p.gesamtpreis)),
           })),
         });
       }
@@ -52,7 +51,7 @@ export async function POST(request: Request) {
       return tx.fahrrad.findUnique({
         where: { id: created.id },
         include: {
-          staffelPreise: { include: { staffel: true } },
+          preise: { orderBy: { tag: "asc" } },
         },
       });
     });

@@ -50,12 +50,8 @@ export default async function DashboardPage() {
       const produkteCount = await prisma.produkt.count({ where: { firmaId: user.firmaId } });
       counts.produkte = produkteCount;
     } else if (branche === "FAHRRAD") {
-      const [fahrraederCount, staffelnCount] = await Promise.all([
-        prisma.fahrrad.count({ where: { firmaId: user.firmaId } }),
-        prisma.mietdauerStaffel.count({ where: { firmaId: user.firmaId } }),
-      ]);
+      const fahrraederCount = await prisma.fahrrad.count({ where: { firmaId: user.firmaId } });
       counts.fahrraeder = fahrraederCount;
-      counts.staffeln = staffelnCount;
     } else {
       const [materialCount, leistungenCount, kalkRegeln] = await Promise.all([
         prisma.material.count({ where: { firmaId: user.firmaId } }),
@@ -81,7 +77,6 @@ export default async function DashboardPage() {
     hasUnterkuenfte: (counts.unterkuenfte ?? 0) > 0,
     hasSaisons: (counts.saisons ?? 0) > 0,
     hasFahrraeder: (counts.fahrraeder ?? 0) > 0,
-    hasMietdauerStaffeln: (counts.staffeln ?? 0) > 0,
   };
 
   const setupChecks = config.setupChecks.map((c) => ({
