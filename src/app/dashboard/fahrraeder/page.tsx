@@ -288,9 +288,9 @@ export default function FahrraederPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Mietpreise (Gesamtpreis in EUR)</Label>
+              <Label>Mietpreise (Brutto-Gesamtpreis in EUR)</Label>
               <p className="text-xs text-muted-foreground">
-                Gesamtpreis pro Mietdauer — nicht pro Tag. Leere Felder werden ignoriert.
+                Brutto-Gesamtpreis pro Mietdauer — nicht pro Tag. Leere Felder werden ignoriert.
               </p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 {TAGE.map((tag) => (
@@ -316,9 +316,9 @@ export default function FahrraederPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Preis pro weiteren Tag (ab Tag 15)</Label>
+              <Label>Brutto-Preis pro weiteren Tag (ab Tag 15)</Label>
               <p className="text-xs text-muted-foreground">
-                Aufpreis pro zusätzlichem Miettag ab dem 15. Tag. Leer = kein Aufpreis (14-Tage-Preis gilt weiter).
+                Brutto-Aufpreis pro zusätzlichem Miettag ab dem 15. Tag. Leer = kein Aufpreis (14-Tage-Preis gilt weiter).
               </p>
               <Input
                 type="number"

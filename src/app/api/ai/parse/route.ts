@@ -468,6 +468,7 @@ SEHR WICHTIG — Leite Fahrradtypen aus der Personenbeschreibung ab:
 - "2× E-Bike\n1× Kinderrad\n1× Jugendrad" → drei separate Einträge
 
 ### Extras/Wünsche
+SEHR WICHTIG: Wenn der Kunde Extras, Zubehör oder Zusatzleistungen erwähnt, erfasse diese IMMER in "wuensche". Verwende bevorzugt die exakten Namen aus dem Extras-Katalog (siehe unten).
 - "Helm", "Helme", "mit Helm", "Fahrradhelm" → "Helm"
 - "Schloss", "Schlösser", "Fahrradschloss", "Zahlenschloss" → "Schloss"
 - "Korb", "Fahrradkorb", "Körbe", "Lenkerkorb" → "Fahrradkorb"
@@ -480,7 +481,11 @@ SEHR WICHTIG — Leite Fahrradtypen aus der Personenbeschreibung ab:
 - "Flickzeug", "Reparaturset" → "Flickzeug"
 - "Klingel" → "Klingel"
 - "Licht", "Beleuchtung", "Lampe" → "Licht"
-- Alles was nach Zubehör klingt → in wuensche
+- "Koffertransport", "Koffer", "Gepäcktransfer", "Gepäcktransport", "Koffer bringen", "Koffer holen", "Koffertransfer" → "Koffertransport"
+- "Versicherung", "Diebstahlschutz", "Vollkasko" → "Versicherung"
+- "Lieferung", "Zustellung", "bringen", "liefern" → "Lieferung"
+- Alles was nach Zubehör, Zusatzleistung oder Service klingt → in wuensche
+- Wenn der Extras-Katalog bereitgestellt wird, matche Kundenwünsche auf die exakten Katalog-Namen
 
 ### Kundenname-Erkennung
 - "Familie Müller" → "Familie Müller"
@@ -495,19 +500,42 @@ SEHR WICHTIG — Leite Fahrradtypen aus der Personenbeschreibung ab:
 - "Tel.: 04932/12345" → "04932/12345"
 - Alle gängigen deutschen Formate erkennen
 
-### E-Mail-Footer / Signatur — SEHR WICHTIG
-E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchsuche den GESAMTEN Text — insbesondere die letzten Zeilen — nach:
-- Name (oft nach "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße" etc.)
-- Adresse (Straße + Hausnummer, PLZ + Ort) — oft auf separaten Zeilen untereinander
-- Telefonnummer, E-Mail-Adresse
-- Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
-- Footer-Blöcke sind oft durch Leerzeilen, "---", oder "__" vom Haupttext getrennt
-- Typisches Footer-Format:
+### E-Mail-Footer / Signatur — HÖCHSTE PRIORITÄT FÜR KUNDENDATEN
+Kundenanfragen kommen fast immer per E-Mail. Die Absenderinformationen (Name, Adresse, Telefon, E-Mail) stehen MEISTENS am ENDE des Textes in der E-Mail-Signatur/Footer. Du MUSST den gesamten Text bis zum letzten Zeichen lesen!
+
+**Wo Kundendaten typischerweise stehen:**
+1. Nach einer Grußformel: "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße", "Herzliche Grüße", "Gruß", "VG"
+2. Am Ende des Textes als mehrzeiliger Block
+3. Manchmal durch Leerzeilen, "---", oder "__" vom Haupttext getrennt
+
+**Typische Footer-Formate die du ERKENNEN MUSST:**
+Format A (klassisch):
+  Mit freundlichen Grüßen
   Max Mustermann
   Musterstraße 12
   12345 Musterstadt
   Tel.: 0123/456789
   max@example.de
+
+Format B (kompakt):
+  Viele Grüße, Max Mustermann | Musterstr. 12, 12345 Musterstadt
+
+Format C (mit Firma):
+  Firma GmbH
+  Max Mustermann
+  Hauptstr. 5
+  26548 Norderney
+
+Format D (gesendet von):
+  Gesendet von meinem iPhone
+  Max Mustermann
+  max@example.de
+
+**REGELN:**
+- Wenn im Fließtext (oben) KEINE Kundendaten stehen, aber im Footer welche erkennbar sind → verwende die Footer-Daten
+- Wenn im Fließtext UND im Footer Daten stehen → bevorzuge Footer-Daten für Adresse/Telefon/E-Mail (diese sind normalerweise vollständiger und aktueller)
+- Extrahiere den VOLLSTÄNDIGEN Namen (inkl. Doppelnamen mit Bindestrich, Vor- UND Nachname)
+- Straße IMMER mit Hausnummer erfassen
 
 WICHTIG:
 - Dezimalpunkte verwenden (3.5 nicht 3,5)
@@ -515,7 +543,7 @@ WICHTIG:
 - Confidence IMMER als ganze Zahl 0-100 angeben
 - Daten im Format YYYY-MM-DD (z.B. "${currentYear}-07-15")
 - Wenn kein Jahr genannt wird, IMMER das aktuelle Jahr ${currentYear} nehmen
-- LIES DEN TEXT KOMPLETT — übersehe keine Fahrräder, keine Daten, keine Kundendaten
+- LIES DEN TEXT KOMPLETT BIS ZUM LETZTEN ZEICHEN — übersehe keine Fahrräder, keine Daten, keine Kundendaten, keine Extras
 - Wenn ein Katalog bereitgestellt wird, matche Synonyme auf exakte Katalognamen`;
 }
 
@@ -831,6 +859,9 @@ function parseFahrradAnfrageRegex(rawText: string) {
   if (/(?:flickzeug|reparaturset)/i.test(text)) wuensche.push("Flickzeug");
   if (/(?:klingel)/i.test(text)) wuensche.push("Klingel");
   if (/(?:licht|beleuchtung|lampe)/i.test(text)) wuensche.push("Licht");
+  if (/(?:koffertransport|koffer|gepäcktransport|gepäcktransfer|koffertransfer)/i.test(text)) wuensche.push("Koffertransport");
+  if (/(?:versicherung|diebstahlschutz|vollkasko)/i.test(text)) wuensche.push("Versicherung");
+  if (/(?:lieferung|zustellung|bringen.*(?:rad|bike|fahrrad)|liefern)/i.test(text)) wuensche.push("Lieferung");
 
   return {
     kunde,

@@ -210,6 +210,10 @@ export default function FahrradFormularPage() {
         if (ai.fahrraeder && ai.fahrraeder.length > 0) {
           sessionStorage.setItem("fahrrad-ai-bikes", JSON.stringify(ai.fahrraeder));
         }
+        // Wünsche/Extras-Matching wird im separaten useEffect erledigt
+        if (ai.wuensche && ai.wuensche.length > 0) {
+          sessionStorage.setItem("fahrrad-ai-wuensche", JSON.stringify(ai.wuensche));
+        }
       } catch {
         // ignore
       }
@@ -250,6 +254,36 @@ export default function FahrradFormularPage() {
       // ignore
     }
   }, [fahrraeder]);
+
+  // AI-Wünsche matchen → Extras automatisch auswählen (wenn Extras geladen)
+  useEffect(() => {
+    if (extras.length === 0) return;
+    const wuenscheRaw = sessionStorage.getItem("fahrrad-ai-wuensche");
+    if (!wuenscheRaw) return;
+    try {
+      const wuensche: string[] = JSON.parse(wuenscheRaw);
+      const matched = new Set<string>();
+      for (const wunsch of wuensche) {
+        const wunschLower = wunsch.toLowerCase();
+        const match = extras.find((e) =>
+          e.name.toLowerCase() === wunschLower ||
+          e.name.toLowerCase().includes(wunschLower) ||
+          wunschLower.includes(e.name.toLowerCase())
+        );
+        if (match) matched.add(match.id);
+      }
+      if (matched.size > 0) {
+        setSelectedExtras((prev) => {
+          const next = new Set(prev);
+          for (const id of matched) next.add(id);
+          return next;
+        });
+      }
+      sessionStorage.removeItem("fahrrad-ai-wuensche");
+    } catch {
+      // ignore
+    }
+  }, [extras]);
 
   // Edit-Modus: Angebot laden
   useEffect(() => {
