@@ -179,6 +179,35 @@ export default function FahrradFormularPage() {
       }
     }).catch(() => {});
 
+    // AI-Ergebnis prüfen
+    const aiRaw = sessionStorage.getItem("ai-ergebnis");
+    if (aiRaw) {
+      try {
+        const ai = JSON.parse(aiRaw);
+        if (ai.kunde) {
+          setKunde({
+            name: ai.kunde.name || "",
+            strasse: ai.kunde.strasse || "",
+            plz: ai.kunde.plz || "",
+            ort: ai.kunde.ort || "",
+            email: ai.kunde.email || "",
+            telefon: ai.kunde.telefon || "",
+          });
+        }
+        if (ai.mietbeginn) setMietbeginn(ai.mietbeginn);
+        if (ai.mietende) setMietende(ai.mietende);
+        if (ai.personen) setPersonen(ai.personen);
+        // Fahrrad-Matching wird im separaten useEffect erledigt
+        if (ai.fahrraeder && ai.fahrraeder.length > 0) {
+          sessionStorage.setItem("fahrrad-ai-bikes", JSON.stringify(ai.fahrraeder));
+        }
+      } catch {
+        // ignore
+      }
+      sessionStorage.removeItem("ai-ergebnis");
+      sessionStorage.removeItem("ai-originaltext");
+    }
+
     // Edit-Modus prüfen
     const editId = sessionStorage.getItem("edit-angebot-id");
     if (editId) {
@@ -186,6 +215,32 @@ export default function FahrradFormularPage() {
       sessionStorage.removeItem("edit-angebot-id");
     }
   }, []);
+
+  // AI-Fahrräder matchen (wenn Katalog geladen)
+  useEffect(() => {
+    if (fahrraeder.length === 0) return;
+    const bikesRaw = sessionStorage.getItem("fahrrad-ai-bikes");
+    if (!bikesRaw) return;
+    try {
+      const aiBikes: Array<{ name: string; menge: number }> = JSON.parse(bikesRaw);
+      const sel: Record<string, number> = {};
+      for (const ab of aiBikes) {
+        // Exakte Match oder Teil-Match
+        const match = fahrraeder.find((f) =>
+          f.name.toLowerCase() === ab.name.toLowerCase() ||
+          f.name.toLowerCase().includes(ab.name.toLowerCase()) ||
+          ab.name.toLowerCase().includes(f.name.toLowerCase())
+        );
+        if (match) {
+          sel[match.id] = (sel[match.id] || 0) + ab.menge;
+        }
+      }
+      if (Object.keys(sel).length > 0) setBikeSelection(sel);
+      sessionStorage.removeItem("fahrrad-ai-bikes");
+    } catch {
+      // ignore
+    }
+  }, [fahrraeder]);
 
   // Edit-Modus: Angebot laden
   useEffect(() => {

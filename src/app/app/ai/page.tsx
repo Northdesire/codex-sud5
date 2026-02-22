@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Brain, ClipboardPaste, Mic, MicOff, Loader2, Check, ChevronRight,
-  User, Ruler, Paintbrush, Camera, ImageIcon, X, Package, CalendarDays, Home,
+  User, Ruler, Paintbrush, Camera, ImageIcon, X, Package, CalendarDays, Home, Bike,
 } from "lucide-react";
 import { toast } from "sonner";
 import { compressForUpload } from "@/lib/compress";
@@ -63,6 +63,35 @@ Familie Weber
 Hauptstraße 15, 80331 München
 Tel: 0171 9876543
 weber@email.de`;
+
+const DEMO_TEXT_FAHRRAD = `Hallo,
+
+wir möchten gerne vom 15. bis 22. Juli Fahrräder mieten. Wir sind 2 Erwachsene und 2 Kinder (8 und 12 Jahre).
+
+Wir bräuchten:
+- 2x E-Bike
+- 1x Kinderrad
+- 1x Jugendrad
+
+Helme bitte dazu. Haben Sie auch Fahrradkörbe?
+
+Mit freundlichen Grüßen
+Anja Pohl-Lange, Andreas Lange
+Lippestr. 42, 12345 Norderney
+Tel: 0151 41438558`;
+
+const ANALYSE_SCHRITTE_FAHRRAD = [
+  { icon: "📖", text: "Text wird gelesen..." },
+  { icon: "👤", text: "Kundendaten extrahieren..." },
+  { icon: "🚲", text: "Fahrräder & Mietdauer erkennen..." },
+  { icon: "🎯", text: "Extras & Wünsche erfassen..." },
+  { icon: "✅", text: "Fertig!" },
+];
+
+interface FahrradParsed {
+  name: string;
+  menge: number;
+}
 
 interface FewoResultParsed {
   anreise: string;
@@ -122,6 +151,10 @@ interface ParsedResult {
   personen?: number;
   hund?: boolean;
   wuensche?: string[];
+  // FAHRRAD-spezifisch
+  mietbeginn?: string;
+  mietende?: string;
+  fahrraeder?: FahrradParsed[];
   // Gemeinsam
   confidence: { kunde: number; raeume: number; optionen: number };
 }
@@ -190,8 +223,9 @@ export default function AIEingabePage() {
 
   const isShop = branche === "SHOP";
   const isFewo = branche === "FEWO";
-  const ANALYSE_SCHRITTE = isFewo ? ANALYSE_SCHRITTE_FEWO : isShop ? ANALYSE_SCHRITTE_SHOP : ANALYSE_SCHRITTE_MALER;
-  const DEMO_TEXT = isFewo ? DEMO_TEXT_FEWO : isShop ? DEMO_TEXT_SHOP : DEMO_TEXT_MALER;
+  const isFahrrad = branche === "FAHRRAD";
+  const ANALYSE_SCHRITTE = isFahrrad ? ANALYSE_SCHRITTE_FAHRRAD : isFewo ? ANALYSE_SCHRITTE_FEWO : isShop ? ANALYSE_SCHRITTE_SHOP : ANALYSE_SCHRITTE_MALER;
+  const DEMO_TEXT = isFahrrad ? DEMO_TEXT_FAHRRAD : isFewo ? DEMO_TEXT_FEWO : isShop ? DEMO_TEXT_SHOP : DEMO_TEXT_MALER;
 
   async function handleImageSelect(file: File) {
     try {
@@ -270,7 +304,19 @@ export default function AIEingabePage() {
         }
       }
 
-      if (isFewo) {
+      if (isFahrrad) {
+        // FAHRRAD-Ergebnis: mietbeginn/mietende/personen/fahrraeder/wuensche
+        const normalized: ParsedResult = {
+          kunde: data.kunde,
+          mietbeginn: data.mietbeginn || "",
+          mietende: data.mietende || "",
+          personen: data.personen || 2,
+          fahrraeder: data.fahrraeder || [],
+          wuensche: data.wuensche || [],
+          confidence: data.confidence,
+        };
+        setErgebnis(normalized);
+      } else if (isFewo) {
         // FEWO-Ergebnis: anreise/abreise/personen/hund/wuensche
         const normalized: ParsedResult = {
           kunde: data.kunde,
@@ -342,7 +388,9 @@ export default function AIEingabePage() {
     if (!ergebnis) return;
     sessionStorage.setItem("ai-ergebnis", JSON.stringify(ergebnis));
     sessionStorage.setItem("ai-originaltext", text);
-    if (isFewo) {
+    if (isFahrrad) {
+      router.push("/app/fahrrad-formular");
+    } else if (isFewo) {
       router.push("/app/fewo-formular");
     } else if (isShop) {
       router.push("/app/shop-formular");
@@ -429,11 +477,13 @@ export default function AIEingabePage() {
         <div>
           <h1 className="text-xl font-bold">AI-Eingabe</h1>
           <p className="text-sm text-muted-foreground">
-            {isFewo
-              ? "Gästeanfrage eingeben — AI erkennt Reisedaten und Wünsche"
-              : isShop
-                ? "Produktanfrage eingeben — AI erkennt Produkte und Mengen"
-                : "Wie möchtest du die Anfrage eingeben?"}
+            {isFahrrad
+              ? "Mietanfrage eingeben — AI erkennt Fahrräder und Mietdauer"
+              : isFewo
+                ? "Gästeanfrage eingeben — AI erkennt Reisedaten und Wünsche"
+                : isShop
+                  ? "Produktanfrage eingeben — AI erkennt Produkte und Mengen"
+                  : "Wie möchtest du die Anfrage eingeben?"}
           </p>
         </div>
 
@@ -502,20 +552,20 @@ export default function AIEingabePage() {
             </div>
           </button>
 
-          {/* Shop / FEWO: Manuell-Button */}
-          {(isShop || isFewo) && (
+          {/* Manuell-Button für Shop/FEWO/FAHRRAD */}
+          {(isShop || isFewo || isFahrrad) && (
             <button
-              onClick={() => router.push(isFewo ? "/app/fewo-formular" : "/app/shop-formular")}
+              onClick={() => router.push(isFahrrad ? "/app/fahrrad-formular" : isFewo ? "/app/fewo-formular" : "/app/shop-formular")}
               className="w-full rounded-2xl border-2 border-primary/20 p-5 text-left active:scale-[0.98] transition-transform hover:border-primary/40"
             >
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  {isFewo ? <Home className="h-6 w-6" /> : <Package className="h-6 w-6" />}
+                  {isFahrrad ? <Bike className="h-6 w-6" /> : isFewo ? <Home className="h-6 w-6" /> : <Package className="h-6 w-6" />}
                 </div>
                 <div className="flex-1">
                   <h2 className="font-semibold">Manuell erstellen</h2>
                   <p className="text-sm text-muted-foreground">
-                    {isFewo ? "Unterkunft & Aufenthalt direkt eingeben" : "Produkte direkt aus dem Katalog wählen"}
+                    {isFahrrad ? "Fahrräder & Mietdauer direkt eingeben" : isFewo ? "Unterkunft & Aufenthalt direkt eingeben" : "Produkte direkt aus dem Katalog wählen"}
                   </p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -543,11 +593,13 @@ export default function AIEingabePage() {
             <p className="text-sm text-muted-foreground">
               {transcribing
                 ? "Whisper transkribiert deine Sprache"
-                : isFewo
-                  ? "Gästeanfrage einfügen oder diktieren"
-                  : isShop
-                    ? "Bestellung oder Produktanfrage einfügen"
-                    : "Kundenanfrage einfügen oder diktieren"}
+                : isFahrrad
+                  ? "Mietanfrage einfügen oder diktieren"
+                  : isFewo
+                    ? "Gästeanfrage einfügen oder diktieren"
+                    : isShop
+                      ? "Bestellung oder Produktanfrage einfügen"
+                      : "Kundenanfrage einfügen oder diktieren"}
             </p>
           </div>
           <button
@@ -795,6 +847,66 @@ export default function AIEingabePage() {
         </CardContent>
       </Card>
 
+      {/* FAHRRAD: Mietdaten & Fahrräder */}
+      {isFahrrad && (
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Bike className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-sm">Mietanfrage</h3>
+              <Badge variant="outline" className="ml-auto text-xs">
+                {ergebnis.confidence.raeume}%
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {ergebnis.mietbeginn && (
+                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Mietbeginn</p>
+                  <p className="font-medium text-sm">
+                    {new Date(ergebnis.mietbeginn + "T00:00:00").toLocaleDateString("de-DE")}
+                  </p>
+                </div>
+              )}
+              {ergebnis.mietende && (
+                <div className="rounded-lg bg-muted/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Mietende</p>
+                  <p className="font-medium text-sm">
+                    {new Date(ergebnis.mietende + "T00:00:00").toLocaleDateString("de-DE")}
+                  </p>
+                </div>
+              )}
+              <div className="rounded-lg bg-muted/50 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Personen</p>
+                <p className="font-medium text-sm">{ergebnis.personen}</p>
+              </div>
+            </div>
+            {ergebnis.fahrraeder && ergebnis.fahrraeder.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground mb-1">Gewünschte Fahrräder:</p>
+                <div className="space-y-1">
+                  {ergebnis.fahrraeder.map((f, i) => (
+                    <div key={i} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                      <p className="font-medium text-sm">{f.name}</p>
+                      <p className="text-xs font-mono text-muted-foreground">{f.menge}×</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {ergebnis.wuensche && ergebnis.wuensche.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground mb-1">Wünsche:</p>
+                <div className="flex flex-wrap gap-1">
+                  {ergebnis.wuensche.map((w, i) => (
+                    <Badge key={i} variant="outline">{w}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Shop: Produkte */}
       {isShop && ergebnis.produkte && (
         <Card>
@@ -882,7 +994,7 @@ export default function AIEingabePage() {
       )}
 
       {/* Maler: Arbeitsbereiche */}
-      {!isShop && !isFewo && ergebnis.arbeitsbereiche && (
+      {!isShop && !isFewo && !isFahrrad && ergebnis.arbeitsbereiche && (
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center gap-2 mb-3">
@@ -933,7 +1045,7 @@ export default function AIEingabePage() {
       )}
 
       {/* Maler: Qualität + Extras */}
-      {!isShop && !isFewo && (
+      {!isShop && !isFewo && !isFahrrad && (
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center gap-2 mb-3">

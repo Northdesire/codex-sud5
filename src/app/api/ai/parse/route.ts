@@ -358,6 +358,234 @@ function parseFewoAnfrageRegex(rawText: string) {
 }
 
 // ═══════════════════════════════════════════
+// FAHRRAD SYSTEM PROMPT + RESPONSE FORMAT
+// ═══════════════════════════════════════════
+
+function getFahrradSystemPrompt() {
+  const currentYear = new Date().getFullYear();
+  return `Du bist ein Assistent für einen deutschen Fahrradverleih. Du analysierst Kundenanfragen (E-Mails, WhatsApp, Formulare, Sprachnotizen) und extrahierst strukturierte Daten für die Angebotserstellung.
+
+Das aktuelle Jahr ist ${currentYear}.
+
+## Deine Aufgabe
+
+Extrahiere folgende Informationen:
+
+### 1. Kunde
+- name: Vollständiger Name
+- strasse: Straße + Hausnummer
+- plz: 5-stellige Postleitzahl
+- ort: Ortsname
+- email: E-Mail-Adresse
+- telefon: Telefonnummer
+
+### 2. Mietdaten
+- mietbeginn: Startdatum im Format "YYYY-MM-DD"
+- mietende: Enddatum im Format "YYYY-MM-DD"
+- personen: Anzahl Personen (Standard: 2)
+
+### 3. Fahrräder (Array)
+Für jedes gewünschte Fahrrad:
+- name: Fahrradbezeichnung (z.B. "E-Bike", "Kinderrad", "Citybike")
+- menge: Gewünschte Anzahl (Standard: 1)
+
+### 4. Wünsche (Array von Strings)
+Sonderwünsche wie "Helm", "Kindersitz", "Fahrradkorb", "Schloss", "Anhänger" etc.
+
+### 5. Confidence (0-100)
+- kunde: Wie vollständig sind die Kundendaten?
+- raeume: Wie genau sind die Mietdaten und Fahrradwünsche? (verwende "raeume" als Feld)
+- optionen: Wie klar sind die Wünsche insgesamt?
+
+## Erkennungsregeln
+
+**Datumsformate:**
+- Wenn KEIN Jahr angegeben ist, IMMER ${currentYear} verwenden
+- "15. Juli" → ${currentYear}-07-15
+- "15.-22. Juli" → mietbeginn: ${currentYear}-07-15, mietende: ${currentYear}-07-22
+- "vom 15. bis 22. Juli" → mietbeginn/mietende
+- "eine Woche ab 15. Juli" → mietbeginn: ${currentYear}-07-15, mietende: ${currentYear}-07-22
+- "5 Tage ab 15. Juli" → mietbeginn: ${currentYear}-07-15, mietende: ${currentYear}-07-20
+- "für 3 Tage" → nur Tagesanzahl, Datum unbekannt → leere Strings
+
+**Fahrrad-Typen:**
+- "E-Bike", "Elektrorad", "Pedelec" → name: "E-Bike"
+- "Citybike", "Stadtrad" → name: "Citybike"
+- "Kinderrad", "Kinderfahrrad" → name: "Kinderrad"
+- "Mountainbike", "MTB" → name: "Mountainbike"
+- "Trekkingrad" → name: "Trekkingrad"
+- "Tandem" → name: "Tandem"
+- "Lastenrad", "Cargo" → name: "Lastenrad"
+- "Fahrrad", "Rad" ohne Spezifizierung → name: "Fahrrad"
+
+**Mengenangaben:**
+- "2 E-Bikes + 1 Kinderrad" → [{name: "E-Bike", menge: 2}, {name: "Kinderrad", menge: 1}]
+- "Fahrrad für 2 Erwachsene und 2 Kinder" → [{name: "Fahrrad", menge: 2}, {name: "Kinderrad", menge: 2}]
+
+**Extras/Wünsche:**
+- "Helm", "Schloss", "Korb", "Kindersitz", "Anhänger", "GPS"
+- "mit Helmen" → wuensche: ["Helm"]
+
+WICHTIG:
+- Dezimalpunkte verwenden
+- Leere Strings "" für fehlende Felder, NICHT null
+- Confidence IMMER als ganze Zahl 0-100 angeben
+- Daten im Format YYYY-MM-DD
+- Wenn kein Jahr genannt wird, IMMER das aktuelle Jahr ${currentYear} nehmen`;
+}
+
+const FAHRRAD_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: {
+    name: "fahrrad_anfrage_parsing",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        kunde: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            strasse: { type: "string" },
+            plz: { type: "string" },
+            ort: { type: "string" },
+            email: { type: "string" },
+            telefon: { type: "string" },
+          },
+          required: ["name", "strasse", "plz", "ort", "email", "telefon"],
+          additionalProperties: false,
+        },
+        mietbeginn: { type: "string" },
+        mietende: { type: "string" },
+        personen: { type: "number" },
+        fahrraeder: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              menge: { type: "number" },
+            },
+            required: ["name", "menge"],
+            additionalProperties: false,
+          },
+        },
+        wuensche: {
+          type: "array",
+          items: { type: "string" },
+        },
+        confidence: {
+          type: "object",
+          properties: {
+            kunde: { type: "number" },
+            raeume: { type: "number" },
+            optionen: { type: "number" },
+          },
+          required: ["kunde", "raeume", "optionen"],
+          additionalProperties: false,
+        },
+      },
+      required: ["kunde", "mietbeginn", "mietende", "personen", "fahrraeder", "wuensche", "confidence"],
+      additionalProperties: false,
+    },
+  },
+};
+
+function buildFahrradSystemPrompt(katalogKontext: string): string {
+  return getFahrradSystemPrompt() + (katalogKontext ? `\n\n${katalogKontext}` : "");
+}
+
+async function loadFahrradKatalogKontext(firmaId: string): Promise<string> {
+  const [fahrraeder, extras] = await Promise.all([
+    prisma.fahrrad.findMany({
+      where: { firmaId, aktiv: true },
+      select: { name: true, kategorie: true },
+    }),
+    prisma.fahrradExtra.findMany({
+      where: { firmaId, aktiv: true },
+      select: { name: true, preis: true, einheit: true },
+    }),
+  ]);
+
+  if (fahrraeder.length === 0 && extras.length === 0) return "";
+
+  let kontext = "## Verfügbare Fahrräder & Extras\nWenn der Kunde Fahrräder erwähnt, versuche die passenden Einträge aus diesem Katalog zu referenzieren. Verwende die exakten Namen.\n";
+  if (fahrraeder.length > 0) {
+    kontext += "Fahrräder: " + fahrraeder.map((f) => `${f.name} (${f.kategorie})`).join(", ") + "\n";
+  }
+  if (extras.length > 0) {
+    kontext += "Extras: " + extras.map((e) => `${e.name} (${e.preis}€ ${e.einheit})`).join(", ") + "\n";
+  }
+  return kontext;
+}
+
+function parseFahrradAnfrageRegex(rawText: string) {
+  const text = rawText;
+  const kunde = parseKunde(text);
+
+  // Datum-Parsing (reuse FEWO logic)
+  let mietbeginn = "";
+  let mietende = "";
+  const datumMatch = text.match(/(\d{1,2})\.?\s*[-–bis]+\s*(\d{1,2})\.?\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|[\d.]+)/i);
+  if (datumMatch) {
+    const monatMap: Record<string, string> = {
+      januar: "01", februar: "02", "märz": "03", april: "04", mai: "05", juni: "06",
+      juli: "07", august: "08", september: "09", oktober: "10", november: "11", dezember: "12",
+    };
+    const monat = monatMap[datumMatch[3].toLowerCase()] || datumMatch[3];
+    const year = new Date().getFullYear();
+    mietbeginn = `${year}-${monat.padStart(2, "0")}-${datumMatch[1].padStart(2, "0")}`;
+    mietende = `${year}-${monat.padStart(2, "0")}-${datumMatch[2].padStart(2, "0")}`;
+  }
+
+  // Personen
+  let personen = 2;
+  const persMatch = text.match(/(\d+)\s*(?:Person|Erwachsen|Personen)/i);
+  if (persMatch) personen = parseInt(persMatch[1]);
+
+  // Fahrräder
+  const fahrraeder: Array<{ name: string; menge: number }> = [];
+  const bikePatterns = [
+    /(\d+)\s*(?:x\s*)?(?:E-Bike|Ebike|E Bike|Elektrorad|Pedelec)/gi,
+    /(\d+)\s*(?:x\s*)?(?:Kinderrad|Kinderfahrrad)/gi,
+    /(\d+)\s*(?:x\s*)?(?:Citybike|Stadtrad)/gi,
+    /(\d+)\s*(?:x\s*)?(?:Mountainbike|MTB)/gi,
+    /(\d+)\s*(?:x\s*)?(?:Trekkingrad)/gi,
+    /(\d+)\s*(?:x\s*)?(?:Tandem)/gi,
+    /(\d+)\s*(?:x\s*)?(?:Fahrr[äa]d|Rad|Räder)/gi,
+  ];
+  const bikeNames = ["E-Bike", "Kinderrad", "Citybike", "Mountainbike", "Trekkingrad", "Tandem", "Fahrrad"];
+  for (let i = 0; i < bikePatterns.length; i++) {
+    const matches = text.matchAll(bikePatterns[i]);
+    for (const m of matches) {
+      fahrraeder.push({ name: bikeNames[i], menge: parseInt(m[1]) || 1 });
+    }
+  }
+
+  // Wünsche
+  const wuensche: string[] = [];
+  if (/helm/i.test(text)) wuensche.push("Helm");
+  if (/schloss|schlösser/i.test(text)) wuensche.push("Schloss");
+  if (/korb|körbe/i.test(text)) wuensche.push("Fahrradkorb");
+  if (/kindersitz/i.test(text)) wuensche.push("Kindersitz");
+  if (/anhänger/i.test(text)) wuensche.push("Anhänger");
+
+  return {
+    kunde,
+    mietbeginn,
+    mietende,
+    personen,
+    fahrraeder,
+    wuensche,
+    confidence: {
+      kunde: kunde.name ? 50 : 15,
+      raeume: mietbeginn ? 60 : (fahrraeder.length > 0 ? 40 : 10),
+      optionen: 40,
+    },
+  };
+}
+
+// ═══════════════════════════════════════════
 // MALER SYSTEM PROMPT (original)
 // ═══════════════════════════════════════════
 
@@ -644,6 +872,8 @@ export async function POST(request: Request) {
         katalogKontext = await loadFewoKatalogKontext(user.firmaId);
       } else if (branche === "SHOP") {
         katalogKontext = await loadShopKatalogKontext(user.firmaId);
+      } else if (branche === "FAHRRAD") {
+        katalogKontext = await loadFahrradKatalogKontext(user.firmaId);
       } else {
         katalogKontext = await loadKatalogKontext(user.firmaId);
       }
@@ -670,42 +900,49 @@ export async function POST(request: Request) {
 
       const isShop = branche === "SHOP";
       const isFewo = branche === "FEWO";
+      const isFahrrad = branche === "FAHRRAD";
 
       if (!process.env.OPENAI_API_KEY) {
         if (textPart) {
           return NextResponse.json(
-            isFewo ? parseFewoAnfrageRegex(textPart) : isShop ? parseShopAnfrageRegex(textPart) : parseAnfrageRegex(textPart)
+            isFahrrad ? parseFahrradAnfrageRegex(textPart) : isFewo ? parseFewoAnfrageRegex(textPart) : isShop ? parseShopAnfrageRegex(textPart) : parseAnfrageRegex(textPart)
           );
         }
         return NextResponse.json({ error: "Kein API Key für Bilderkennung" }, { status: 500 });
       }
 
-      const systemPrompt = isFewo
-        ? buildFewoSystemPrompt(katalogKontext)
-        : isShop
-          ? buildShopSystemPrompt(katalogKontext)
-          : buildSystemPrompt(katalogKontext);
-      const responseFormat = isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
+      const systemPrompt = isFahrrad
+        ? buildFahrradSystemPrompt(katalogKontext)
+        : isFewo
+          ? buildFewoSystemPrompt(katalogKontext)
+          : isShop
+            ? buildShopSystemPrompt(katalogKontext)
+            : buildSystemPrompt(katalogKontext);
+      const responseFormat = isFahrrad ? FAHRRAD_RESPONSE_FORMAT : isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
 
       const userContent: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail: "high" } }> = [];
 
       if (textPart) {
         userContent.push({
           type: "text",
-          text: isFewo
-            ? `Der Gast hat folgende Anfrage geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere Reisedaten, Personen und Wünsche.`
-            : isShop
-              ? `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere alle Produkte mit Mengen und Preisen.`
-              : `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen.`,
+          text: isFahrrad
+            ? `Der Kunde hat folgende Anfrage geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere Mietdaten, gewünschte Fahrräder und Extras.`
+            : isFewo
+              ? `Der Gast hat folgende Anfrage geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere Reisedaten, Personen und Wünsche.`
+              : isShop
+                ? `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere alle Produkte mit Mengen und Preisen.`
+                : `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen.`,
         });
       } else {
         userContent.push({
           type: "text",
-          text: isFewo
-            ? "Analysiere diese Gästeanfrage. Extrahiere Reisedaten, Personenanzahl und Sonderwünsche:"
-            : isShop
-              ? "Analysiere dieses Bild. Es zeigt eine Rechnung, Bestellung, Preisliste oder Produktliste. Extrahiere alle Produkte mit Namen, Mengen, Einheiten und Preisen:"
-              : "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere alle erkennbaren Daten:",
+          text: isFahrrad
+            ? "Analysiere diese Kundenanfrage für einen Fahrradverleih. Extrahiere Mietdaten, gewünschte Fahrräder und Extras:"
+            : isFewo
+              ? "Analysiere diese Gästeanfrage. Extrahiere Reisedaten, Personenanzahl und Sonderwünsche:"
+              : isShop
+                ? "Analysiere dieses Bild. Es zeigt eine Rechnung, Bestellung, Preisliste oder Produktliste. Extrahiere alle Produkte mit Namen, Mengen, Einheiten und Preisen:"
+                : "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere alle erkennbaren Daten:",
         });
       }
 
@@ -734,7 +971,7 @@ export async function POST(request: Request) {
       }
 
       const parsed = JSON.parse(content);
-      return NextResponse.json(isShop ? parsed : isFewo ? parsed : validateParsedResult(parsed));
+      return NextResponse.json((isShop || isFewo || isFahrrad) ? parsed : validateParsedResult(parsed));
     }
 
     // Handle JSON body (text only)
@@ -751,21 +988,24 @@ export async function POST(request: Request) {
 
     const isShop = branche === "SHOP";
     const isFewo = branche === "FEWO";
+    const isFahrrad = branche === "FAHRRAD";
 
     // Fallback auf Regex wenn kein API Key
     if (!process.env.OPENAI_API_KEY) {
       console.log("AI Parse: Kein API Key, nutze Regex-Fallback");
       return NextResponse.json(
-        isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
       );
     }
 
-    const systemPrompt = isFewo
-      ? buildFewoSystemPrompt(katalogKontext)
-      : isShop
-        ? buildShopSystemPrompt(katalogKontext)
-        : buildSystemPrompt(katalogKontext);
-    const responseFormat = isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
+    const systemPrompt = isFahrrad
+      ? buildFahrradSystemPrompt(katalogKontext)
+      : isFewo
+        ? buildFewoSystemPrompt(katalogKontext)
+        : isShop
+          ? buildShopSystemPrompt(katalogKontext)
+          : buildSystemPrompt(katalogKontext);
+    const responseFormat = isFahrrad ? FAHRRAD_RESPONSE_FORMAT : isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -782,12 +1022,12 @@ export async function POST(request: Request) {
     if (!content) {
       console.error("OpenAI: Leere Antwort, nutze Regex-Fallback");
       return NextResponse.json(
-        isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
       );
     }
 
     const parsed = JSON.parse(content);
-    return NextResponse.json(isFewo ? parsed : isShop ? parsed : validateParsedResult(parsed));
+    return NextResponse.json((isShop || isFewo || isFahrrad) ? parsed : validateParsedResult(parsed));
   } catch (error) {
     console.error("AI Parse Fehler:", error);
 
@@ -795,8 +1035,9 @@ export async function POST(request: Request) {
       console.log("OpenAI fehlgeschlagen, nutze Regex-Fallback");
       const isShop = branche === "SHOP";
       const isFewo = branche === "FEWO";
+      const isFahrrad = branche === "FAHRRAD";
       return NextResponse.json(
-        isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
       );
     }
 
