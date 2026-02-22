@@ -207,6 +207,7 @@ export default function AngebotDetailPage() {
   function handleBearbeiten() {
     if (!data) return;
     const isFewoAngebot = !!(data.anreise || data.abreise || data.naechte);
+    const isFahrradAngebot = isFewoAngebot && data.positionen.some((p) => p.typ === "PRODUKT" && p.bezeichnung.includes("\u00d7"));
     const isShopAngebot = !isFewoAngebot && data.positionen.some((p) => p.typ === "PRODUKT");
     const kundeData = {
       name: data.kundeName,
@@ -216,6 +217,12 @@ export default function AngebotDetailPage() {
       email: data.kundeEmail || "",
       telefon: data.kundeTelefon || "",
     };
+
+    if (isFahrradAngebot) {
+      sessionStorage.setItem("edit-angebot-id", data.id);
+      router.push("/app/fahrrad-formular");
+      return;
+    }
 
     if (isFewoAngebot) {
       sessionStorage.setItem("edit-angebot-id", data.id);
@@ -331,6 +338,7 @@ export default function AngebotDetailPage() {
 
   const cfg = statusConfig[data.status] || statusConfig.ENTWURF;
   const isFewo = !!(data.anreise || data.abreise || data.naechte);
+  const isFahrrad = isFewo && data.positionen.some((p) => p.typ === "PRODUKT" && p.bezeichnung.includes("\u00d7"));
   const isShop = !isFewo && data.positionen.some((p) => p.typ === "PRODUKT");
   const leistungen = data.positionen.filter((p) => p.typ === "LEISTUNG");
   const materialien = data.positionen.filter((p) => p.typ === "MATERIAL");
@@ -375,30 +383,30 @@ export default function AngebotDetailPage() {
             )}
           </div>
 
-          {/* FEWO: Aufenthalt */}
+          {/* FEWO/FAHRRAD: Aufenthalt/Mietdauer */}
           {isFewo && (data.anreise || data.abreise) && (
             <>
               <Separator />
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Aufenthalt
+                  {isFahrrad ? "Mietdauer" : "Aufenthalt"}
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   {data.anreise && (
                     <div>
-                      <p className="text-muted-foreground text-xs">Anreise</p>
+                      <p className="text-muted-foreground text-xs">{isFahrrad ? "Mietbeginn" : "Anreise"}</p>
                       <p className="font-medium">{new Date(data.anreise).toLocaleDateString("de-DE")}</p>
                     </div>
                   )}
                   {data.abreise && (
                     <div>
-                      <p className="text-muted-foreground text-xs">Abreise</p>
+                      <p className="text-muted-foreground text-xs">{isFahrrad ? "Mietende" : "Abreise"}</p>
                       <p className="font-medium">{new Date(data.abreise).toLocaleDateString("de-DE")}</p>
                     </div>
                   )}
                   {data.naechte && (
                     <div>
-                      <p className="text-muted-foreground text-xs">Nächte</p>
+                      <p className="text-muted-foreground text-xs">{isFahrrad ? "Tage" : "Nächte"}</p>
                       <p className="font-medium">{data.naechte}</p>
                     </div>
                   )}

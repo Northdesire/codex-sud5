@@ -16,6 +16,7 @@ enum Branche {
   MALER
   SHOP
   FEWO
+  FAHRRAD
 }
 
 // ═══════════════════════════════════════════
@@ -75,6 +76,9 @@ model Firma {
   unterkuenfte    Unterkunft[]
   saisons         Saison[]
   fewoExtras      FewoExtra[]
+  fahrraeder         Fahrrad[]
+  mietdauerStaffeln  MietdauerStaffel[]
+  fahrradExtras      FahrradExtra[]
 }
 
 // ═══════════════════════════════════════════
@@ -644,4 +648,55 @@ model RechnungPosition {
   einzelpreis Float
   gesamtpreis Float
   sortierung  Int          @default(0)
+}
+
+// ═══════════════════════════════════════════
+// FAHRRAD (Fahrradverleih)
+// ═══════════════════════════════════════════
+
+model Fahrrad {
+  id            String         @id @default(cuid())
+  firmaId       String
+  firma         Firma          @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  name          String
+  kategorie     String
+  beschreibung  String?
+  preisProTag   Float
+  aktiv         Boolean        @default(true)
+  staffelPreise FahrradPreis[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  @@unique([firmaId, name])
+}
+
+model MietdauerStaffel {
+  id       String         @id @default(cuid())
+  firmaId  String
+  firma    Firma          @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  name     String
+  bisTag   Int
+  preise   FahrradPreis[]
+  @@unique([firmaId, bisTag])
+}
+
+model FahrradPreis {
+  id          String           @id @default(cuid())
+  fahrradId   String
+  fahrrad     Fahrrad          @relation(fields: [fahrradId], references: [id], onDelete: Cascade)
+  staffelId   String
+  staffel     MietdauerStaffel @relation(fields: [staffelId], references: [id], onDelete: Cascade)
+  preisProTag Float
+  @@unique([fahrradId, staffelId])
+}
+
+model FahrradExtra {
+  id        String   @id @default(cuid())
+  firmaId   String
+  firma     Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  name      String
+  preis     Float
+  einheit   String
+  aktiv     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

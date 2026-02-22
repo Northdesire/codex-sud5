@@ -17,9 +17,13 @@ import {
   Home,
   CalendarRange,
   Star,
+  Bike,
+  Clock,
+  Plus,
+  HelpCircle,
 } from "lucide-react";
 
-export type Branche = "MALER" | "SHOP" | "FEWO";
+export type Branche = "MALER" | "SHOP" | "FEWO" | "FAHRRAD";
 
 export interface SidebarItem {
   href: string;
@@ -54,6 +58,9 @@ export interface BrancheConfig {
     hasUnterkuenfte: boolean;
     hasSaisons: boolean;
     hasFewoExtras: boolean;
+    hasFahrraeder: boolean;
+    hasMietdauerStaffeln: boolean;
+    hasFahrradExtras: boolean;
   };
   registerPlaceholders: {
     firmenname: string;
@@ -156,6 +163,9 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       hasUnterkuenfte: false,
       hasSaisons: false,
       hasFewoExtras: false,
+      hasFahrraeder: false,
+      hasMietdauerStaffeln: false,
+      hasFahrradExtras: false,
     },
     registerPlaceholders: {
       firmenname: "Malerbetrieb Schneider",
@@ -239,6 +249,9 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       hasUnterkuenfte: false,
       hasSaisons: false,
       hasFewoExtras: false,
+      hasFahrraeder: false,
+      hasMietdauerStaffeln: false,
+      hasFahrradExtras: false,
     },
     registerPlaceholders: {
       firmenname: "Mein Shop GmbH",
@@ -330,6 +343,9 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       hasUnterkuenfte: true,
       hasSaisons: true,
       hasFewoExtras: true,
+      hasFahrraeder: false,
+      hasMietdauerStaffeln: false,
+      hasFahrradExtras: false,
     },
     registerPlaceholders: {
       firmenname: "Ferienwohnung Seeblick",
@@ -352,6 +368,101 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/app/ai", title: "Angebot erstellen", description: "Per AI oder manuell ein Angebot erstellen" },
     ],
     angebotEinleitung: "Vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot für Ihren Aufenthalt:",
+  },
+
+  FAHRRAD: {
+    label: "Fahrradverleih",
+    beschreibung: "Verleih-Angebotssoftware",
+    sidebarItems: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard/firma", label: "Firmendaten", icon: Building2 },
+      { href: "/dashboard/kunden", label: "Kunden", icon: Users },
+      { href: "/dashboard/fahrraeder", label: "Fahrräder", icon: Bike },
+      { href: "/dashboard/mietdauer", label: "Mietdauer-Staffeln", icon: Clock },
+      { href: "/dashboard/fahrrad-extras", label: "Extras", icon: Plus },
+      { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
+      { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
+      { href: "/dashboard/rechnungen", label: "Rechnungen", icon: Receipt },
+      { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: HelpCircle },
+    ],
+    tutorialSteps: [
+      {
+        key: "hasFirma",
+        nr: 1,
+        title: "Firmendaten",
+        icon: Building2,
+        href: "/dashboard/firma",
+        warum: "Deine Firmendaten erscheinen auf jedem Angebot: Briefkopf, Fusszeile, Bankverbindung.",
+        beispiel: "Firmenname, Adresse, Telefon, IBAN, Logo hochladen.",
+        color: "text-blue-600",
+      },
+      {
+        key: "hasFahrraeder",
+        nr: 2,
+        title: "Fahrräder anlegen",
+        icon: Bike,
+        href: "/dashboard/fahrraeder",
+        warum: "Fahrräder bilden deinen Katalog. Jedes Rad bekommt einen Namen, Kategorie und Tagespreis. Beim Erstellen eines Angebots wählst du Fahrräder und Mengen aus.",
+        beispiel: 'Lege z.B. an: "E-Bike Standard" (Kategorie: E-Bike, 25 \u20AC/Tag) oder "Kinderrad" (Kategorie: Kinderrad, 8 \u20AC/Tag).',
+        color: "text-emerald-600",
+      },
+      {
+        key: "hasMietdauerStaffeln",
+        nr: 3,
+        title: "Mietdauer-Staffeln (optional)",
+        icon: Clock,
+        href: "/dashboard/mietdauer",
+        warum: "Staffelpreise machen längere Mieten günstiger. Definiere Tage-Bereiche und setze dann Staffelpreise pro Fahrrad.",
+        beispiel: 'Lege z.B. an: "1\u20133 Tage" (bisTag: 3), "4\u20137 Tage" (bisTag: 7), "ab 8 Tage" (bisTag: 9999).',
+        color: "text-amber-600",
+      },
+      {
+        key: "hasAngebote",
+        nr: 4,
+        title: "Erstes Angebot erstellen",
+        icon: Sparkles,
+        href: "/app/fahrrad-formular",
+        warum: "Alles testen: Fahrräder auswählen, Mietdauer eingeben und das erste Angebot generieren.",
+        beispiel: 'Anfrage wie: "2 E-Bikes + 1 Kinderrad für 5 Tage ab 15. Juli".',
+        color: "text-rose-600",
+      },
+    ],
+    appFeatures: {
+      hasRaeume: false,
+      hasKalkRegeln: false,
+      hasMaterial: false,
+      hasLeistungen: false,
+      hasProdukte: false,
+      hasRaumvorlagen: false,
+      hasRechnungen: true,
+      hasUnterkuenfte: false,
+      hasSaisons: false,
+      hasFewoExtras: false,
+      hasFahrraeder: true,
+      hasMietdauerStaffeln: true,
+      hasFahrradExtras: true,
+    },
+    registerPlaceholders: {
+      firmenname: "Radverleih Sonnenschein",
+      email: "info@radverleih-sonnenschein.de",
+    },
+    setupChecks: [
+      { key: "hasFirma", label: "Firmendaten" },
+      { key: "hasFahrraeder", label: "Fahrräder" },
+      { key: "hasAngebote", label: "Angebot" },
+    ],
+    dashboardStats: [
+      { key: "kunden", label: "Kunden", icon: Users, href: "/dashboard/kunden", color: "text-blue-600" },
+      { key: "fahrraeder", label: "Fahrräder", icon: Bike, href: "/dashboard/fahrraeder", color: "text-emerald-600" },
+      { key: "staffeln", label: "Staffeln", icon: Clock, href: "/dashboard/mietdauer", color: "text-amber-600" },
+      { key: "angebote", label: "Angebote", icon: FileSpreadsheet, href: "/dashboard/angebote", color: "text-purple-600" },
+    ],
+    quickActions: [
+      { href: "/dashboard/firma", title: "Firmendaten pflegen", description: "Logo, Kontaktdaten und Einstellungen hinterlegen" },
+      { href: "/dashboard/fahrraeder", title: "Fahrräder anlegen", description: "Fahrradkatalog mit Tagespreisen verwalten" },
+      { href: "/app/fahrrad-formular", title: "Angebot erstellen", description: "Fahrräder, Mietdauer und Extras konfigurieren" },
+    ],
+    angebotEinleitung: "Vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot für Ihren Fahrradverleih:",
   },
 };
 
