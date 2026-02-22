@@ -27,6 +27,7 @@ interface Fahrrad {
   kategorie: string;
   beschreibung: string | null;
   aktiv: boolean;
+  preisProWeitererTag: number | null;
   preise: FahrradPreis[];
 }
 
@@ -37,6 +38,7 @@ const emptyForm = {
   kategorie: "",
   beschreibung: "",
   aktiv: true,
+  preisProWeitererTag: "",
   preise: {} as Record<number, string>,
 };
 
@@ -77,6 +79,7 @@ export default function FahrraederPage() {
       kategorie: f.kategorie,
       beschreibung: f.beschreibung || "",
       aktiv: f.aktiv,
+      preisProWeitererTag: f.preisProWeitererTag != null ? f.preisProWeitererTag.toString() : "",
       preise,
     });
     setDialogOpen(true);
@@ -99,10 +102,14 @@ export default function FahrraederPage() {
     const url = editId ? `/api/fahrraeder/${editId}` : "/api/fahrraeder";
     const method = editId ? "PUT" : "POST";
 
+    const preisProWeitererTag = form.preisProWeitererTag && parseFloat(form.preisProWeitererTag) > 0
+      ? parseFloat(form.preisProWeitererTag)
+      : null;
+
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, preise }),
+      body: JSON.stringify({ ...form, preise, preisProWeitererTag }),
     });
 
     if (res.ok) {
@@ -193,6 +200,7 @@ export default function FahrraederPage() {
                   <TableHead className="text-right">1 Tag</TableHead>
                   <TableHead className="text-right">7 Tage</TableHead>
                   <TableHead className="text-right">14 Tage</TableHead>
+                  <TableHead className="text-right">€/Tag 15+</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
@@ -212,6 +220,9 @@ export default function FahrraederPage() {
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       {getPreis(f, 14) != null ? formatEuro(getPreis(f, 14)!) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {f.preisProWeitererTag != null ? formatEuro(f.preisProWeitererTag) : "—"}
                     </TableCell>
                     <TableCell>
                       <Badge variant={f.aktiv ? "default" : "secondary"}>
@@ -303,6 +314,20 @@ export default function FahrraederPage() {
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Preis pro weiteren Tag (ab Tag 15)</Label>
+              <p className="text-xs text-muted-foreground">
+                Aufpreis pro zusätzlichem Miettag ab dem 15. Tag. Leer = kein Aufpreis (14-Tage-Preis gilt weiter).
+              </p>
+              <Input
+                type="number"
+                step="0.01"
+                value={form.preisProWeitererTag}
+                onChange={(e) => setForm({ ...form, preisProWeitererTag: e.target.value })}
+                placeholder="z.B. 8.00"
+                className="h-9 max-w-[200px]"
+              />
             </div>
           </div>
           <DialogFooter>

@@ -24,6 +24,7 @@ interface Fahrrad {
   kategorie: string;
   beschreibung: string | null;
   aktiv: boolean;
+  preisProWeitererTag?: number | null;
   preise: FahrradPreis[];
 }
 
@@ -89,12 +90,20 @@ export default function FahrradFormularPage() {
   // Gesamtpreis für ein Fahrrad bei gegebener Tagesanzahl
   function getPreisFuerTage(fahrrad: Fahrrad, anzahlTage: number): number | null {
     if (anzahlTage <= 0 || fahrrad.preise.length === 0) return null;
-    // Exakten Tag suchen
+    // Exakten Tag suchen (1-14)
     const exact = fahrrad.preise.find((p) => p.tag === anzahlTage);
     if (exact) return exact.gesamtpreis;
-    // Falls tage > 14: höchsten verfügbaren Tag verwenden
-    const sorted = [...fahrrad.preise].sort((a, b) => b.tag - a.tag);
-    if (anzahlTage > 14 && sorted.length > 0) return sorted[0].gesamtpreis;
+    // Falls tage > 14: 14-Tage-Preis + Aufpreis pro weiterem Tag
+    if (anzahlTage > 14) {
+      const sorted = [...fahrrad.preise].sort((a, b) => b.tag - a.tag);
+      if (sorted.length === 0) return null;
+      const basisPreis = sorted[0].gesamtpreis; // höchster verfügbarer Preis (i.d.R. 14 Tage)
+      if (fahrrad.preisProWeitererTag != null && fahrrad.preisProWeitererTag > 0) {
+        const zusatzTage = anzahlTage - sorted[0].tag;
+        return basisPreis + zusatzTage * fahrrad.preisProWeitererTag;
+      }
+      return basisPreis; // Fallback: kein Aufpreis definiert
+    }
     return null;
   }
 

@@ -57,6 +57,13 @@ Für jedes genannte Produkt:
 - "Dell XPS 15 16GB" → name: "Laptop Dell XPS 15 16GB"
 - Abkürzungen auflösen wo sinnvoll
 
+### E-Mail-Footer / Signatur — SEHR WICHTIG
+E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchsuche den GESAMTEN Text — insbesondere die letzten Zeilen — nach:
+- Name (oft nach "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße" etc.)
+- Adresse (Straße + Hausnummer, PLZ + Ort) — oft auf separaten Zeilen untereinander
+- Telefonnummer, E-Mail-Adresse
+- Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
+
 WICHTIG:
 - Dezimalpunkte verwenden (3.5 nicht 3,5)
 - Leere Strings "" für fehlende Felder, NICHT null
@@ -222,6 +229,13 @@ Extrahiere folgende Informationen:
 - "Babybett", "Kinderbett" → in wuensche
 - "Endreinigung" → in wuensche
 - "Bettwäsche", "Handtücher" → in wuensche
+
+### E-Mail-Footer / Signatur — SEHR WICHTIG
+E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchsuche den GESAMTEN Text — insbesondere die letzten Zeilen — nach:
+- Name (oft nach "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße" etc.)
+- Adresse (Straße + Hausnummer, PLZ + Ort) — oft auf separaten Zeilen untereinander
+- Telefonnummer, E-Mail-Adresse
+- Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
 
 WICHTIG:
 - Dezimalpunkte verwenden
@@ -480,6 +494,20 @@ SEHR WICHTIG — Leite Fahrradtypen aus der Personenbeschreibung ab:
 - "0151 41438558" → "0151 41438558"
 - "Tel.: 04932/12345" → "04932/12345"
 - Alle gängigen deutschen Formate erkennen
+
+### E-Mail-Footer / Signatur — SEHR WICHTIG
+E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchsuche den GESAMTEN Text — insbesondere die letzten Zeilen — nach:
+- Name (oft nach "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße" etc.)
+- Adresse (Straße + Hausnummer, PLZ + Ort) — oft auf separaten Zeilen untereinander
+- Telefonnummer, E-Mail-Adresse
+- Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
+- Footer-Blöcke sind oft durch Leerzeilen, "---", oder "__" vom Haupttext getrennt
+- Typisches Footer-Format:
+  Max Mustermann
+  Musterstraße 12
+  12345 Musterstadt
+  Tel.: 0123/456789
+  max@example.de
 
 WICHTIG:
 - Dezimalpunkte verwenden (3.5 nicht 3,5)
@@ -910,6 +938,13 @@ Typische Extras:
 - "weiß streichen" / "alles weiß" = Standard-Wandfarbe
 - "farbig" / "Akzent" / "Farbton" = Premium
 
+### E-Mail-Footer / Signatur — SEHR WICHTIG
+E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchsuche den GESAMTEN Text — insbesondere die letzten Zeilen — nach:
+- Name (oft nach "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße" etc.)
+- Adresse (Straße + Hausnummer, PLZ + Ort) — oft auf separaten Zeilen untereinander
+- Telefonnummer, E-Mail-Adresse
+- Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
+
 WICHTIG:
 - Dezimalpunkte verwenden (3.5 nicht 3,5)
 - Leere Strings "" für fehlende Felder, NICHT null
@@ -1098,7 +1133,7 @@ export async function POST(request: Request) {
       // Detect branche from firma
       const firma = await prisma.firma.findUnique({
         where: { id: user.firmaId },
-        select: { branche: true },
+        select: { branche: true, wissenstext: true },
       });
       if (firma?.branche) branche = firma.branche;
 
@@ -1110,6 +1145,11 @@ export async function POST(request: Request) {
         katalogKontext = await loadFahrradKatalogKontext(user.firmaId);
       } else {
         katalogKontext = await loadKatalogKontext(user.firmaId);
+      }
+
+      // Firmenwissen an Katalogkontext anhängen
+      if (firma?.wissenstext) {
+        katalogKontext += `\n\n## Firmenwissen\nDas folgende Firmenwissen hilft dir, Anfragen besser zu verstehen und einzuordnen. Nutze es um Begriffe, Ortsangaben, Spezialitäten des Betriebs und sonstige Kontextinformationen zu berücksichtigen:\n\n${firma.wissenstext}\n`;
       }
     } catch {
       // Not logged in or DB error — proceed without catalog
@@ -1409,8 +1449,14 @@ function parseKunde(text: string) {
     telefon: "",
   };
 
+  // Footer/Signatur-Block extrahieren (alles nach der letzten Grußformel)
+  const footerMatch = text.match(
+    /(?:mit\s+freundlichen\s+gr[uü][sß]en|viele\s+gr[uü][sß]e|liebe\s+gr[uü][sß]e|beste\s+gr[uü][sß]e|herzliche\s+gr[uü][sß]e|freundliche\s+gr[uü][sß]e|mfg|lg|vg)\s*[,.]?\s*\n([\s\S]+)$/im
+  );
+  const footerText = footerMatch ? footerMatch[1].trim() : "";
+
   const grussMatch = text.match(
-    /(?:gr[uü][sß]e?|mfg|freundlichen\s+gr[uü][sß]en|liebe\s+gr[uü][sß]e)\s*[,]?\s*\n\s*((?:familie\s+)?[a-zäöüßA-ZÄÖÜ]+(?:\s+[a-zäöüßA-ZÄÖÜ]+)?)/i
+    /(?:gr[uü][sß]e?|mfg|freundlichen\s+gr[uü][sß]en|liebe\s+gr[uü][sß]e)\s*[,]?\s*\n\s*((?:familie\s+)?[a-zäöüßA-ZÄÖÜ]+(?:[-][a-zäöüßA-ZÄÖÜ]+)?(?:\s+[a-zäöüßA-ZÄÖÜ]+(?:[-][a-zäöüßA-ZÄÖÜ]+)?)?)/i
   );
   if (grussMatch) kunde.name = capitalize(grussMatch[1]);
 
@@ -1428,11 +1474,12 @@ function parseKunde(text: string) {
     "ein", "eine", "mein", "meine", "unser", "unsere", "bitte",
     "mal", "noch", "schon", "sehr", "ganz", "gerne", "dann",
     "würde", "möchte", "brauche", "hätte", "kann", "soll",
+    "gesendet", "von", "betreff", "datum", "an",
   ]);
 
   if (!kunde.name) {
     const nameMatch = text.match(
-      /(?:herr|frau|hr\.|fr\.)\s+([a-zäöüßA-ZÄÖÜ]{2,})/i
+      /(?:herr|frau|hr\.|fr\.)\s+([a-zäöüßA-ZÄÖÜ]{2,}(?:[-][a-zäöüßA-ZÄÖÜ]+)?)/i
     );
     if (nameMatch && !stoppwoerter.has(nameMatch[1].toLowerCase())) {
       const anrede = text.match(/herr/i) ? "Herr" : "Frau";
@@ -1442,10 +1489,30 @@ function parseKunde(text: string) {
 
   if (!kunde.name) {
     const ichBinMatch = text.match(
-      /(?:mein name ist|ich bin|ich hei[sß]e)\s+(?:der\s+|die\s+)?([a-zäöüßA-ZÄÖÜ]{2,}(?:\s+[a-zäöüßA-ZÄÖÜ]{2,})?)/i
+      /(?:mein name ist|ich bin|ich hei[sß]e)\s+(?:der\s+|die\s+)?([a-zäöüßA-ZÄÖÜ]{2,}(?:[-][a-zäöüßA-ZÄÖÜ]+)?(?:\s+[a-zäöüßA-ZÄÖÜ]{2,}(?:[-][a-zäöüßA-ZÄÖÜ]+)?)?)/i
     );
     if (ichBinMatch && !stoppwoerter.has(ichBinMatch[1].split(/\s/)[0].toLowerCase())) {
       kunde.name = capitalize(ichBinMatch[1]);
+    }
+  }
+
+  // Footer-Name: Erste nicht-leere Zeile nach Grußformel (oft der Name)
+  if (!kunde.name && footerText) {
+    const footerLines = footerText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (footerLines.length > 0) {
+      const firstLine = footerLines[0];
+      // Prüfen ob es ein Name ist (2+ Buchstaben, kein Stoppwort, keine E-Mail/URL/Telefon)
+      if (
+        /^[A-ZÄÖÜa-zäöüß]/.test(firstLine) &&
+        !/@/.test(firstLine) &&
+        !/^(?:Tel|Fax|Mobil|http|www\.)/i.test(firstLine) &&
+        !/^\d{5}/.test(firstLine) &&
+        !stoppwoerter.has(firstLine.toLowerCase().split(/\s/)[0]) &&
+        firstLine.length >= 3 &&
+        firstLine.length <= 60
+      ) {
+        kunde.name = capitalize(firstLine);
+      }
     }
   }
 
@@ -1459,6 +1526,7 @@ function parseKunde(text: string) {
   );
   if (telMatch) kunde.telefon = telMatch[1].replace(/[\s()]/g, "").trim();
 
+  // Adressen aus dem gesamten Text suchen (inkl. Footer)
   const strassePatterns = [
     /([A-ZÄÖÜ][a-zäöüß]+(?:straße|strasse|str\.?|weg|gasse|platz|allee|ring|damm|steig|pfad|ufer|graben|berg|hof|stieg)\s*\d+\s*[a-zA-Z]?)/i,
     /((?:Am|An\s+der|In\s+der|Zum|Zur|Auf\s+dem|Im)\s+[A-ZÄÖÜ][a-zäöüß]+(?:\s+[a-zäöüß]+)?\s*\d+\s*[a-zA-Z]?)/i,
@@ -1473,6 +1541,28 @@ function parseKunde(text: string) {
     }
   }
 
+  // Wenn im Haupttext keine Straße gefunden, explizit im Footer suchen
+  if (!kunde.strasse && footerText) {
+    for (const pattern of strassePatterns) {
+      const match = footerText.match(pattern);
+      if (match) {
+        kunde.strasse = match[1].trim();
+        break;
+      }
+    }
+    // Footer-spezifisch: Zeile die wie eine Adresse aussieht (Wort + Zahl)
+    if (!kunde.strasse) {
+      const footerLines = footerText.split("\n").map((l) => l.trim()).filter(Boolean);
+      for (const line of footerLines) {
+        const addrMatch = line.match(/^([A-ZÄÖÜa-zäöüß][a-zäöüß.-]+(?:straße|strasse|str\.?|weg|gasse|platz|allee|ring|damm|steig|pfad|ufer|graben|berg|hof|stieg)?\s+\d+\s*[a-zA-Z]?)$/i);
+        if (addrMatch) {
+          kunde.strasse = addrMatch[1].trim();
+          break;
+        }
+      }
+    }
+  }
+
   const plzOrtPatterns = [
     /(\d{5})\s+([A-ZÄÖÜ][a-zäöüß]+(?:-[A-ZÄÖÜ][a-zäöüß]+)?(?:\s+(?:am|an|ob|bei|im|in)(?:\s+der)?\s+[A-ZÄÖÜ][a-zäöüß]+)?)/,
   ];
@@ -1483,6 +1573,18 @@ function parseKunde(text: string) {
       kunde.plz = match[1];
       kunde.ort = match[2];
       break;
+    }
+  }
+
+  // Wenn PLZ/Ort im Haupttext nicht gefunden, explizit im Footer suchen
+  if (!kunde.plz && footerText) {
+    for (const pattern of plzOrtPatterns) {
+      const match = footerText.match(pattern);
+      if (match) {
+        kunde.plz = match[1];
+        kunde.ort = match[2];
+        break;
+      }
     }
   }
 

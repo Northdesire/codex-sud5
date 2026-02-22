@@ -654,16 +654,17 @@ model RechnungPosition {
 // ═══════════════════════════════════════════
 
 model Fahrrad {
-  id            String         @id @default(cuid())
-  firmaId       String
-  firma         Firma          @relation(fields: [firmaId], references: [id], onDelete: Cascade)
-  name          String
-  kategorie     String
-  beschreibung  String?
-  aktiv         Boolean        @default(true)
-  preise        FahrradPreis[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  firmaId             String
+  firma               Firma          @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  name                String
+  kategorie           String
+  beschreibung        String?
+  aktiv               Boolean        @default(true)
+  preisProWeitererTag Float?         // Aufpreis pro Tag ab Tag 15
+  preise              FahrradPreis[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
   @@unique([firmaId, name])
 }
 

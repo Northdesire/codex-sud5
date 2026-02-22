@@ -35,6 +35,7 @@ export async function POST(request: Request) {
           kategorie: body.kategorie || "",
           beschreibung: body.beschreibung || null,
           aktiv: body.aktiv ?? true,
+          preisProWeitererTag: body.preisProWeitererTag != null && body.preisProWeitererTag !== "" ? parseFloat(String(body.preisProWeitererTag)) : null,
         },
       });
 
