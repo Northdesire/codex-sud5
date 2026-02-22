@@ -363,34 +363,34 @@ function parseFewoAnfrageRegex(rawText: string) {
 
 function getFahrradSystemPrompt() {
   const currentYear = new Date().getFullYear();
-  return `Du bist ein Assistent für einen deutschen Fahrradverleih. Du analysierst Kundenanfragen (E-Mails, WhatsApp, Formulare, Sprachnotizen) und extrahierst strukturierte Daten für die Angebotserstellung.
+  return `Du bist ein erfahrener Assistent für einen deutschen Fahrradverleih auf einer Urlaubsinsel. Du analysierst Kundenanfragen (E-Mails, WhatsApp, Formulare, Sprachnotizen, Fotos) und extrahierst ALLE strukturierten Daten für die Angebotserstellung. Lies den Text SEHR GENAU und verpasse keine Details.
 
 Das aktuelle Jahr ist ${currentYear}.
 
 ## Deine Aufgabe
 
-Extrahiere folgende Informationen:
+Extrahiere ALLE folgenden Informationen aus dem Text:
 
 ### 1. Kunde
-- name: Vollständiger Name
-- strasse: Straße + Hausnummer
+- name: Vollständiger Name (auch mehrere Personen: "Anja Pohl-Lange, Andreas Lange")
+- strasse: Straße + Hausnummer (z.B. "Lippestr. 42", "Am Markt 5")
 - plz: 5-stellige Postleitzahl
 - ort: Ortsname
 - email: E-Mail-Adresse
-- telefon: Telefonnummer
+- telefon: Telefonnummer (auch mit Länderkennzahl)
 
 ### 2. Mietdaten
 - mietbeginn: Startdatum im Format "YYYY-MM-DD"
 - mietende: Enddatum im Format "YYYY-MM-DD"
-- personen: Anzahl Personen (Standard: 2)
+- personen: Gesamtanzahl aller Personen inkl. Kinder (Standard: 2)
 
 ### 3. Fahrräder (Array)
-Für jedes gewünschte Fahrrad:
-- name: Fahrradbezeichnung (z.B. "E-Bike", "Kinderrad", "Citybike")
+Für JEDEN gewünschten Fahrradtyp:
+- name: Fahrradbezeichnung — verwende bevorzugt exakte Namen aus dem Katalog (siehe unten)
 - menge: Gewünschte Anzahl (Standard: 1)
 
 ### 4. Wünsche (Array von Strings)
-Sonderwünsche wie "Helm", "Kindersitz", "Fahrradkorb", "Schloss", "Anhänger" etc.
+Alles was nicht ein Fahrrad selbst ist: "Helm", "Kindersitz", "Fahrradkorb", "Schloss", "Anhänger", "GPS", "Gepäcktasche", etc.
 
 ### 5. Confidence (0-100)
 - kunde: Wie vollständig sind die Kundendaten?
@@ -399,39 +399,96 @@ Sonderwünsche wie "Helm", "Kindersitz", "Fahrradkorb", "Schloss", "Anhänger" e
 
 ## Erkennungsregeln
 
-**Datumsformate:**
+### Datumsformate
 - Wenn KEIN Jahr angegeben ist, IMMER ${currentYear} verwenden
-- "15. Juli" → ${currentYear}-07-15
-- "15.-22. Juli" → mietbeginn: ${currentYear}-07-15, mietende: ${currentYear}-07-22
+- "15. Juli" oder "15.7." oder "15.07." → ${currentYear}-07-15
+- "15.-22. Juli" oder "15. bis 22. Juli" → mietbeginn: ${currentYear}-07-15, mietende: ${currentYear}-07-22
 - "vom 15. bis 22. Juli" → mietbeginn/mietende
 - "eine Woche ab 15. Juli" → mietbeginn: ${currentYear}-07-15, mietende: ${currentYear}-07-22
 - "5 Tage ab 15. Juli" → mietbeginn: ${currentYear}-07-15, mietende: ${currentYear}-07-20
-- "für 3 Tage" → nur Tagesanzahl, Datum unbekannt → leere Strings
+- "für 3 Tage" → nur Tagesanzahl, Datum unbekannt → mietbeginn: "", mietende: ""
+- "nächste Woche Montag bis Freitag" → berechne die konkreten Daten
+- "Sommerferien", "Osterferien" → schätze realistische Daten
+- "26.07.-02.08." → mietbeginn: ${currentYear}-07-26, mietende: ${currentYear}-08-02
+- "26.7-2.8" → mietbeginn: ${currentYear}-07-26, mietende: ${currentYear}-08-02
 
-**Fahrrad-Typen:**
-- "E-Bike", "Elektrorad", "Pedelec" → name: "E-Bike"
-- "Citybike", "Stadtrad" → name: "Citybike"
-- "Kinderrad", "Kinderfahrrad" → name: "Kinderrad"
-- "Mountainbike", "MTB" → name: "Mountainbike"
-- "Trekkingrad" → name: "Trekkingrad"
-- "Tandem" → name: "Tandem"
-- "Lastenrad", "Cargo" → name: "Lastenrad"
-- "Fahrrad", "Rad" ohne Spezifizierung → name: "Fahrrad"
+### Fahrrad-Typen & Synonyme
+WICHTIG: Wenn ein Fahrrad-Katalog bereitgestellt wird, verwende IMMER die exakten Katalognamen. Matche Synonyme auf den nächstpassenden Katalog-Eintrag.
 
-**Mengenangaben:**
+Synonyme → Standardname (falls kein Katalog):
+- "E-Bike", "Ebike", "E Bike", "eBike", "Elektrorad", "Elektrofahrrad", "Pedelec", "E-Rad", "elektrisches Rad" → "E-Bike"
+- "E-Bike Damen", "Damen E-Bike", "Damen-Ebike" → "E-Bike Damen" (oder Katalog-Match)
+- "E-Bike Herren", "Herren E-Bike", "Herren-Ebike" → "E-Bike Herren" (oder Katalog-Match)
+- "Citybike", "City-Bike", "Stadtrad", "Stadtfahrrad", "Holland-Rad", "Hollandrad" → "Citybike"
+- "Kinderrad", "Kinderfahrrad", "Kinder-Fahrrad", "Rad für Kind", "Fahrrad für Kinder", "kleines Rad" → "Kinderrad"
+- "Jugendrad", "Jugendfahrrad", "Jugend-Fahrrad", "Teenagerrad" → "Jugendrad"
+- "Mountainbike", "MTB", "Mountain-Bike", "Geländerad" → "Mountainbike"
+- "Trekkingrad", "Trekkingbike", "Trekking-Rad", "Tourenrad" → "Trekkingrad"
+- "Tandem", "Zweisitzer", "Doppelrad" → "Tandem"
+- "Lastenrad", "Cargo-Bike", "Cargobike", "Transportrad", "Lastenfahrrad" → "Lastenrad"
+- "Liegerad", "Liegefahrrad", "Recumbent" → "Liegerad"
+- "Rennrad", "Racebike" → "Rennrad"
+- "Klapprad", "Faltrad", "Klappfahrrad" → "Klapprad"
+- "Fahrrad", "Rad", "Bike", "Räder", "Drahtesel" ohne Spezifizierung → "Fahrrad"
+- "Damenrad", "Damenfahrrad", "Damen-Rad" → "Damenrad"
+- "Herrenrad", "Herrenfahrrad", "Herren-Rad" → "Herrenrad"
+
+### Implizite Fahrrad-Ableitung aus Personenbeschreibung
+SEHR WICHTIG — Leite Fahrradtypen aus der Personenbeschreibung ab:
+- "2 Erwachsene" → 2× Fahrrad (oder E-Bike, je nach Kontext)
+- "2 Kinder (8 und 12 Jahre)" → 2× Kinderrad (oder 1× Kinderrad + 1× Jugendrad bei Kindern >10)
+- "für die ganze Familie" → schätze basierend auf Personenanzahl
+- "mein Mann und ich" → 2× Fahrrad/E-Bike
+- "wir sind zu viert" → 4× Fahrrad (wenn keine genauere Angabe)
+- "2 Erwachsene und 1 Kind" → 2× Fahrrad + 1× Kinderrad
+- Wenn der Kunde "Fahrräder" im Plural sagt aber keine Menge nennt, leite die Menge aus der Personenanzahl ab
+
+### Mengenangaben
+- "2x E-Bikes" oder "2 E-Bikes" oder "zwei E-Bikes" → menge: 2
+- "ein E-Bike" → menge: 1
+- "E-Bikes" (Plural ohne Zahl) → leite aus Personenkontext ab, Minimum 2
 - "2 E-Bikes + 1 Kinderrad" → [{name: "E-Bike", menge: 2}, {name: "Kinderrad", menge: 1}]
-- "Fahrrad für 2 Erwachsene und 2 Kinder" → [{name: "Fahrrad", menge: 2}, {name: "Kinderrad", menge: 2}]
+- "Fahrräder für 4 Personen" → 4× Fahrrad
+- "je ein Rad" bei 2 Personen → 2× Fahrrad
+- Auflistungen mit Spiegelstrichen (- oder •) beachten
+- "2× E-Bike\n1× Kinderrad\n1× Jugendrad" → drei separate Einträge
 
-**Extras/Wünsche:**
-- "Helm", "Schloss", "Korb", "Kindersitz", "Anhänger", "GPS"
-- "mit Helmen" → wuensche: ["Helm"]
+### Extras/Wünsche
+- "Helm", "Helme", "mit Helm", "Fahrradhelm" → "Helm"
+- "Schloss", "Schlösser", "Fahrradschloss", "Zahlenschloss" → "Schloss"
+- "Korb", "Fahrradkorb", "Körbe", "Lenkerkorb" → "Fahrradkorb"
+- "Kindersitz", "Fahrradsitz für Kind" → "Kindersitz"
+- "Anhänger", "Fahrradanhänger", "Kinderanhänger" → "Anhänger"
+- "GPS", "Navigation", "Navi" → "GPS"
+- "Gepäcktasche", "Satteltasche", "Packtasche" → "Gepäcktasche"
+- "Regencape", "Regenponcho", "Regenschutz" → "Regenschutz"
+- "Luftpumpe", "Pumpe" → "Luftpumpe"
+- "Flickzeug", "Reparaturset" → "Flickzeug"
+- "Klingel" → "Klingel"
+- "Licht", "Beleuchtung", "Lampe" → "Licht"
+- Alles was nach Zubehör klingt → in wuensche
+
+### Kundenname-Erkennung
+- "Familie Müller" → "Familie Müller"
+- "Anja Pohl-Lange, Andreas Lange" → "Anja Pohl-Lange, Andreas Lange"
+- "MfG Herr Schmidt" → "Herr Schmidt"
+- Auch am Ende des Textes nach Grußformel suchen
+- Doppelnamen mit Bindestrich beachten
+
+### Telefonnummer-Erkennung
+- "+49 151 41438558" → "+49 151 41438558"
+- "0151 41438558" → "0151 41438558"
+- "Tel.: 04932/12345" → "04932/12345"
+- Alle gängigen deutschen Formate erkennen
 
 WICHTIG:
-- Dezimalpunkte verwenden
+- Dezimalpunkte verwenden (3.5 nicht 3,5)
 - Leere Strings "" für fehlende Felder, NICHT null
 - Confidence IMMER als ganze Zahl 0-100 angeben
-- Daten im Format YYYY-MM-DD
-- Wenn kein Jahr genannt wird, IMMER das aktuelle Jahr ${currentYear} nehmen`;
+- Daten im Format YYYY-MM-DD (z.B. "${currentYear}-07-15")
+- Wenn kein Jahr genannt wird, IMMER das aktuelle Jahr ${currentYear} nehmen
+- LIES DEN TEXT KOMPLETT — übersehe keine Fahrräder, keine Daten, keine Kundendaten
+- Wenn ein Katalog bereitgestellt wird, matche Synonyme auf exakte Katalognamen`;
 }
 
 const FAHRRAD_RESPONSE_FORMAT = {
@@ -495,6 +552,41 @@ function buildFahrradSystemPrompt(katalogKontext: string): string {
   return getFahrradSystemPrompt() + (katalogKontext ? `\n\n${katalogKontext}` : "");
 }
 
+// Synonym-Mapping für Katalog-Matching
+const FAHRRAD_SYNONYME: Record<string, string[]> = {
+  "e-bike": ["ebike", "e bike", "elektrorad", "elektrofahrrad", "pedelec", "e-rad", "elektrisches rad"],
+  "citybike": ["city-bike", "stadtrad", "stadtfahrrad", "hollandrad", "holland-rad"],
+  "kinderrad": ["kinderfahrrad", "kinder-fahrrad", "rad für kind", "fahrrad für kinder", "kleines rad"],
+  "jugendrad": ["jugendfahrrad", "jugend-fahrrad", "teenagerrad"],
+  "mountainbike": ["mtb", "mountain-bike", "geländerad"],
+  "trekkingrad": ["trekkingbike", "trekking-rad", "tourenrad"],
+  "tandem": ["zweisitzer", "doppelrad"],
+  "lastenrad": ["cargo-bike", "cargobike", "transportrad", "lastenfahrrad"],
+  "rennrad": ["racebike", "race-bike"],
+  "klapprad": ["faltrad", "klappfahrrad"],
+  "damenrad": ["damenfahrrad", "damen-rad", "damen fahrrad"],
+  "herrenrad": ["herrenfahrrad", "herren-rad", "herren fahrrad"],
+  "liegerad": ["liegefahrrad", "recumbent"],
+};
+
+function getSynonymeForBike(bikeName: string): string[] {
+  const lower = bikeName.toLowerCase();
+  const synonyme: string[] = [];
+  for (const [key, values] of Object.entries(FAHRRAD_SYNONYME)) {
+    if (lower.includes(key) || values.some((v) => lower.includes(v))) {
+      synonyme.push(...values.filter((v) => !lower.includes(v)));
+    }
+  }
+  // Damen/Herren-Varianten
+  if (lower.includes("damen") && lower.includes("e-bike")) {
+    synonyme.push("damen e-bike", "damen-ebike", "damen ebike", "e-bike für frauen");
+  }
+  if (lower.includes("herren") && lower.includes("e-bike")) {
+    synonyme.push("herren e-bike", "herren-ebike", "herren ebike", "e-bike für männer");
+  }
+  return [...new Set(synonyme)];
+}
+
 async function loadFahrradKatalogKontext(firmaId: string): Promise<string> {
   const [fahrraeder, extras] = await Promise.all([
     prisma.fahrrad.findMany({
@@ -509,12 +601,22 @@ async function loadFahrradKatalogKontext(firmaId: string): Promise<string> {
 
   if (fahrraeder.length === 0 && extras.length === 0) return "";
 
-  let kontext = "## Verfügbare Fahrräder & Extras\nWenn der Kunde Fahrräder erwähnt, versuche die passenden Einträge aus diesem Katalog zu referenzieren. Verwende die exakten Namen.\n";
+  let kontext = "## Verfügbare Fahrräder & Extras\nVerwende IMMER die exakten Namen aus diesem Katalog. Matche auch Synonyme, Tippfehler und umgangssprachliche Bezeichnungen auf den passenden Katalog-Eintrag.\n\n";
   if (fahrraeder.length > 0) {
-    kontext += "Fahrräder: " + fahrraeder.map((f) => `${f.name} (${f.kategorie})`).join(", ") + "\n";
+    kontext += "### Fahrräder im Katalog:\n";
+    for (const f of fahrraeder) {
+      const synonyme = getSynonymeForBike(f.name);
+      kontext += `- **${f.name}** (Kategorie: ${f.kategorie})`;
+      if (synonyme.length > 0) {
+        kontext += ` — Synonyme/Varianten: ${synonyme.join(", ")}`;
+      }
+      kontext += "\n";
+    }
+    kontext += "\n";
   }
   if (extras.length > 0) {
-    kontext += "Extras: " + extras.map((e) => `${e.name} (${e.preis}€ ${e.einheit})`).join(", ") + "\n";
+    kontext += "### Extras:\n";
+    kontext += extras.map((e) => `- ${e.name} (${e.preis}€ ${e.einheit})`).join("\n") + "\n";
   }
   return kontext;
 }
@@ -522,53 +624,185 @@ async function loadFahrradKatalogKontext(firmaId: string): Promise<string> {
 function parseFahrradAnfrageRegex(rawText: string) {
   const text = rawText;
   const kunde = parseKunde(text);
+  const year = new Date().getFullYear();
 
-  // Datum-Parsing (reuse FEWO logic)
+  const monatMap: Record<string, string> = {
+    januar: "01", februar: "02", "märz": "03", april: "04", mai: "05", juni: "06",
+    juli: "07", august: "08", september: "09", oktober: "10", november: "11", dezember: "12",
+    jan: "01", feb: "02", mär: "03", mar: "03", apr: "04", jun: "06",
+    jul: "07", aug: "08", sep: "09", okt: "10", nov: "11", dez: "12",
+  };
+
+  // Datum-Parsing — viele Formate
   let mietbeginn = "";
   let mietende = "";
-  const datumMatch = text.match(/(\d{1,2})\.?\s*[-–bis]+\s*(\d{1,2})\.?\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|[\d.]+)/i);
-  if (datumMatch) {
-    const monatMap: Record<string, string> = {
-      januar: "01", februar: "02", "märz": "03", april: "04", mai: "05", juni: "06",
-      juli: "07", august: "08", september: "09", oktober: "10", november: "11", dezember: "12",
-    };
-    const monat = monatMap[datumMatch[3].toLowerCase()] || datumMatch[3];
-    const year = new Date().getFullYear();
-    mietbeginn = `${year}-${monat.padStart(2, "0")}-${datumMatch[1].padStart(2, "0")}`;
-    mietende = `${year}-${monat.padStart(2, "0")}-${datumMatch[2].padStart(2, "0")}`;
+
+  // Format: "26.07.-02.08." oder "26.07. - 02.08." oder "26.7-2.8" oder "26.7.-2.8."
+  const ddmmMatch = text.match(/(\d{1,2})\.(\d{1,2})\.?\s*[-–bis]+\s*(\d{1,2})\.(\d{1,2})\.?/);
+  if (ddmmMatch) {
+    mietbeginn = `${year}-${ddmmMatch[2].padStart(2, "0")}-${ddmmMatch[1].padStart(2, "0")}`;
+    mietende = `${year}-${ddmmMatch[4].padStart(2, "0")}-${ddmmMatch[3].padStart(2, "0")}`;
   }
 
-  // Personen
-  let personen = 2;
-  const persMatch = text.match(/(\d+)\s*(?:Person|Erwachsen|Personen)/i);
-  if (persMatch) personen = parseInt(persMatch[1]);
-
-  // Fahrräder
-  const fahrraeder: Array<{ name: string; menge: number }> = [];
-  const bikePatterns = [
-    /(\d+)\s*(?:x\s*)?(?:E-Bike|Ebike|E Bike|Elektrorad|Pedelec)/gi,
-    /(\d+)\s*(?:x\s*)?(?:Kinderrad|Kinderfahrrad)/gi,
-    /(\d+)\s*(?:x\s*)?(?:Citybike|Stadtrad)/gi,
-    /(\d+)\s*(?:x\s*)?(?:Mountainbike|MTB)/gi,
-    /(\d+)\s*(?:x\s*)?(?:Trekkingrad)/gi,
-    /(\d+)\s*(?:x\s*)?(?:Tandem)/gi,
-    /(\d+)\s*(?:x\s*)?(?:Fahrr[äa]d|Rad|Räder)/gi,
-  ];
-  const bikeNames = ["E-Bike", "Kinderrad", "Citybike", "Mountainbike", "Trekkingrad", "Tandem", "Fahrrad"];
-  for (let i = 0; i < bikePatterns.length; i++) {
-    const matches = text.matchAll(bikePatterns[i]);
-    for (const m of matches) {
-      fahrraeder.push({ name: bikeNames[i], menge: parseInt(m[1]) || 1 });
+  // Format: "15.-22. Juli" oder "15. bis 22. Juli" oder "15-22 Juli"
+  if (!mietbeginn) {
+    const monatNameMatch = text.match(/(\d{1,2})\.?\s*[-–]?\s*(?:bis\s+)?(\d{1,2})\.?\s+(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Jan|Feb|Mär|Mar|Apr|Jun|Jul|Aug|Sep|Okt|Nov|Dez)/i);
+    if (monatNameMatch) {
+      const monat = monatMap[monatNameMatch[3].toLowerCase()] || "01";
+      mietbeginn = `${year}-${monat}-${monatNameMatch[1].padStart(2, "0")}`;
+      mietende = `${year}-${monat}-${monatNameMatch[2].padStart(2, "0")}`;
     }
   }
 
-  // Wünsche
+  // Format: "vom 15. Juli bis 22. Juli" oder "15. Juli bis 22. August"
+  if (!mietbeginn) {
+    const vonBisMatch = text.match(/(\d{1,2})\.?\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s*(?:bis|[-–])\s*(\d{1,2})\.?\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)/i);
+    if (vonBisMatch) {
+      const m1 = monatMap[vonBisMatch[2].toLowerCase()] || "01";
+      const m2 = monatMap[vonBisMatch[4].toLowerCase()] || "01";
+      mietbeginn = `${year}-${m1}-${vonBisMatch[1].padStart(2, "0")}`;
+      mietende = `${year}-${m2}-${vonBisMatch[3].padStart(2, "0")}`;
+    }
+  }
+
+  // Format: "15. Juli" (einzelnes Datum, kein Ende)
+  if (!mietbeginn) {
+    const einzelMatch = text.match(/(\d{1,2})\.?\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)/i);
+    if (einzelMatch) {
+      const monat = monatMap[einzelMatch[2].toLowerCase()] || "01";
+      mietbeginn = `${year}-${monat}-${einzelMatch[1].padStart(2, "0")}`;
+    }
+  }
+
+  // Format: "eine Woche ab ..." oder "5 Tage ab ..."
+  if (mietbeginn && !mietende) {
+    const wocheMatch = text.match(/(?:eine?\s+)?woche/i);
+    const tageMatch = text.match(/(\d+)\s*tage/i);
+    if (wocheMatch) {
+      const d = new Date(mietbeginn);
+      d.setDate(d.getDate() + 7);
+      mietende = d.toISOString().split("T")[0];
+    } else if (tageMatch) {
+      const d = new Date(mietbeginn);
+      d.setDate(d.getDate() + parseInt(tageMatch[1]));
+      mietende = d.toISOString().split("T")[0];
+    }
+  }
+
+  // Personen — erweiterte Erkennung
+  let personen = 0;
+  const persPatterns = [
+    /(\d+)\s*(?:Person|Personen|Erwachsene?|Gäste?|Leute)/i,
+    /zu\s+(?:zweit|dritt|viert|fünft|sechst)/i,
+    /(?:wir\s+sind\s+)?(\d+)\s+(?:erwachsene?|personen)/i,
+  ];
+  for (const pp of persPatterns) {
+    const m = text.match(pp);
+    if (m) {
+      if (m[1]) {
+        personen += parseInt(m[1]);
+      } else if (/zweit/i.test(m[0])) personen = 2;
+      else if (/dritt/i.test(m[0])) personen = 3;
+      else if (/viert/i.test(m[0])) personen = 4;
+      else if (/fünft/i.test(m[0])) personen = 5;
+      else if (/sechst/i.test(m[0])) personen = 6;
+      break;
+    }
+  }
+  // Kinder zählen
+  const kinderMatch = text.match(/(\d+)\s*(?:Kinder?|Kids)/i);
+  if (kinderMatch) personen += parseInt(kinderMatch[1]);
+  if (personen === 0) personen = 2; // Default
+
+  // Fahrräder — erweiterte Erkennung mit Synonymen
+  const fahrraeder: Array<{ name: string; menge: number }> = [];
+  const bikePatterns: Array<{ pattern: RegExp; name: string }> = [
+    // E-Bike Varianten (Damen/Herren zuerst, damit sie nicht als generisches E-Bike gematcht werden)
+    { pattern: /(\d+)\s*[x×]?\s*(?:damen[- ]?e[- ]?bikes?|e[- ]?bikes?\s+(?:für\s+)?damen)/gi, name: "E-Bike Damen" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:herren[- ]?e[- ]?bikes?|e[- ]?bikes?\s+(?:für\s+)?herren)/gi, name: "E-Bike Herren" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:E-Bikes?|Ebikes?|E Bikes?|Elektroräder?|Elektrofahrräder?|Pedelecs?)/gi, name: "E-Bike" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Kinderräder?|Kinderfahrräder?|Kinder-Fahrräder?)/gi, name: "Kinderrad" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Jugendräder?|Jugendfahrräder?|Teenager-?Räder?)/gi, name: "Jugendrad" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Citybikes?|City-Bikes?|Stadträder?|Hollandräder?)/gi, name: "Citybike" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Mountainbikes?|MTBs?|Mountain-Bikes?)/gi, name: "Mountainbike" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Trekkingräder?|Trekkingbikes?|Tourenräder?)/gi, name: "Trekkingrad" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Tandems?)/gi, name: "Tandem" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Lastenräder?|Cargo-?Bikes?|Transporträder?)/gi, name: "Lastenrad" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Rennräder?|Racebikes?)/gi, name: "Rennrad" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Klappräder?|Falträder?)/gi, name: "Klapprad" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Damenräder?|Damenfahrräder?)/gi, name: "Damenrad" },
+    { pattern: /(\d+)\s*[x×]?\s*(?:Herrenräder?|Herrenfahrräder?)/gi, name: "Herrenrad" },
+    // Generisch — zuletzt
+    { pattern: /(\d+)\s*[x×]?\s*(?:Fahrräder?|Räder?|Bikes?)/gi, name: "Fahrrad" },
+  ];
+
+  // Auch ohne Zahl davor: "E-Bike", "ein Kinderrad" etc.
+  const bikePatternsSingle: Array<{ pattern: RegExp; name: string }> = [
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:damen[- ]?e[- ]?bike|e[- ]?bike\s+(?:für\s+)?damen)/gi, name: "E-Bike Damen" },
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:herren[- ]?e[- ]?bike|e[- ]?bike\s+(?:für\s+)?herren)/gi, name: "E-Bike Herren" },
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:E-Bike|Ebike|Pedelec|Elektrorad)\b/gi, name: "E-Bike" },
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:Kinderrad|Kinderfahrrad)\b/gi, name: "Kinderrad" },
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:Jugendrad|Jugendfahrrad)\b/gi, name: "Jugendrad" },
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:Citybike|Stadtrad|Hollandrad)\b/gi, name: "Citybike" },
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:Mountainbike|MTB)\b/gi, name: "Mountainbike" },
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:Trekkingrad|Tourenrad)\b/gi, name: "Trekkingrad" },
+    { pattern: /(?:ein(?:en?|em)?\s+)?(?:Tandem)\b/gi, name: "Tandem" },
+  ];
+
+  const matchedRanges: Array<[number, number]> = [];
+
+  // Erst Patterns mit Zahl davor
+  for (const { pattern, name } of bikePatterns) {
+    const matches = text.matchAll(pattern);
+    for (const m of matches) {
+      const menge = parseInt(m[1]) || 1;
+      const start = m.index || 0;
+      const end = start + m[0].length;
+      // Nicht doppelt matchen
+      if (!matchedRanges.some(([s, e]) => start >= s && start < e)) {
+        const existing = fahrraeder.find((f) => f.name === name);
+        if (existing) {
+          existing.menge += menge;
+        } else {
+          fahrraeder.push({ name, menge });
+        }
+        matchedRanges.push([start, end]);
+      }
+    }
+  }
+
+  // Dann Einzelmuster (ohne Zahl) nur wenn kein Zahl-Match an der Stelle war
+  for (const { pattern, name } of bikePatternsSingle) {
+    const matches = text.matchAll(pattern);
+    for (const m of matches) {
+      const start = m.index || 0;
+      const end = start + m[0].length;
+      if (!matchedRanges.some(([s, e]) => start >= s && start < e)) {
+        const existing = fahrraeder.find((f) => f.name === name);
+        if (existing) {
+          existing.menge += 1;
+        } else {
+          fahrraeder.push({ name, menge: 1 });
+        }
+        matchedRanges.push([start, end]);
+      }
+    }
+  }
+
+  // Wünsche — erweitert
   const wuensche: string[] = [];
-  if (/helm/i.test(text)) wuensche.push("Helm");
-  if (/schloss|schlösser/i.test(text)) wuensche.push("Schloss");
-  if (/korb|körbe/i.test(text)) wuensche.push("Fahrradkorb");
+  if (/helme?(?:\b|$)/i.test(text)) wuensche.push("Helm");
+  if (/(?:schloss|schlösser|fahrradschloss|zahlenschloss)/i.test(text)) wuensche.push("Schloss");
+  if (/(?:korb|körbe|fahrradkorb|lenkerkorb)/i.test(text)) wuensche.push("Fahrradkorb");
   if (/kindersitz/i.test(text)) wuensche.push("Kindersitz");
-  if (/anhänger/i.test(text)) wuensche.push("Anhänger");
+  if (/(?:anhänger|fahrradanhänger|kinderanhänger)/i.test(text)) wuensche.push("Anhänger");
+  if (/(?:gps|navi(?:gation)?)/i.test(text)) wuensche.push("GPS");
+  if (/(?:gepäcktasche|satteltasche|packtasche)/i.test(text)) wuensche.push("Gepäcktasche");
+  if (/(?:regencape|regenponcho|regenschutz)/i.test(text)) wuensche.push("Regenschutz");
+  if (/(?:luftpumpe|pumpe)/i.test(text)) wuensche.push("Luftpumpe");
+  if (/(?:flickzeug|reparaturset)/i.test(text)) wuensche.push("Flickzeug");
+  if (/(?:klingel)/i.test(text)) wuensche.push("Klingel");
+  if (/(?:licht|beleuchtung|lampe)/i.test(text)) wuensche.push("Licht");
 
   return {
     kunde,
@@ -579,7 +813,7 @@ function parseFahrradAnfrageRegex(rawText: string) {
     wuensche,
     confidence: {
       kunde: kunde.name ? 50 : 15,
-      raeume: mietbeginn ? 60 : (fahrraeder.length > 0 ? 40 : 10),
+      raeume: mietbeginn && mietende ? 60 : mietbeginn ? 40 : (fahrraeder.length > 0 ? 40 : 10),
       optionen: 40,
     },
   };
