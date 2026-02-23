@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, X } from "lucide-react";
 
 interface FahrradPreis {
   id: string;
@@ -29,6 +29,12 @@ interface Fahrrad {
   aktiv: boolean;
   preisProWeitererTag: number | null;
   preise: FahrradPreis[];
+}
+
+interface AuscheckPreis {
+  id: string;
+  kategorie: string;
+  preisOptionen: number[];
 }
 
 const TAGE = Array.from({ length: 14 }, (_, i) => i + 1);
@@ -51,10 +57,20 @@ export default function FahrraederPage() {
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState("");
 
+  // Auscheck-Tag Preise
+  const [auscheckPreise, setAuscheckPreise] = useState<AuscheckPreis[]>([]);
+  const [auscheckEdits, setAuscheckEdits] = useState<Record<string, { optionen: string[]; newVal: string }>>({});
+  const [auscheckSaving, setAuscheckSaving] = useState<string | null>(null);
+
   const loadData = useCallback(async () => {
-    const res = await fetch("/api/fahrraeder");
-    const data = await res.json();
+    const [fahrRes, auscheckRes] = await Promise.all([
+      fetch("/api/fahrraeder"),
+      fetch("/api/auscheck-preise"),
+    ]);
+    const data = await fahrRes.json();
     if (Array.isArray(data)) setFahrraeder(data);
+    const auscheckData = await auscheckRes.json();
+    if (Array.isArray(auscheckData)) setAuscheckPreise(auscheckData);
     setLoading(false);
   }, []);
 
@@ -140,6 +156,43 @@ export default function FahrraederPage() {
   function getPreis(f: Fahrrad, tag: number): number | null {
     const p = f.preise.find((p) => p.tag === tag);
     return p ? p.gesamtpreis : null;
+  }
+
+  // Auscheck-Tag helpers
+  function getAuscheckEdit(kat: string) {
+    if (auscheckEdits[kat]) return auscheckEdits[kat];
+    const existing = auscheckPreise.find((a) => a.kategorie === kat);
+    return {
+      optionen: existing ? existing.preisOptionen.map(String) : [],
+      newVal: "",
+    };
+  }
+
+  function setAuscheckEdit(kat: string, edit: { optionen: string[]; newVal: string }) {
+    setAuscheckEdits((prev) => ({ ...prev, [kat]: edit }));
+  }
+
+  async function saveAuscheckPreis(kat: string) {
+    const edit = getAuscheckEdit(kat);
+    const preisOptionen = edit.optionen.map(Number).filter((n) => n > 0).sort((a, b) => a - b);
+    setAuscheckSaving(kat);
+    const res = await fetch("/api/auscheck-preise", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kategorie: kat, preisOptionen }),
+    });
+    if (res.ok) {
+      toast.success(`Auscheck-Preise für ${kat} gespeichert`);
+      setAuscheckEdits((prev) => {
+        const next = { ...prev };
+        delete next[kat];
+        return next;
+      });
+      loadData();
+    } else {
+      toast.error("Fehler beim Speichern");
+    }
+    setAuscheckSaving(null);
   }
 
   const kategorien = [...new Set(fahrraeder.map((f) => f.kategorie).filter(Boolean))];
@@ -246,6 +299,104 @@ export default function FahrraederPage() {
           </div>
         )}
       </div>
+
+      {/* Auscheck-Tag Preise */}
+      {kategorien.length > 0 && fahrraeder.length > 0 && (
+        <div className="px-8 pb-8 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Auscheck-Tag Preise</h2>
+            <p className="text-sm text-muted-foreground">
+              Optionale Brutto-Preise pro Kategorie für den letzten Miettag (Auscheck-Tag). Kunden können im Formular eine Option auswählen.
+            </p>
+          </div>
+          {kategorien.map((kat) => {
+            const edit = getAuscheckEdit(kat);
+            const existing = auscheckPreise.find((a) => a.kategorie === kat);
+            const hasChanges = auscheckEdits[kat] !== undefined;
+            return (
+              <div key={kat} className="rounded-lg border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{kat}</Badge>
+                    {existing && existing.preisOptionen.length > 0 && !hasChanges && (
+                      <span className="text-xs text-muted-foreground">
+                        {existing.preisOptionen.map((p) => formatEuro(p)).join(", ")}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => saveAuscheckPreis(kat)}
+                    disabled={auscheckSaving === kat || (!hasChanges && !!existing)}
+                  >
+                    {auscheckSaving === kat && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+                    Speichern
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {edit.optionen.map((val, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-1 rounded-full bg-primary/10 text-primary px-3 py-1 text-sm font-medium"
+                    >
+                      {formatEuro(parseFloat(val))}
+                      <button
+                        type="button"
+                        className="ml-0.5 hover:text-destructive"
+                        onClick={() => {
+                          const optionen = [...edit.optionen];
+                          optionen.splice(idx, 1);
+                          setAuscheckEdit(kat, { ...edit, optionen });
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={edit.newVal}
+                      onChange={(e) => setAuscheckEdit(kat, { ...edit, newVal: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const val = parseFloat(edit.newVal);
+                          if (val > 0) {
+                            setAuscheckEdit(kat, {
+                              optionen: [...edit.optionen, edit.newVal],
+                              newVal: "",
+                            });
+                          }
+                        }
+                      }}
+                      placeholder="Preis"
+                      className="h-8 w-24"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        const val = parseFloat(edit.newVal);
+                        if (val > 0) {
+                          setAuscheckEdit(kat, {
+                            optionen: [...edit.optionen, edit.newVal],
+                            newVal: "",
+                          });
+                        }
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

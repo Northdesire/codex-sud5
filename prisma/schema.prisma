@@ -78,6 +78,7 @@ model Firma {
   fewoExtras      FewoExtra[]
   fahrraeder         Fahrrad[]
   fahrradExtras      FahrradExtra[]
+  auscheckPreise     AuscheckPreis[]
 }
 
 // ═══════════════════════════════════════════
@@ -687,4 +688,15 @@ model FahrradExtra {
   aktiv     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model AuscheckPreis {
+  id            String   @id @default(cuid())
+  firmaId       String
+  firma         Firma    @relation(fields: [firmaId], references: [id], onDelete: Cascade)
+  kategorie     String
+  preisOptionen Float[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@unique([firmaId, kategorie])
 }
