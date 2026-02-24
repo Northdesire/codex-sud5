@@ -114,19 +114,31 @@ function buildPDF(data: PDFData, JsPDF: any): InstanceType<typeof jsPDF> {
   // ═══ HEADER: Firma ═══
   y = 15;
 
-  // Logo (if available)
+  let logoRendered = false;
   if (data.firma?.logoUrl) {
     try {
-      doc.addImage(data.firma.logoUrl, "AUTO", pageWidth - mR - 40, 10, 40, 14);
-    } catch {
-      // Ignore logo errors
+      // Format aus Data-URL ableiten
+      const logoUrl = data.firma.logoUrl;
+      let fmt: "PNG" | "JPEG" = "PNG";
+      if (logoUrl.includes("image/jpeg") || logoUrl.includes("image/jpg")) fmt = "JPEG";
+      // Logo anstelle des Firmennamens (links oben, groß)
+      const logoMaxW = 60;
+      const logoMaxH = 18;
+      doc.addImage(logoUrl, fmt, mL, y - 5, logoMaxW, logoMaxH);
+      logoRendered = true;
+      y += logoMaxH - 2;
+    } catch (e) {
+      console.error("Logo render error:", e);
+      // Logo fehlgeschlagen — Fallback auf Text
     }
   }
 
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(30, 30, 30);
-  doc.text(data.firma?.firmenname || "Angebot", mL, y);
+  if (!logoRendered) {
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30);
+    doc.text(data.firma?.firmenname || "Angebot", mL, y);
+  }
 
   if (data.firma) {
     y += 5;
