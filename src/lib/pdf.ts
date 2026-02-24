@@ -313,7 +313,8 @@ function buildPDF(data: PDFData, JsPDF: any): InstanceType<typeof jsPDF> {
 
   // Render sections
   if (produkte.length > 0) {
-    renderSectionHeader("Unterkunft");
+    const isFahrrad = produkte.some((p) => p.bezeichnung.includes("×"));
+    renderSectionHeader(isFahrrad ? "Fahrräder" : "Unterkunft");
     for (const p of produkte) renderRow(p);
   }
 
