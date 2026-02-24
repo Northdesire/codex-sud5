@@ -64,6 +64,9 @@ E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchs
 - Telefonnummer, E-Mail-Adresse
 - Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
 
+### 4. erkannterText
+Gib den Originaltext der Anfrage wörtlich zurück. Bei Screenshots/Bildern: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext unverändert zurückgeben.
+
 WICHTIG:
 - Dezimalpunkte verwenden (3.5 nicht 3,5)
 - Leere Strings "" für fehlende Felder, NICHT null
@@ -114,8 +117,8 @@ const SHOP_RESPONSE_FORMAT = {
           required: ["kunde", "raeume", "optionen"],
           additionalProperties: false,
         },
+        erkannterText: { type: "string" },
       },
-        erkannterText: { type: "string", description: "Wörtliche Transkription des Originaltextes aus dem Bild/der Nachricht. Bei Screenshots: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext zurückgeben." },
       required: ["kunde", "produkte", "confidence", "erkannterText"],
       additionalProperties: false,
     },
@@ -162,6 +165,7 @@ function parseShopAnfrageRegex(rawText: string) {
   return {
     kunde,
     produkte,
+    erkannterText: rawText,
     confidence: {
       kunde: kunde.name ? 50 : 15,
       raeume: produkte.length > 0 ? 50 : 10,
@@ -238,6 +242,9 @@ E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchs
 - Telefonnummer, E-Mail-Adresse
 - Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
 
+### 4. erkannterText
+Gib den Originaltext der Anfrage wörtlich zurück. Bei Screenshots/Bildern: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext unverändert zurückgeben.
+
 WICHTIG:
 - Dezimalpunkte verwenden
 - Leere Strings "" für fehlende Felder, NICHT null
@@ -285,8 +292,8 @@ const FEWO_RESPONSE_FORMAT = {
           required: ["kunde", "raeume", "optionen"],
           additionalProperties: false,
         },
+        erkannterText: { type: "string" },
       },
-        erkannterText: { type: "string", description: "Wörtliche Transkription des Originaltextes aus dem Bild/der Nachricht. Bei Screenshots: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext zurückgeben." },
       required: ["kunde", "anreise", "abreise", "personen", "hund", "wuensche", "confidence", "erkannterText"],
       additionalProperties: false,
     },
@@ -365,6 +372,7 @@ function parseFewoAnfrageRegex(rawText: string) {
     personen,
     hund,
     wuensche,
+    erkannterText: rawText,
     confidence: {
       kunde: kunde.name ? 50 : 15,
       raeume: anreise ? 60 : 10,
@@ -546,7 +554,10 @@ WICHTIG:
 - Daten im Format YYYY-MM-DD (z.B. "${currentYear}-07-15")
 - Wenn kein Jahr genannt wird, IMMER das aktuelle Jahr ${currentYear} nehmen
 - LIES DEN TEXT KOMPLETT BIS ZUM LETZTEN ZEICHEN — übersehe keine Fahrräder, keine Daten, keine Kundendaten, keine Extras
-- Wenn ein Katalog bereitgestellt wird, matche Synonyme auf exakte Katalognamen`;
+- Wenn ein Katalog bereitgestellt wird, matche Synonyme auf exakte Katalognamen
+
+### 6. erkannterText
+Gib den Originaltext der Anfrage wörtlich zurück. Bei Screenshots/Bildern: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext unverändert zurückgeben.`;
 }
 
 const FAHRRAD_RESPONSE_FORMAT = {
@@ -599,8 +610,8 @@ const FAHRRAD_RESPONSE_FORMAT = {
           required: ["kunde", "raeume", "optionen"],
           additionalProperties: false,
         },
+        erkannterText: { type: "string" },
       },
-        erkannterText: { type: "string", description: "Wörtliche Transkription des Originaltextes aus dem Bild/der Nachricht. Bei Screenshots: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext zurückgeben." },
       required: ["kunde", "mietbeginn", "mietende", "personen", "fahrraeder", "wuensche", "confidence", "erkannterText"],
       additionalProperties: false,
     },
@@ -873,6 +884,7 @@ function parseFahrradAnfrageRegex(rawText: string) {
     personen,
     fahrraeder,
     wuensche,
+    erkannterText: rawText,
     confidence: {
       kunde: kunde.name ? 50 : 15,
       raeume: mietbeginn && mietende ? 60 : mietbeginn ? 40 : (fahrraeder.length > 0 ? 40 : 10),
@@ -984,7 +996,10 @@ WICHTIG:
 - Leere Strings "" für fehlende Felder, NICHT null
 - Confidence IMMER als ganze Zahl 0-100 angeben
 - Bei Spracheingaben großzügig interpretieren
-- Wenn m² angegeben statt Maße: typ = "FLAECHE" verwenden`;
+- Wenn m² angegeben statt Maße: typ = "FLAECHE" verwenden
+
+### 6. erkannterText
+Gib den Originaltext der Anfrage wörtlich zurück. Bei Screenshots/Bildern: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext unverändert zurückgeben.`;
 
 const RESPONSE_FORMAT = {
   type: "json_schema" as const,
@@ -1064,8 +1079,8 @@ const RESPONSE_FORMAT = {
           required: ["kunde", "raeume", "optionen"],
           additionalProperties: false,
         },
+        erkannterText: { type: "string" },
       },
-        erkannterText: { type: "string", description: "Wörtliche Transkription des Originaltextes aus dem Bild/der Nachricht. Bei Screenshots: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext zurückgeben." },
       required: ["kunde", "arbeitsbereiche", "qualitaet", "extras", "confidence", "erkannterText"],
       additionalProperties: false,
     },
@@ -1466,6 +1481,7 @@ function parseAnfrageRegex(rawText: string) {
     arbeitsbereiche,
     qualitaet,
     extras,
+    erkannterText: rawText,
     confidence: {
       kunde: kunde.name ? (isVoice ? 40 : 60) : 15,
       raeume: arbeitsbereiche.length > 0 ? (isVoice ? 35 : 55) : 10,
