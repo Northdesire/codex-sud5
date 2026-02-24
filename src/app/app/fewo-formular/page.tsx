@@ -74,6 +74,7 @@ export default function FewoFormularPage() {
   const [sending, setSending] = useState(false);
   const [editAngebotId, setEditAngebotId] = useState<string | null>(null);
   const [originalText, setOriginalText] = useState("");
+  const [originalImage, setOriginalImage] = useState("");
   const [showOriginalText, setShowOriginalText] = useState(false);
 
   // Stammdaten
@@ -274,6 +275,11 @@ export default function FewoFormularPage() {
     if (aiOriginal) {
       setOriginalText(aiOriginal);
       sessionStorage.removeItem("ai-originaltext");
+    }
+    const aiImage = sessionStorage.getItem("ai-originalimage");
+    if (aiImage) {
+      setOriginalImage(aiImage);
+      sessionStorage.removeItem("ai-originalimage");
     }
   }, []);
 
@@ -726,7 +732,7 @@ export default function FewoFormularPage() {
       </div>
 
       {/* Originaltext der Anfrage */}
-      {originalText && (
+      {(originalText || originalImage) && (
         <Card>
           <button
             onClick={() => setShowOriginalText(!showOriginalText)}
@@ -743,10 +749,15 @@ export default function FewoFormularPage() {
             )}
           </button>
           {showOriginalText && (
-            <CardContent className="pt-0 pb-4 px-5">
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                {originalText}
-              </p>
+            <CardContent className="pt-0 pb-4 px-5 space-y-3">
+              {originalImage && (
+                <img src={originalImage} alt="Anfrage" className="rounded-md max-h-64 object-contain" />
+              )}
+              {originalText && (
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                  {originalText}
+                </p>
+              )}
             </CardContent>
           )}
         </Card>

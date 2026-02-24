@@ -387,7 +387,10 @@ export default function AIEingabePage() {
   function handleUebernehmen() {
     if (!ergebnis) return;
     sessionStorage.setItem("ai-ergebnis", JSON.stringify(ergebnis));
-    sessionStorage.setItem("ai-originaltext", text);
+    sessionStorage.setItem("ai-originaltext", text || "");
+    if (imagePreview) {
+      sessionStorage.setItem("ai-originalimage", imagePreview);
+    }
     if (isFahrrad) {
       router.push("/app/fahrrad-formular");
     } else if (isFewo) {
