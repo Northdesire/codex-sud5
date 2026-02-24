@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Plus, Trash2, Rocket, ArrowLeft, Save, Download, AlertTriangle } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, ArrowLeft, Save, Download, AlertTriangle, MessageSquareText, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
@@ -51,6 +51,8 @@ export default function ShopFormularPage() {
     name: "", strasse: "", plz: "", ort: "", email: "", telefon: "",
   });
   const [mwstSatz, setMwstSatz] = useState(19);
+  const [originalText, setOriginalText] = useState("");
+  const [showOriginalText, setShowOriginalText] = useState(false);
 
   // Produkte und AI-Ergebnis laden
   useEffect(() => {
@@ -96,6 +98,12 @@ export default function ShopFormularPage() {
       } catch {
         // ignore
       }
+    }
+
+    const aiOriginal = sessionStorage.getItem("ai-originaltext");
+    if (aiOriginal) {
+      setOriginalText(aiOriginal);
+      sessionStorage.removeItem("ai-originaltext");
     }
   }, []);
 
@@ -322,6 +330,33 @@ export default function ShopFormularPage() {
           </p>
         </div>
       </div>
+
+      {/* Originaltext der Anfrage */}
+      {originalText && (
+        <Card>
+          <button
+            onClick={() => setShowOriginalText(!showOriginalText)}
+            className="w-full flex items-center justify-between px-5 py-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Ihre Anfrage</span>
+            </div>
+            {showOriginalText ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+          {showOriginalText && (
+            <CardContent className="pt-0 pb-4 px-5">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {originalText}
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* Kundendaten */}
       <Card>

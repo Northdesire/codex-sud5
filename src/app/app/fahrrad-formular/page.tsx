@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Bike, Percent, Plus, Trash2, Mail, Minus } from "lucide-react";
+import { Loader2, ArrowLeft, Save, Download, CalendarDays, Users, Bike, Percent, Plus, Trash2, Mail, Minus, MessageSquareText, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { formatEuro } from "@/lib/kalkulation";
 
@@ -53,6 +53,8 @@ export default function FahrradFormularPage() {
   const [savedAngebotId, setSavedAngebotId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [editAngebotId, setEditAngebotId] = useState<string | null>(null);
+  const [originalText, setOriginalText] = useState("");
+  const [showOriginalText, setShowOriginalText] = useState(false);
 
   // Stammdaten
   const [fahrraeder, setFahrraeder] = useState<Fahrrad[]>([]);
@@ -253,6 +255,11 @@ export default function FahrradFormularPage() {
         // ignore
       }
       sessionStorage.removeItem("ai-ergebnis");
+    }
+
+    const aiOriginal = sessionStorage.getItem("ai-originaltext");
+    if (aiOriginal) {
+      setOriginalText(aiOriginal);
       sessionStorage.removeItem("ai-originaltext");
     }
 
@@ -661,6 +668,33 @@ export default function FahrradFormularPage() {
           </p>
         </div>
       </div>
+
+      {/* Originaltext der Anfrage */}
+      {originalText && (
+        <Card>
+          <button
+            onClick={() => setShowOriginalText(!showOriginalText)}
+            className="w-full flex items-center justify-between px-5 py-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Ihre Anfrage</span>
+            </div>
+            {showOriginalText ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+          {showOriginalText && (
+            <CardContent className="pt-0 pb-4 px-5">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {originalText}
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* Kundendaten */}
       <Card>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Trash2, Rocket, Ruler, SquareIcon, ArrowLeft, Truck, X, AlertTriangle } from "lucide-react";
+import { Loader2, Plus, Trash2, Rocket, Ruler, SquareIcon, ArrowLeft, Truck, X, AlertTriangle, MessageSquareText, ChevronUp, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -167,6 +167,8 @@ function findPreis(leistungen: LeistungInfo[], arbeitKey: ArbeitKey, qualitaet?:
 export default function FormularClient() {
   const router = useRouter();
   const [generiert, setGeneriert] = useState(false);
+  const [originalText, setOriginalText] = useState("");
+  const [showOriginalText, setShowOriginalText] = useState(false);
   const [bereiche, setBereiche] = useState<Arbeitsbereich[]>([{ ...LEER_BEREICH, name: "Wohnzimmer" }]);
   const [qualitaet, setQualitaet] = useState<"standard" | "premium">("standard");
   const [kunde, setKunde] = useState<Kunde>({ name: "", strasse: "", plz: "", ort: "", email: "", telefon: "" });
@@ -257,6 +259,11 @@ export default function FormularClient() {
         }
 
         sessionStorage.removeItem("ai-ergebnis");
+        const aiOriginal = sessionStorage.getItem("ai-originaltext");
+        if (aiOriginal) {
+          setOriginalText(aiOriginal);
+          sessionStorage.removeItem("ai-originaltext");
+        }
         toast.success("AI-Daten übernommen");
         return; // AI-Daten haben Vorrang, kein Draft laden
       } catch {
@@ -441,6 +448,33 @@ export default function FormularClient() {
           </p>
         </div>
       </div>
+
+      {/* Originaltext der Anfrage */}
+      {originalText && (
+        <Card>
+          <button
+            onClick={() => setShowOriginalText(!showOriginalText)}
+            className="w-full flex items-center justify-between px-5 py-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Ihre Anfrage</span>
+            </div>
+            {showOriginalText ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+          {showOriginalText && (
+            <CardContent className="pt-0 pb-4 px-5">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {originalText}
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* Kundendaten */}
       <Card>
