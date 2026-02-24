@@ -57,12 +57,57 @@ Für jedes genannte Produkt:
 - "Dell XPS 15 16GB" → name: "Laptop Dell XPS 15 16GB"
 - Abkürzungen auflösen wo sinnvoll
 
-### E-Mail-Footer / Signatur — SEHR WICHTIG
-E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchsuche den GESAMTEN Text — insbesondere die letzten Zeilen — nach:
-- Name (oft nach "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße" etc.)
-- Adresse (Straße + Hausnummer, PLZ + Ort) — oft auf separaten Zeilen untereinander
-- Telefonnummer, E-Mail-Adresse
-- Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
+### E-Mail-Footer / Signatur — HÖCHSTE PRIORITÄT FÜR KUNDENDATEN
+Kundenanfragen kommen fast immer per E-Mail. Die Absenderinformationen (Name, Adresse, Telefon, E-Mail) stehen MEISTENS am ENDE des Textes in der E-Mail-Signatur/Footer. Du MUSST den gesamten Text bis zum letzten Zeichen lesen!
+
+**Wo Kundendaten typischerweise stehen:**
+1. Nach einer Grußformel: "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße", "Herzliche Grüße", "Gruß", "VG"
+2. Am Ende des Textes als mehrzeiliger Block
+3. Manchmal durch Leerzeilen, "---", oder "__" vom Haupttext getrennt
+
+**Typische Footer-Formate die du ERKENNEN MUSST:**
+Format A (klassisch):
+  Mit freundlichen Grüßen
+  Max Mustermann
+  Musterstraße 12
+  12345 Musterstadt
+  Tel.: 0123/456789
+  max@example.de
+
+Format B (kompakt):
+  Viele Grüße, Max Mustermann | Musterstr. 12, 12345 Musterstadt
+
+Format C (mit Firma):
+  Firma GmbH
+  Max Mustermann
+  Hauptstr. 5
+  26548 Norderney
+
+Format D (gesendet von):
+  Gesendet von meinem iPhone
+  Max Mustermann
+  max@example.de
+
+**REGELN:**
+- Wenn im Fließtext (oben) KEINE Kundendaten stehen, aber im Footer welche erkennbar sind → verwende die Footer-Daten
+- Wenn im Fließtext UND im Footer Daten stehen → bevorzuge Footer-Daten für Adresse/Telefon/E-Mail (diese sind normalerweise vollständiger und aktueller)
+- Extrahiere den VOLLSTÄNDIGEN Namen (inkl. Doppelnamen mit Bindestrich, Vor- UND Nachname)
+- Straße IMMER mit Hausnummer erfassen
+
+### Kundenname-Erkennung
+- "Familie Müller" → "Familie Müller"
+- "Anja Pohl-Lange, Andreas Lange" → "Anja Pohl-Lange, Andreas Lange"
+- "MfG Herr Schmidt" → "Herr Schmidt"
+- Auch am Ende des Textes nach Grußformel suchen
+- Doppelnamen mit Bindestrich beachten
+- Vor- UND Nachname extrahieren (nicht nur Nachname)
+
+### Telefonnummer-Erkennung
+- "+49 151 41438558" → "+49 151 41438558"
+- "0151 41438558" → "0151 41438558"
+- "Tel.: 04932/12345" → "04932/12345"
+- "Mobil: 0170-1234567" → "0170-1234567"
+- Alle gängigen deutschen Formate erkennen (mit/ohne Leerzeichen, Schrägstrich, Bindestrich)
 
 ### 4. erkannterText
 Gib den Originaltext der Anfrage wörtlich zurück. Bei Screenshots/Bildern: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext unverändert zurückgeben.
@@ -70,7 +115,8 @@ Gib den Originaltext der Anfrage wörtlich zurück. Bei Screenshots/Bildern: den
 WICHTIG:
 - Dezimalpunkte verwenden (3.5 nicht 3,5)
 - Leere Strings "" für fehlende Felder, NICHT null
-- Confidence IMMER als ganze Zahl 0-100 angeben`;
+- Confidence IMMER als ganze Zahl 0-100 angeben
+- LIES DEN TEXT KOMPLETT BIS ZUM LETZTEN ZEICHEN — übersehe keine Kundendaten`;
 
 const SHOP_RESPONSE_FORMAT = {
   type: "json_schema" as const,
@@ -235,12 +281,57 @@ Extrahiere folgende Informationen:
 - "Endreinigung" → in wuensche
 - "Bettwäsche", "Handtücher" → in wuensche
 
-### E-Mail-Footer / Signatur — SEHR WICHTIG
-E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchsuche den GESAMTEN Text — insbesondere die letzten Zeilen — nach:
-- Name (oft nach "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße" etc.)
-- Adresse (Straße + Hausnummer, PLZ + Ort) — oft auf separaten Zeilen untereinander
-- Telefonnummer, E-Mail-Adresse
-- Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
+### E-Mail-Footer / Signatur — HÖCHSTE PRIORITÄT FÜR KUNDENDATEN
+Gästeanfragen kommen fast immer per E-Mail. Die Absenderinformationen (Name, Adresse, Telefon, E-Mail) stehen MEISTENS am ENDE des Textes in der E-Mail-Signatur/Footer. Du MUSST den gesamten Text bis zum letzten Zeichen lesen!
+
+**Wo Kundendaten typischerweise stehen:**
+1. Nach einer Grußformel: "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße", "Herzliche Grüße", "Gruß", "VG"
+2. Am Ende des Textes als mehrzeiliger Block
+3. Manchmal durch Leerzeilen, "---", oder "__" vom Haupttext getrennt
+
+**Typische Footer-Formate die du ERKENNEN MUSST:**
+Format A (klassisch):
+  Mit freundlichen Grüßen
+  Max Mustermann
+  Musterstraße 12
+  12345 Musterstadt
+  Tel.: 0123/456789
+  max@example.de
+
+Format B (kompakt):
+  Viele Grüße, Max Mustermann | Musterstr. 12, 12345 Musterstadt
+
+Format C (mit Firma):
+  Firma GmbH
+  Max Mustermann
+  Hauptstr. 5
+  26548 Norderney
+
+Format D (gesendet von):
+  Gesendet von meinem iPhone
+  Max Mustermann
+  max@example.de
+
+**REGELN:**
+- Wenn im Fließtext (oben) KEINE Kundendaten stehen, aber im Footer welche erkennbar sind → verwende die Footer-Daten
+- Wenn im Fließtext UND im Footer Daten stehen → bevorzuge Footer-Daten für Adresse/Telefon/E-Mail (diese sind normalerweise vollständiger und aktueller)
+- Extrahiere den VOLLSTÄNDIGEN Namen (inkl. Doppelnamen mit Bindestrich, Vor- UND Nachname)
+- Straße IMMER mit Hausnummer erfassen
+
+### Kundenname-Erkennung
+- "Familie Müller" → "Familie Müller"
+- "Anja Pohl-Lange, Andreas Lange" → "Anja Pohl-Lange, Andreas Lange"
+- "MfG Herr Schmidt" → "Herr Schmidt"
+- Auch am Ende des Textes nach Grußformel suchen
+- Doppelnamen mit Bindestrich beachten
+- Vor- UND Nachname extrahieren (nicht nur Nachname)
+
+### Telefonnummer-Erkennung
+- "+49 151 41438558" → "+49 151 41438558"
+- "0151 41438558" → "0151 41438558"
+- "Tel.: 04932/12345" → "04932/12345"
+- "Mobil: 0170-1234567" → "0170-1234567"
+- Alle gängigen deutschen Formate erkennen (mit/ohne Leerzeichen, Schrägstrich, Bindestrich)
 
 ### 4. erkannterText
 Gib den Originaltext der Anfrage wörtlich zurück. Bei Screenshots/Bildern: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext unverändert zurückgeben.
@@ -250,7 +341,8 @@ WICHTIG:
 - Leere Strings "" für fehlende Felder, NICHT null
 - Confidence IMMER als ganze Zahl 0-100 angeben
 - Daten im Format YYYY-MM-DD (z.B. "${currentYear}-07-15")
-- Wenn kein Jahr genannt wird, IMMER das aktuelle Jahr ${currentYear} nehmen`;
+- Wenn kein Jahr genannt wird, IMMER das aktuelle Jahr ${currentYear} nehmen
+- LIES DEN TEXT KOMPLETT BIS ZUM LETZTEN ZEICHEN — übersehe keine Kundendaten`;
 }
 
 const FEWO_RESPONSE_FORMAT = {
@@ -984,12 +1076,57 @@ Typische Extras:
 - "weiß streichen" / "alles weiß" = Standard-Wandfarbe
 - "farbig" / "Akzent" / "Farbton" = Premium
 
-### E-Mail-Footer / Signatur — SEHR WICHTIG
-E-Mails haben oft am Ende eine Signatur/Footer mit Absender-Kontaktdaten. Durchsuche den GESAMTEN Text — insbesondere die letzten Zeilen — nach:
-- Name (oft nach "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße" etc.)
-- Adresse (Straße + Hausnummer, PLZ + Ort) — oft auf separaten Zeilen untereinander
-- Telefonnummer, E-Mail-Adresse
-- Wenn im Fließtext KEINE Kundendaten stehen, aber im Footer/Signatur-Block welche erkennbar sind, verwende DIESE
+### E-Mail-Footer / Signatur — HÖCHSTE PRIORITÄT FÜR KUNDENDATEN
+Kundenanfragen kommen fast immer per E-Mail. Die Absenderinformationen (Name, Adresse, Telefon, E-Mail) stehen MEISTENS am ENDE des Textes in der E-Mail-Signatur/Footer. Du MUSST den gesamten Text bis zum letzten Zeichen lesen!
+
+**Wo Kundendaten typischerweise stehen:**
+1. Nach einer Grußformel: "Mit freundlichen Grüßen", "Viele Grüße", "LG", "MfG", "Beste Grüße", "Herzliche Grüße", "Gruß", "VG"
+2. Am Ende des Textes als mehrzeiliger Block
+3. Manchmal durch Leerzeilen, "---", oder "__" vom Haupttext getrennt
+
+**Typische Footer-Formate die du ERKENNEN MUSST:**
+Format A (klassisch):
+  Mit freundlichen Grüßen
+  Max Mustermann
+  Musterstraße 12
+  12345 Musterstadt
+  Tel.: 0123/456789
+  max@example.de
+
+Format B (kompakt):
+  Viele Grüße, Max Mustermann | Musterstr. 12, 12345 Musterstadt
+
+Format C (mit Firma):
+  Firma GmbH
+  Max Mustermann
+  Hauptstr. 5
+  26548 Norderney
+
+Format D (gesendet von):
+  Gesendet von meinem iPhone
+  Max Mustermann
+  max@example.de
+
+**REGELN:**
+- Wenn im Fließtext (oben) KEINE Kundendaten stehen, aber im Footer welche erkennbar sind → verwende die Footer-Daten
+- Wenn im Fließtext UND im Footer Daten stehen → bevorzuge Footer-Daten für Adresse/Telefon/E-Mail (diese sind normalerweise vollständiger und aktueller)
+- Extrahiere den VOLLSTÄNDIGEN Namen (inkl. Doppelnamen mit Bindestrich, Vor- UND Nachname)
+- Straße IMMER mit Hausnummer erfassen
+
+### Kundenname-Erkennung
+- "Familie Müller" → "Familie Müller"
+- "Anja Pohl-Lange, Andreas Lange" → "Anja Pohl-Lange, Andreas Lange"
+- "MfG Herr Schmidt" → "Herr Schmidt"
+- Auch am Ende des Textes nach Grußformel suchen
+- Doppelnamen mit Bindestrich beachten
+- Vor- UND Nachname extrahieren (nicht nur Nachname)
+
+### Telefonnummer-Erkennung
+- "+49 151 41438558" → "+49 151 41438558"
+- "0151 41438558" → "0151 41438558"
+- "Tel.: 04932/12345" → "04932/12345"
+- "Mobil: 0170-1234567" → "0170-1234567"
+- Alle gängigen deutschen Formate erkennen (mit/ohne Leerzeichen, Schrägstrich, Bindestrich)
 
 WICHTIG:
 - Dezimalpunkte verwenden (3.5 nicht 3,5)
@@ -997,6 +1134,7 @@ WICHTIG:
 - Confidence IMMER als ganze Zahl 0-100 angeben
 - Bei Spracheingaben großzügig interpretieren
 - Wenn m² angegeben statt Maße: typ = "FLAECHE" verwenden
+- LIES DEN TEXT KOMPLETT BIS ZUM LETZTEN ZEICHEN — übersehe keine Kundendaten
 
 ### 6. erkannterText
 Gib den Originaltext der Anfrage wörtlich zurück. Bei Screenshots/Bildern: den sichtbaren Text 1:1 abtippen. Bei reinem Text: den Originaltext unverändert zurückgeben.`;
@@ -1250,23 +1388,23 @@ export async function POST(request: Request) {
         userContent.push({
           type: "text",
           text: isFahrrad
-            ? `Der Kunde hat folgende Anfrage geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere Mietdaten, gewünschte Fahrräder und Extras.`
+            ? `Der Kunde hat folgende Anfrage geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere ALLE Daten: Kundendaten (Name, Adresse, Telefon, E-Mail — besonders aus Signatur/Footer!), Mietdaten, gewünschte Fahrräder und Extras. Lies den GESAMTEN Text bis zum letzten Zeichen.`
             : isFewo
-              ? `Der Gast hat folgende Anfrage geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere Reisedaten, Personen und Wünsche.`
+              ? `Der Gast hat folgende Anfrage geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere ALLE Daten: Kundendaten (Name, Adresse, Telefon, E-Mail — besonders aus Signatur/Footer!), Reisedaten, Personen und Wünsche. Lies den GESAMTEN Text bis zum letzten Zeichen.`
               : isShop
-                ? `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere alle Produkte mit Mengen und Preisen.`
-                : `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen.`,
+                ? `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere ALLE Daten: Kundendaten (Name, Adresse, Telefon, E-Mail — besonders aus Signatur/Footer!), sowie alle Produkte mit Mengen und Preisen. Lies den GESAMTEN Text bis zum letzten Zeichen.`
+                : `Der Kunde hat zusätzlich diesen Text geschrieben:\n\n${textPart}\n\nAnalysiere den Text und das Bild zusammen. Extrahiere ALLE Daten: Kundendaten (Name, Adresse, Telefon, E-Mail — besonders aus Signatur/Footer!), Räume, Arbeiten und Extras. Lies den GESAMTEN Text bis zum letzten Zeichen.`,
         });
       } else {
         userContent.push({
           type: "text",
           text: isFahrrad
-            ? "Analysiere diese Kundenanfrage für einen Fahrradverleih. Extrahiere Mietdaten, gewünschte Fahrräder und Extras:"
+            ? "Analysiere diese Kundenanfrage für einen Fahrradverleih. Extrahiere ALLE Daten: Kundendaten (Name, Adresse, Telefon, E-Mail — besonders aus Signatur/Footer!), Mietdaten, gewünschte Fahrräder und Extras. Lies den GESAMTEN Text bis zum letzten Zeichen:"
             : isFewo
-              ? "Analysiere diese Gästeanfrage. Extrahiere Reisedaten, Personenanzahl und Sonderwünsche:"
+              ? "Analysiere diese Gästeanfrage. Extrahiere ALLE Daten: Kundendaten (Name, Adresse, Telefon, E-Mail — besonders aus Signatur/Footer!), Reisedaten, Personenanzahl und Sonderwünsche. Lies den GESAMTEN Text bis zum letzten Zeichen:"
               : isShop
-                ? "Analysiere dieses Bild. Es zeigt eine Rechnung, Bestellung, Preisliste oder Produktliste. Extrahiere alle Produkte mit Namen, Mengen, Einheiten und Preisen:"
-                : "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere alle erkennbaren Daten:",
+                ? "Analysiere dieses Bild. Es zeigt eine Rechnung, Bestellung, Preisliste oder Kundenanfrage. Extrahiere ALLE Daten: Kundendaten (Name, Adresse, Telefon, E-Mail — besonders aus Signatur/Footer!), sowie alle Produkte mit Namen, Mengen, Einheiten und Preisen. Lies den GESAMTEN Text bis zum letzten Zeichen:"
+                : "Analysiere diese Kundenanfrage. Das Bild zeigt eine handschriftliche Notiz, einen Screenshot (WhatsApp/E-Mail), oder ein Foto mit Auftrags-Informationen. Extrahiere ALLE Daten: Kundendaten (Name, Adresse, Telefon, E-Mail — besonders aus Signatur/Footer!), Räume, Arbeiten und Extras. Lies den GESAMTEN Text bis zum letzten Zeichen:",
         });
       }
 
