@@ -615,11 +615,7 @@ export default function FahrradFormularPage() {
       });
 
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Angebot_${kunde.name.replace(/\s+/g, "_") || "Fahrrad"}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      window.open(url, "_blank");
     } catch (error) {
       console.error("PDF Fehler:", error);
       toast.error("Fehler beim PDF-Erstellen");

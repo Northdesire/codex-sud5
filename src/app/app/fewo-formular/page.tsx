@@ -696,11 +696,7 @@ export default function FewoFormularPage() {
       });
 
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Angebot_${kunde.name.replace(/\s+/g, "_") || "FeWo"}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      window.open(url, "_blank");
     } catch (error) {
       console.error("PDF Fehler:", error);
       toast.error("Fehler beim PDF-Erstellen");

@@ -169,11 +169,7 @@ export default function AngebotDetailPage() {
       });
 
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${data.nummer}_${data.kundeName.replace(/\s+/g, "_")}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      window.open(url, "_blank");
     } catch (error) {
       console.error("PDF Fehler:", error);
     } finally {

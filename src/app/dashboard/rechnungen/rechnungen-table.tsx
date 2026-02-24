@@ -159,11 +159,7 @@ export function RechnungenTable() {
         schlussText: rechnung.schlussText,
       });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${rechnung.nummer}_${rechnung.kundeName.replace(/\s+/g, "_")}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      window.open(url, "_blank");
     } catch {
       toast.error("Fehler beim PDF-Erstellen");
     }

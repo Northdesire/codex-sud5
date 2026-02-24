@@ -383,12 +383,7 @@ export default function AngebotPage() {
       });
 
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const kundenName = data.kunde.name.replace(/\s+/g, "_");
-      a.download = `Angebot_${kundenName}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      window.open(url, "_blank");
     } catch (error) {
       console.error("PDF Fehler:", error);
       alert("Fehler beim PDF-Erstellen.");
