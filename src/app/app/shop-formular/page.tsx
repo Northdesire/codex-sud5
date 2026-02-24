@@ -52,7 +52,6 @@ export default function ShopFormularPage() {
   });
   const [mwstSatz, setMwstSatz] = useState(19);
   const [originalText, setOriginalText] = useState("");
-  const [originalImage, setOriginalImage] = useState("");
   const [showOriginalText, setShowOriginalText] = useState(false);
 
   // Produkte und AI-Ergebnis laden
@@ -105,11 +104,6 @@ export default function ShopFormularPage() {
     if (aiOriginal) {
       setOriginalText(aiOriginal);
       sessionStorage.removeItem("ai-originaltext");
-    }
-    const aiImage = sessionStorage.getItem("ai-originalimage");
-    if (aiImage) {
-      setOriginalImage(aiImage);
-      sessionStorage.removeItem("ai-originalimage");
     }
   }, []);
 
@@ -338,7 +332,7 @@ export default function ShopFormularPage() {
       </div>
 
       {/* Originaltext der Anfrage */}
-      {(originalText || originalImage) && (
+      {originalText && (
         <Card>
           <button
             onClick={() => setShowOriginalText(!showOriginalText)}
@@ -355,15 +349,10 @@ export default function ShopFormularPage() {
             )}
           </button>
           {showOriginalText && (
-            <CardContent className="pt-0 pb-4 px-5 space-y-3">
-              {originalImage && (
-                <img src={originalImage} alt="Anfrage" className="rounded-md max-h-64 object-contain" />
-              )}
-              {originalText && (
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                  {originalText}
-                </p>
-              )}
+            <CardContent className="pt-0 pb-4 px-5">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {originalText}
+              </p>
             </CardContent>
           )}
         </Card>

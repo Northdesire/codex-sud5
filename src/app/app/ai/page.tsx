@@ -157,6 +157,7 @@ interface ParsedResult {
   fahrraeder?: FahrradParsed[];
   // Gemeinsam
   confidence: { kunde: number; raeume: number; optionen: number };
+  erkannterText?: string;
 }
 
 const ARBEIT_LABELS: Record<keyof ArbeitsbereichArbeiten, string> = {
@@ -387,10 +388,9 @@ export default function AIEingabePage() {
   function handleUebernehmen() {
     if (!ergebnis) return;
     sessionStorage.setItem("ai-ergebnis", JSON.stringify(ergebnis));
-    sessionStorage.setItem("ai-originaltext", text || "");
-    if (imagePreview) {
-      sessionStorage.setItem("ai-originalimage", imagePreview);
-    }
+    // erkannterText from AI (transcribed from screenshot) > user text > empty
+    const originaltext = ergebnis.erkannterText || text || "";
+    sessionStorage.setItem("ai-originaltext", originaltext);
     if (isFahrrad) {
       router.push("/app/fahrrad-formular");
     } else if (isFewo) {

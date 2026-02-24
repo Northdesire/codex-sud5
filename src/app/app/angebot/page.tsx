@@ -148,7 +148,6 @@ export default function AngebotPage() {
     einzelpreis: "",
   });
   const [originalText, setOriginalText] = useState<string>("");
-  const [originalImage, setOriginalImage] = useState<string>("");
   const [showOriginalText, setShowOriginalText] = useState(false);
 
   useEffect(() => {
@@ -159,11 +158,6 @@ export default function AngebotPage() {
     const origText = sessionStorage.getItem("ai-originaltext");
     if (origText) {
       setOriginalText(origText);
-    }
-    const aiImage = sessionStorage.getItem("ai-originalimage");
-    if (aiImage) {
-      setOriginalImage(aiImage);
-      sessionStorage.removeItem("ai-originalimage");
     }
   }, []);
 
@@ -475,7 +469,7 @@ export default function AngebotPage() {
       )}
 
       {/* Originaltext der Anfrage */}
-      {(originalText || originalImage) && (
+      {originalText && (
         <Card>
           <button
             onClick={() => setShowOriginalText(!showOriginalText)}
@@ -492,15 +486,10 @@ export default function AngebotPage() {
             )}
           </button>
           {showOriginalText && (
-            <CardContent className="pt-0 pb-4 px-5 space-y-3">
-              {originalImage && (
-                <img src={originalImage} alt="Anfrage" className="rounded-md max-h-64 object-contain" />
-              )}
-              {originalText && (
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                  {originalText}
-                </p>
-              )}
+            <CardContent className="pt-0 pb-4 px-5">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {originalText}
+              </p>
             </CardContent>
           )}
         </Card>
