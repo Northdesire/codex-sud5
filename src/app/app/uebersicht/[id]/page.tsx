@@ -207,7 +207,7 @@ export default function AngebotDetailPage() {
   function handleBearbeiten() {
     if (!data) return;
     const isFewoAngebot = !!(data.anreise || data.abreise || data.naechte);
-    const isFahrradAngebot = isFewoAngebot && data.positionen.some((p) => p.typ === "PRODUKT" && p.bezeichnung.includes("\u00d7"));
+    const isFahrradAngebot = isFewoAngebot && data.positionen.some((p) => p.typ === "PRODUKT" && p.bezeichnung.includes("×"));
     const isShopAngebot = !isFewoAngebot && data.positionen.some((p) => p.typ === "PRODUKT");
     const kundeData = {
       name: data.kundeName,
@@ -338,7 +338,7 @@ export default function AngebotDetailPage() {
 
   const cfg = statusConfig[data.status] || statusConfig.ENTWURF;
   const isFewo = !!(data.anreise || data.abreise || data.naechte);
-  const isFahrrad = isFewo && data.positionen.some((p) => p.typ === "PRODUKT" && p.bezeichnung.includes("\u00d7"));
+  const isFahrrad = isFewo && data.positionen.some((p) => p.typ === "PRODUKT" && p.bezeichnung.includes("×"));
   const isShop = !isFewo && data.positionen.some((p) => p.typ === "PRODUKT");
   const leistungen = data.positionen.filter((p) => p.typ === "LEISTUNG");
   const materialien = data.positionen.filter((p) => p.typ === "MATERIAL");

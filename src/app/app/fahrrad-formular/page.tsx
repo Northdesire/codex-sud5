@@ -362,7 +362,7 @@ export default function FahrradFormularPage() {
       const bikePos = positionen.filter((p) => p.typ === "PRODUKT");
       const sel: Record<string, number> = {};
       for (const pos of bikePos) {
-        const mengeMatch = pos.bezeichnung.match(/^(\d+)\u00d7\s+(.+?)\s+\u2014/);
+        const mengeMatch = pos.bezeichnung.match(/^(\d+)×\s+(.+?)\s+—/);
         if (mengeMatch) {
           const menge = parseInt(mengeMatch[1]);
           const name = mengeMatch[2];
@@ -431,7 +431,7 @@ export default function FahrradFormularPage() {
       positionen.push({
         posNr: posNr++,
         typ: "PRODUKT",
-        bezeichnung: `${bike.menge}\u00d7 ${bike.name} \u2014 ${tageLabel}`,
+        bezeichnung: `${bike.menge}× ${bike.name} — ${tageLabel}`,
         menge: bike.menge,
         einheit: "Stk.",
         einzelpreis: Math.round(preis * 100) / 100,
@@ -451,7 +451,7 @@ export default function FahrradFormularPage() {
           positionen.push({
             posNr: posNr++,
             typ: "ZUSCHLAG",
-            bezeichnung: `Auscheck-Tag ${kat} (${menge}\u00d7 ${formatEuro(chosen)})`,
+            bezeichnung: `Auscheck-Tag ${kat} (${menge}× ${formatEuro(chosen)})`,
             menge,
             einheit: "Stk.",
             einzelpreis: chosen,
@@ -518,7 +518,7 @@ export default function FahrradFormularPage() {
       positionen.push({
         posNr: posNr++,
         typ: "RABATT",
-        bezeichnung: rabattGrund ? `Rabatt (${rabattProzent}%) \u2014 ${rabattGrund}` : `Rabatt (${rabattProzent}%)`,
+        bezeichnung: rabattGrund ? `Rabatt (${rabattProzent}%) — ${rabattGrund}` : `Rabatt (${rabattProzent}%)`,
         menge: 1,
         einheit: "pauschal",
         einzelpreis: -rabattBrutto,
@@ -796,7 +796,7 @@ export default function FahrradFormularPage() {
                   ? hasAuscheckPreise && tage > 1
                     ? `${tage} (${miettage} Miettage + 1 Auscheck-Tag)`
                     : tage
-                  : "\u2014"}
+                  : "—"}
               </div>
             </div>
             <div>
@@ -929,7 +929,7 @@ export default function FahrradFormularPage() {
                         </div>
                         {auscheckSelection[kat] != null && auscheckSelection[kat]! > 0 && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            = {formatEuro(auscheckSelection[kat]!)} \u00d7{" "}
+                            = {formatEuro(auscheckSelection[kat]!)} ×{" "}
                             {bikes.reduce((s, b) => s + (bikeSelection[b.id] || 0), 0)} ={" "}
                             {formatEuro(
                               auscheckSelection[kat]! *
@@ -1015,7 +1015,7 @@ export default function FahrradFormularPage() {
                     if (preis == null) return null;
                     return (
                       <div key={bike.id} className="flex justify-between text-sm">
-                        <span>{bike.menge}\u00d7 {bike.name}</span>
+                        <span>{bike.menge}× {bike.name}</span>
                         <span className="font-mono">{formatEuro(Math.round(preis * bike.menge * 100) / 100)}</span>
                       </div>
                     );
@@ -1197,7 +1197,7 @@ export default function FahrradFormularPage() {
           </div>
           {rabattBrutto > 0 && (
             <div className="rounded-md bg-green-50 dark:bg-green-950/30 px-3 py-2 text-sm text-green-700 dark:text-green-400">
-              Rabatt: \u2212{formatEuro(rabattBrutto)}
+              Rabatt: −{formatEuro(rabattBrutto)}
             </div>
           )}
         </CardContent>
@@ -1225,8 +1225,8 @@ export default function FahrradFormularPage() {
             )}
             {rabattBrutto > 0 && (
               <div className="flex justify-between text-sm text-green-600">
-                <p>Rabatt ({rabattProzent}%){rabattGrund ? ` \u2014 ${rabattGrund}` : ""}</p>
-                <p className="font-mono">\u2212{formatEuro(rabattBrutto)}</p>
+                <p>Rabatt ({rabattProzent}%){rabattGrund ? ` — ${rabattGrund}` : ""}</p>
+                <p className="font-mono">−{formatEuro(rabattBrutto)}</p>
               </div>
             )}
             <Separator />
