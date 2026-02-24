@@ -88,13 +88,9 @@ export async function POST(request: NextRequest) {
           kundeEmail: angebot.kundeEmail,
           kundeTelefon: angebot.kundeTelefon,
           netto: angebot.netto,
-          mwstSatz: firma.branche === "FEWO" ? 7.0 : firma.mwstSatz,
-          mwstBetrag: firma.branche === "FEWO"
-            ? Math.round(angebot.netto * 0.07 * 100) / 100
-            : angebot.mwstBetrag,
-          brutto: firma.branche === "FEWO"
-            ? Math.round((angebot.netto * 1.07) * 100) / 100
-            : angebot.brutto,
+          mwstSatz: firma.mwstSatz,
+          mwstBetrag: angebot.mwstBetrag,
+          brutto: angebot.brutto,
           einleitungsText: introVorlage?.text || null,
           schlussText: schlussVorlage?.text || null,
           positionen: {

@@ -128,7 +128,17 @@ export function AngeboteTable() {
     try {
       const res = await fetch("/api/angebote");
       const data = await res.json();
-      if (Array.isArray(data)) setAngebote(data);
+      if (Array.isArray(data)) {
+        setAngebote(data);
+        // Bestehende Rechnungen in die Map laden
+        const map: Record<string, { id: string; nummer: string }> = {};
+        for (const a of data) {
+          if (a.rechnung) {
+            map[a.id] = { id: a.rechnung.id, nummer: a.rechnung.nummer };
+          }
+        }
+        setRechnungMap(map);
+      }
     } catch (error) {
       console.error("Laden Fehler:", error);
     } finally {
@@ -589,8 +599,8 @@ export function AngeboteTable() {
                             </Button>
                           </>
                         )}
-                        {/* Rechnung-Link (SHOP) */}
-                        {a.status === "ANGENOMMEN" && branche === "SHOP" && rechnungMap[a.id] && (
+                        {/* Rechnung-Link oder Rechnung erstellen */}
+                        {a.status === "ANGENOMMEN" && rechnungMap[a.id] && (
                           <Link href={`/dashboard/rechnungen`}>
                             <Button
                               size="sm"
@@ -601,6 +611,44 @@ export function AngeboteTable() {
                               {rechnungMap[a.id].nummer}
                             </Button>
                           </Link>
+                        )}
+                        {a.status === "ANGENOMMEN" && !rechnungMap[a.id] && branche !== "SHOP" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-700 border-green-200 hover:bg-green-50"
+                            disabled={updatingId === a.id}
+                            onClick={async () => {
+                              setUpdatingId(a.id);
+                              try {
+                                const rRes = await fetch("/api/rechnungen/aus-angebot", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ angebotId: a.id }),
+                                });
+                                if (rRes.ok) {
+                                  const rData = await rRes.json();
+                                  setRechnungMap((prev) => ({ ...prev, [a.id]: { id: rData.id, nummer: rData.nummer } }));
+                                  toast.success(`Rechnung ${rData.nummer} erstellt`);
+                                } else if (rRes.status === 409) {
+                                  const err = await rRes.json();
+                                  if (err.rechnungId) {
+                                    setRechnungMap((prev) => ({ ...prev, [a.id]: { id: err.rechnungId, nummer: "existiert" } }));
+                                    toast.info("Rechnung existiert bereits");
+                                  }
+                                } else {
+                                  toast.error("Fehler beim Erstellen");
+                                }
+                              } catch {
+                                toast.error("Fehler beim Erstellen");
+                              } finally {
+                                setUpdatingId(null);
+                              }
+                            }}
+                          >
+                            <Receipt className="h-3.5 w-3.5 mr-1" />
+                            Rechnung
+                          </Button>
                         )}
                         {/* Delete */}
                         <Button
