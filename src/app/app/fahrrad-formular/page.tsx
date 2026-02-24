@@ -128,31 +128,24 @@ export default function FahrradFormularPage() {
 
   const hasBikes = selectedBikes.length > 0;
 
-  // Fahrrad-Brutto (alle Preise sind brutto) — nutzt miettage statt tage
+  // Fahrrad-Brutto (alle Preise sind brutto) — inkl. Auscheck-Tag
   const fahrradBrutto = useMemo(() => {
     if (!hasBikes || miettage === 0) return 0;
-    return Math.round(
-      selectedBikes.reduce((sum, bike) => {
-        const preis = getPreisFuerTage(bike, miettage);
-        if (preis == null) return sum;
-        return sum + preis * bike.menge;
-      }, 0) * 100
-    ) / 100;
-  }, [selectedBikes, hasBikes, miettage]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auscheck-Tag Brutto: gewählter Preis × Anzahl pro Kategorie
-  const auscheckBrutto = useMemo(() => {
-    if (!hasAuscheckPreise || tage <= 1) return 0;
     let sum = 0;
     for (const bike of selectedBikes) {
-      const kat = bike.kategorie;
-      const chosen = auscheckSelection[kat];
-      if (chosen != null && chosen > 0) {
-        sum += chosen * bike.menge;
+      const preis = getPreisFuerTage(bike, miettage);
+      if (preis == null) continue;
+      sum += preis * bike.menge;
+      // Auscheck-Tag Preis direkt addieren
+      if (hasAuscheckPreise && tage > 1) {
+        const chosen = auscheckSelection[bike.kategorie];
+        if (chosen != null && chosen > 0) {
+          sum += chosen * bike.menge;
+        }
       }
     }
     return Math.round(sum * 100) / 100;
-  }, [selectedBikes, auscheckSelection, hasAuscheckPreise, tage]);
+  }, [selectedBikes, hasBikes, miettage, auscheckSelection, hasAuscheckPreise, tage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Extras-Brutto (alle Preise sind brutto)
   const extrasBrutto = useMemo(() => {
@@ -186,11 +179,11 @@ export default function FahrradFormularPage() {
   const rabattBrutto = useMemo(() => {
     const pct = parseFloat(rabattProzent);
     if (!pct || pct <= 0) return 0;
-    return Math.round((fahrradBrutto + auscheckBrutto + extrasBrutto) * (pct / 100) * 100) / 100;
-  }, [fahrradBrutto, auscheckBrutto, extrasBrutto, rabattProzent]);
+    return Math.round((fahrradBrutto + extrasBrutto) * (pct / 100) * 100) / 100;
+  }, [fahrradBrutto, extrasBrutto, rabattProzent]);
 
   // Alle Preise sind brutto → MwSt rückwärts herausrechnen
-  const brutto = Math.round((fahrradBrutto + auscheckBrutto + extrasBrutto - rabattBrutto) * 100) / 100;
+  const brutto = Math.round((fahrradBrutto + extrasBrutto - rabattBrutto) * 100) / 100;
   const netto = Math.round(brutto / (1 + mwstSatz / 100) * 100) / 100;
   const mwstBetrag = Math.round((brutto - netto) * 100) / 100;
 
@@ -421,44 +414,29 @@ export default function FahrradFormularPage() {
     const positionen = [];
     let posNr = 1;
 
-    // Fahrräder als PRODUKT-Positionen (miettage statt tage)
+    // Fahrräder als PRODUKT-Positionen (inkl. Auscheck-Tag)
     for (const bike of selectedBikes) {
       const preis = getPreisFuerTage(bike, miettage);
       if (preis == null) continue;
-      const tageLabel = hasAuscheckPreise && tage > 1
-        ? `${miettage} Miettage`
-        : `${tage} ${tage === 1 ? "Tag" : "Tage"}`;
+      // Auscheck-Tag Preis direkt einrechnen
+      let auscheckZuschlag = 0;
+      if (hasAuscheckPreise && tage > 1) {
+        const chosen = auscheckSelection[bike.kategorie];
+        if (chosen != null && chosen > 0) {
+          auscheckZuschlag = chosen;
+        }
+      }
+      const einzelpreis = Math.round((preis + auscheckZuschlag) * 100) / 100;
+      const tageLabel = `${tage} ${tage === 1 ? "Tag" : "Tage"}`;
       positionen.push({
         posNr: posNr++,
         typ: "PRODUKT",
         bezeichnung: `${bike.menge}× ${bike.name} — ${tageLabel}`,
         menge: bike.menge,
         einheit: "Stk.",
-        einzelpreis: Math.round(preis * 100) / 100,
-        gesamtpreis: Math.round(preis * bike.menge * 100) / 100,
+        einzelpreis,
+        gesamtpreis: Math.round(einzelpreis * bike.menge * 100) / 100,
       });
-    }
-
-    // Auscheck-Tag Positionen pro Kategorie
-    if (hasAuscheckPreise && tage > 1) {
-      const katMengen: Record<string, number> = {};
-      for (const bike of selectedBikes) {
-        katMengen[bike.kategorie] = (katMengen[bike.kategorie] || 0) + bike.menge;
-      }
-      for (const [kat, menge] of Object.entries(katMengen)) {
-        const chosen = auscheckSelection[kat];
-        if (chosen != null && chosen > 0) {
-          positionen.push({
-            posNr: posNr++,
-            typ: "ZUSCHLAG",
-            bezeichnung: `Auscheck-Tag ${kat} (${menge}× ${formatEuro(chosen)})`,
-            menge,
-            einheit: "Stk.",
-            einzelpreis: chosen,
-            gesamtpreis: Math.round(chosen * menge * 100) / 100,
-          });
-        }
-      }
     }
 
     // Extras als ZUSCHLAG-Positionen
@@ -552,7 +530,7 @@ export default function FahrradFormularPage() {
         positionen,
         raeume: [],
         materialNetto: 0,
-        arbeitsNetto: Math.round((fahrradBrutto + auscheckBrutto) / (1 + mwstSatz / 100) * 100) / 100,
+        arbeitsNetto: Math.round(fahrradBrutto / (1 + mwstSatz / 100) * 100) / 100,
         anfahrt: 0,
         zuschlagNetto: Math.round(extrasBrutto / (1 + mwstSatz / 100) * 100) / 100,
         rabattNetto: Math.round(rabattBrutto / (1 + mwstSatz / 100) * 100) / 100,
@@ -619,7 +597,7 @@ export default function FahrradFormularPage() {
         positionen,
         raeume: [],
         materialNetto: 0,
-        arbeitsNetto: Math.round((fahrradBrutto + auscheckBrutto) / (1 + mwstSatz / 100) * 100) / 100,
+        arbeitsNetto: Math.round(fahrradBrutto / (1 + mwstSatz / 100) * 100) / 100,
         anfahrt: 0,
         zuschlagNetto: Math.round(extrasBrutto / (1 + mwstSatz / 100) * 100) / 100,
         rabattNetto: Math.round(rabattBrutto / (1 + mwstSatz / 100) * 100) / 100,
@@ -792,11 +770,7 @@ export default function FahrradFormularPage() {
             <div>
               <Label className="text-xs">Tage</Label>
               <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm font-mono font-medium">
-                {tage > 0
-                  ? hasAuscheckPreise && tage > 1
-                    ? `${tage} (${miettage} Miettage + 1 Auscheck-Tag)`
-                    : tage
-                  : "—"}
+                {tage > 0 ? tage : "—"}
               </div>
             </div>
             <div>
@@ -1013,26 +987,24 @@ export default function FahrradFormularPage() {
                   {selectedBikes.map((bike) => {
                     const preis = getPreisFuerTage(bike, miettage);
                     if (preis == null) return null;
+                    let auscheckZuschlag = 0;
+                    if (hasAuscheckPreise && tage > 1) {
+                      const chosen = auscheckSelection[bike.kategorie];
+                      if (chosen != null && chosen > 0) auscheckZuschlag = chosen;
+                    }
+                    const bikeTotal = Math.round((preis + auscheckZuschlag) * bike.menge * 100) / 100;
                     return (
                       <div key={bike.id} className="flex justify-between text-sm">
                         <span>{bike.menge}× {bike.name}</span>
-                        <span className="font-mono">{formatEuro(Math.round(preis * bike.menge * 100) / 100)}</span>
+                        <span className="font-mono">{formatEuro(bikeTotal)}</span>
                       </div>
                     );
                   })}
                   <Separator className="my-1" />
                   <div className="flex justify-between text-sm font-medium">
-                    <span>Fahrräder ({hasAuscheckPreise && tage > 1 ? `${miettage} Miettage` : `${tage} ${tage === 1 ? "Tag" : "Tage"}`})</span>
+                    <span>Fahrräder ({tage} {tage === 1 ? "Tag" : "Tage"})</span>
                     <span className="font-mono">{formatEuro(fahrradBrutto)}</span>
                   </div>
-                  {auscheckBrutto > 0 && (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span>Auscheck-Tag</span>
-                        <span className="font-mono">{formatEuro(auscheckBrutto)}</span>
-                      </div>
-                    </>
-                  )}
                 </div>
               )}
             </>
@@ -1208,15 +1180,9 @@ export default function FahrradFormularPage() {
         <Card>
           <CardContent className="pt-5 space-y-2">
             <div className="flex justify-between text-sm">
-              <p>Fahrräder ({hasAuscheckPreise && tage > 1 ? `${miettage} Miettage` : `${tage} ${tage === 1 ? "Tag" : "Tage"}`})</p>
+              <p>Fahrräder ({tage} {tage === 1 ? "Tag" : "Tage"})</p>
               <p className="font-mono">{formatEuro(fahrradBrutto)}</p>
             </div>
-            {auscheckBrutto > 0 && (
-              <div className="flex justify-between text-sm">
-                <p>Auscheck-Tag</p>
-                <p className="font-mono">{formatEuro(auscheckBrutto)}</p>
-              </div>
-            )}
             {extrasBrutto > 0 && (
               <div className="flex justify-between text-sm">
                 <p>Extras</p>
