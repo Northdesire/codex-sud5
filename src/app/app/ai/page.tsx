@@ -315,6 +315,7 @@ export default function AIEingabePage() {
           fahrraeder: data.fahrraeder || [],
           wuensche: data.wuensche || [],
           confidence: data.confidence,
+          erkannterText: data.erkannterText || "",
         };
         setErgebnis(normalized);
       } else if (isFewo) {
@@ -327,6 +328,7 @@ export default function AIEingabePage() {
           hund: data.hund || false,
           wuensche: data.wuensche || [],
           confidence: data.confidence,
+          erkannterText: data.erkannterText || "",
         };
         setErgebnis(normalized);
       } else if (isShop) {
@@ -335,6 +337,7 @@ export default function AIEingabePage() {
           kunde: data.kunde,
           produkte: data.produkte || [],
           confidence: data.confidence,
+          erkannterText: data.erkannterText || "",
         };
         setErgebnis(normalized);
       } else {
@@ -345,6 +348,7 @@ export default function AIEingabePage() {
           qualitaet: data.qualitaet || data.optionen?.qualitaet || "standard",
           extras: data.extras || [],
           confidence: data.confidence,
+          erkannterText: data.erkannterText || "",
         };
 
         // Convert old format if needed
