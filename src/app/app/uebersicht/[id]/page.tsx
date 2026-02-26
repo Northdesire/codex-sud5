@@ -66,6 +66,10 @@ interface AngebotDetail {
     bankname: string | null;
     zahlungsziel: number;
     mwstSatz: number;
+    steuernummer?: string | null;
+    ustIdNr?: string | null;
+    agbText?: string | null;
+    logoUrl?: string | null;
   };
   rechnung?: { id: string; nummer: string } | null;
 }

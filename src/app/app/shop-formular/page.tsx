@@ -51,6 +51,8 @@ export default function ShopFormularPage() {
     name: "", strasse: "", plz: "", ort: "", email: "", telefon: "",
   });
   const [mwstSatz, setMwstSatz] = useState(19);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [firma, setFirma] = useState<any>(null);
   const [originalText, setOriginalText] = useState("");
   const [showOriginalText, setShowOriginalText] = useState(false);
 
@@ -63,9 +65,10 @@ export default function ShopFormularPage() {
       })
       .catch(() => {});
 
-    // MwSt-Satz laden
-    fetch("/api/firma/branche")
+    // Firma-Daten laden (inkl. Logo)
+    fetch("/api/firma")
       .then((r) => r.json())
+      .then((f) => { if (f && !f.error) setFirma(f); })
       .catch(() => {});
 
     // Edit-Modus prüfen
@@ -295,7 +298,7 @@ export default function ShopFormularPage() {
         mwstBetrag,
         brutto,
         kunde,
-        firma: null,
+        firma,
         nummer: "Entwurf",
         datum: new Date(),
         gueltigBis: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),

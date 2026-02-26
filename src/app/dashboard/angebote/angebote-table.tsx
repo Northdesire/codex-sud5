@@ -84,6 +84,7 @@ interface Angebot {
     steuernummer?: string | null;
     ustIdNr?: string | null;
     agbText?: string | null;
+    logoUrl?: string | null;
   };
   gueltigBis: string;
 }

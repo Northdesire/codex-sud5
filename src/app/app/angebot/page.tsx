@@ -102,6 +102,10 @@ interface KalkData {
     bankname: string | null;
     zahlungsziel: number;
     nrPrefix?: string;
+    steuernummer?: string | null;
+    ustIdNr?: string | null;
+    agbText?: string | null;
+    logoUrl?: string | null;
   } | null;
 }
 

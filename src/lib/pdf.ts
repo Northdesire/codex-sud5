@@ -77,6 +77,80 @@ function datumDE(d: Date): string {
   });
 }
 
+// ═══ Shared header renderer for all PDF types ═══
+interface FirmaHeader {
+  firmenname: string;
+  inhaberName: string;
+  inhaberTitel?: string | null;
+  strasse: string;
+  plz: string;
+  ort: string;
+  telefon: string;
+  email: string;
+  logoUrl?: string | null;
+}
+
+function renderFirmaHeader(
+  doc: jsPDF,
+  firma: FirmaHeader | null,
+  mL: number,
+  mR: number,
+  pageWidth: number,
+  fallbackTitle: string = "Angebot"
+): number {
+  let y = 15;
+
+  let logoRendered = false;
+  if (firma?.logoUrl) {
+    try {
+      const logoUrl = firma.logoUrl;
+      let fmt: "PNG" | "JPEG" = "PNG";
+      if (logoUrl.includes("image/jpeg") || logoUrl.includes("image/jpg")) fmt = "JPEG";
+      const logoMaxW = 60;
+      const logoMaxH = 18;
+      doc.addImage(logoUrl, fmt, mL, y - 5, logoMaxW, logoMaxH);
+      logoRendered = true;
+      y += logoMaxH - 2;
+    } catch (e) {
+      console.error("Logo render error:", e);
+    }
+  }
+
+  if (!logoRendered) {
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30);
+    doc.text(firma?.firmenname || fallbackTitle, mL, y);
+  }
+
+  if (firma) {
+    y += 5;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120);
+    const sub = [
+      firma.inhaberTitel
+        ? `${firma.inhaberTitel} ${firma.inhaberName}`
+        : firma.inhaberName,
+      `${firma.strasse}, ${firma.plz} ${firma.ort}`,
+    ].join(" \u2022 ");
+    doc.text(sub, mL, y);
+    y += 3.5;
+    doc.text(
+      `Tel: ${firma.telefon} \u2022 ${firma.email}`,
+      mL,
+      y
+    );
+  }
+
+  y += 4;
+  doc.setDrawColor(200);
+  doc.setLineWidth(0.4);
+  doc.line(mL, y, pageWidth - mR, y);
+
+  return y;
+}
+
 // Shared PDF builder — used by both client (Blob) and server (Buffer)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildPDF(data: PDFData, JsPDF: any): InstanceType<typeof jsPDF> {
@@ -112,59 +186,7 @@ function buildPDF(data: PDFData, JsPDF: any): InstanceType<typeof jsPDF> {
   }
 
   // ═══ HEADER: Firma ═══
-  y = 15;
-
-  let logoRendered = false;
-  if (data.firma?.logoUrl) {
-    try {
-      // Format aus Data-URL ableiten
-      const logoUrl = data.firma.logoUrl;
-      let fmt: "PNG" | "JPEG" = "PNG";
-      if (logoUrl.includes("image/jpeg") || logoUrl.includes("image/jpg")) fmt = "JPEG";
-      // Logo anstelle des Firmennamens (links oben, groß)
-      const logoMaxW = 60;
-      const logoMaxH = 18;
-      doc.addImage(logoUrl, fmt, mL, y - 5, logoMaxW, logoMaxH);
-      logoRendered = true;
-      y += logoMaxH - 2;
-    } catch (e) {
-      console.error("Logo render error:", e);
-      // Logo fehlgeschlagen — Fallback auf Text
-    }
-  }
-
-  if (!logoRendered) {
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 30, 30);
-    doc.text(data.firma?.firmenname || "Angebot", mL, y);
-  }
-
-  if (data.firma) {
-    y += 5;
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(120);
-    const sub = [
-      data.firma.inhaberTitel
-        ? `${data.firma.inhaberTitel} ${data.firma.inhaberName}`
-        : data.firma.inhaberName,
-      `${data.firma.strasse}, ${data.firma.plz} ${data.firma.ort}`,
-    ].join(" \u2022 ");
-    doc.text(sub, mL, y);
-    y += 3.5;
-    doc.text(
-      `Tel: ${data.firma.telefon} \u2022 ${data.firma.email}`,
-      mL,
-      y
-    );
-  }
-
-  // Trennlinie
-  y += 4;
-  doc.setDrawColor(200);
-  doc.setLineWidth(0.4);
-  doc.line(mL, y, pageWidth - mR, y);
+  y = renderFirmaHeader(doc, data.firma, mL, mR, pageWidth, "Angebot");
 
   // ═══ ABSENDER-ZEILE (klein, über Adressfenster) ═══
   y += 6;
@@ -634,40 +656,7 @@ function buildRechnungPDF(data: RechnungPDFData, JsPDF: any): InstanceType<typeo
   }
 
   // ═══ HEADER ═══
-  y = 15;
-  if (data.firma?.logoUrl) {
-    try {
-      doc.addImage(data.firma.logoUrl, "AUTO", pageWidth - mR - 40, 10, 40, 14);
-    } catch {
-      // Ignore logo errors
-    }
-  }
-
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(30, 30, 30);
-  doc.text(data.firma?.firmenname || "Rechnung", mL, y);
-
-  if (data.firma) {
-    y += 5;
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(120);
-    const sub = [
-      data.firma.inhaberTitel
-        ? `${data.firma.inhaberTitel} ${data.firma.inhaberName}`
-        : data.firma.inhaberName,
-      `${data.firma.strasse}, ${data.firma.plz} ${data.firma.ort}`,
-    ].join(" \u2022 ");
-    doc.text(sub, mL, y);
-    y += 3.5;
-    doc.text(`Tel: ${data.firma.telefon} \u2022 ${data.firma.email}`, mL, y);
-  }
-
-  y += 4;
-  doc.setDrawColor(200);
-  doc.setLineWidth(0.4);
-  doc.line(mL, y, pageWidth - mR, y);
+  y = renderFirmaHeader(doc, data.firma, mL, mR, pageWidth, "Rechnung");
 
   // ═══ ABSENDER-ZEILE ═══
   y += 6;
