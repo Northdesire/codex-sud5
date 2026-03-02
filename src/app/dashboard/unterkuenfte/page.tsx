@@ -251,6 +251,17 @@ export default function UnterkuenftePage() {
     }
   }
 
+  async function handleDeleteKomplex(id: string, name: string) {
+    if (!confirm(`Haus/Hotel "${name}" wirklich löschen?`)) return;
+    const res = await fetch(`/api/komplexe/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Haus/Hotel gelöscht");
+      loadData();
+    } else {
+      toast.error("Fehler beim Löschen");
+    }
+  }
+
   // ─── Preise kopieren ─────────────────────
 
   function openCopyDialog(sourceId: string) {
@@ -422,10 +433,17 @@ export default function UnterkuenftePage() {
                       {g.name}
                       <Badge variant="secondary" className="ml-1">{g.items.length} Einheit(en)</Badge>
                     </CardTitle>
-                    <Button variant="outline" size="sm" onClick={() => openNewUnterkunft(g)}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Zimmer / Wohnung
-                    </Button>
+                    <div className="flex gap-2">
+                      {g.items.length === 0 && (
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteKomplex(g.id, g.name)} title="Leeres Haus löschen">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                      <Button variant="outline" size="sm" onClick={() => openNewUnterkunft(g)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Zimmer / Wohnung
+                      </Button>
+                    </div>
                   </div>
                   {g.beschreibung && (
                     <p className="text-sm text-muted-foreground">{g.beschreibung}</p>
