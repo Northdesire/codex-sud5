@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 
@@ -43,7 +44,7 @@ export async function PUT(
       return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
     }
 
-    const saisonPreise: Array<{ saisonId: string; preisProNacht: number }> = body.saisonPreise || [];
+    const saisonPreise: Array<{ saisonId: string; preisProNacht: number; gastPreise?: Record<string, number> | null }> = body.saisonPreise || [];
 
     const unterkunft = await prisma.$transaction(async (tx) => {
       await tx.unterkunft.update({
@@ -54,6 +55,7 @@ export async function PUT(
           typ: body.typ || existing.typ,
           kapazitaet: parseInt(body.kapazitaet),
           preisProNacht: parseFloat(body.preisProNacht),
+          gastPreise: body.gastPreise ? body.gastPreise : body.gastPreise === null ? Prisma.DbNull : undefined,
           aktiv: body.aktiv ?? true,
           komplexId: body.komplexId || null,
           icalUrl: body.icalUrl || null,
@@ -68,6 +70,7 @@ export async function PUT(
             unterkunftId: id,
             saisonId: sp.saisonId,
             preisProNacht: parseFloat(String(sp.preisProNacht)),
+            gastPreise: sp.gastPreise || undefined,
           })),
         });
       }

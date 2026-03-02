@@ -276,6 +276,7 @@ model Unterkunft {
   typ             UnterkunftTyp   @default(FERIENWOHNUNG)
   kapazitaet      Int
   preisProNacht   Float
+  gastPreise      Json?
   aktiv           Boolean         @default(true)
   icalUrl         String?
 
@@ -311,6 +312,7 @@ model UnterkunftPreis {
   saisonId      String
   saison        Saison     @relation(fields: [saisonId], references: [id], onDelete: Cascade)
   preisProNacht Float
+  gastPreise    Json?
   @@unique([unterkunftId, saisonId])
 }
 
@@ -324,6 +326,7 @@ model FewoExtra {
   einheit         String   // "pauschal", "pro Nacht", "pro Person", "pro Nacht/Person"
   unterkunftTypen String[] // z.B. ["FERIENWOHNUNG","SUITE"] — leer = gilt für alle
   aktiv           Boolean  @default(true)
+  vorausgewaehlt  Boolean  @default(false)
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

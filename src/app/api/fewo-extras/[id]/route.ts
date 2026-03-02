@@ -47,6 +47,7 @@ export async function PUT(
         einheit: body.einheit || "pauschal",
         unterkunftTypen: body.unterkunftTypen ?? [],
         aktiv: body.aktiv ?? true,
+        vorausgewaehlt: body.vorausgewaehlt ?? false,
       },
     });
 

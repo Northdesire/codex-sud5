@@ -35,10 +35,13 @@ export async function POST(request: Request) {
 
     await prisma.$transaction(async (tx) => {
       for (const zielId of nachUnterkunftIds) {
-        // Copy Basispreis
+        // Copy Basispreis + gastPreise
         await tx.unterkunft.update({
           where: { id: zielId },
-          data: { preisProNacht: quelle.preisProNacht },
+          data: {
+            preisProNacht: quelle.preisProNacht,
+            gastPreise: (quelle.gastPreise as Record<string, number>) ?? undefined,
+          },
         });
 
         // Replace season prices
@@ -49,6 +52,7 @@ export async function POST(request: Request) {
               unterkunftId: zielId,
               saisonId: sp.saisonId,
               preisProNacht: sp.preisProNacht,
+              gastPreise: (sp.gastPreise as Record<string, number>) ?? undefined,
             })),
           });
         }

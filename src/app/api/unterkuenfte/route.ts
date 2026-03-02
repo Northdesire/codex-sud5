@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const body = await request.json();
 
-    const saisonPreise: Array<{ saisonId: string; preisProNacht: number }> = body.saisonPreise || [];
+    const saisonPreise: Array<{ saisonId: string; preisProNacht: number; gastPreise?: Record<string, number> | null }> = body.saisonPreise || [];
 
     const unterkunft = await prisma.$transaction(async (tx) => {
       const created = await tx.unterkunft.create({
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
           typ: body.typ || "FERIENWOHNUNG",
           kapazitaet: parseInt(body.kapazitaet),
           preisProNacht: parseFloat(body.preisProNacht),
+          gastPreise: body.gastPreise || undefined,
           aktiv: body.aktiv ?? true,
           komplexId: body.komplexId || null,
           icalUrl: body.icalUrl || null,
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
             unterkunftId: created.id,
             saisonId: sp.saisonId,
             preisProNacht: parseFloat(String(sp.preisProNacht)),
+            gastPreise: sp.gastPreise || undefined,
           })),
         });
       }

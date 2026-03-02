@@ -33,6 +33,7 @@ interface FewoExtra {
   einheit: string;
   unterkunftTypen: string[];
   aktiv: boolean;
+  vorausgewaehlt: boolean;
 }
 
 const emptyForm = {
@@ -41,6 +42,7 @@ const emptyForm = {
   einheit: "pauschal",
   unterkunftTypen: [] as string[],
   aktiv: true,
+  vorausgewaehlt: false,
 };
 
 export default function FewoExtrasPage() {
@@ -76,6 +78,7 @@ export default function FewoExtrasPage() {
       einheit: e.einheit,
       unterkunftTypen: e.unterkunftTypen ?? [],
       aktiv: e.aktiv,
+      vorausgewaehlt: e.vorausgewaehlt ?? false,
     });
     setDialogOpen(true);
   }
@@ -269,6 +272,14 @@ export default function FewoExtrasPage() {
                 })}
               </div>
             </div>
+            {/* Vorausgewählt */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={form.vorausgewaehlt}
+                onCheckedChange={(checked) => setForm({ ...form, vorausgewaehlt: !!checked })}
+              />
+              <span className="text-sm">Standardmäßig vorausgewählt</span>
+            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Abbrechen</Button>

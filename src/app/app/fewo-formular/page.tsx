@@ -16,6 +16,7 @@ interface SaisonPreis {
   id: string;
   saisonId: string;
   preisProNacht: number;
+  gastPreise: Record<string, number> | null;
   saison: Saison;
 }
 
@@ -31,6 +32,7 @@ interface Unterkunft {
   typ: string;
   kapazitaet: number;
   preisProNacht: number;
+  gastPreise: Record<string, number> | null;
   aktiv: boolean;
   komplexId: string | null;
   komplex: Komplex | null;
@@ -54,6 +56,7 @@ interface FewoExtra {
   einheit: string;
   unterkunftTypen: string[];
   aktiv: boolean;
+  vorausgewaehlt: boolean;
 }
 
 interface Kunde {
@@ -141,16 +144,43 @@ export default function FewoFormularPage() {
     );
   }, [extras, selectedUnterkuenfte, hasUnterkunft]);
 
-  // Effektiver Preis pro Nacht für eine bestimmte Unterkunft
+  // Lookup: exact match for guestCount, otherwise highest tier ≤ guestCount
+  function lookupGastPreis(gastPreise: Record<string, number> | null | undefined, guestCount: number): number | null {
+    if (!gastPreise) return null;
+    const exact = gastPreise[String(guestCount)];
+    if (exact !== undefined) return exact;
+    // Find highest tier ≤ guestCount
+    let best: number | null = null;
+    let bestKey = 0;
+    for (const [k, v] of Object.entries(gastPreise)) {
+      const num = parseInt(k);
+      if (!isNaN(num) && num <= guestCount && num > bestKey) {
+        bestKey = num;
+        best = v;
+      }
+    }
+    return best;
+  }
+
+  // Effektiver Preis pro Nacht (4-Stufen-Cascade)
+  // 1. Saison gastPreise[personen]
+  // 2. Saison preisProNacht
+  // 3. Basis gastPreise[personen]
+  // 4. Basis preisProNacht
   function getEffektiverPreis(unterkunft: Unterkunft): number {
     if (erkAnnteSaison) {
       const preise = unterkunft.saisonPreise ?? [];
-      const sp = preise.find((p) => p.saisonId === erkAnnteSaison.id);
-      if (sp) return sp.preisProNacht;
-      const spByName = preise.find((p) => p.saison?.name === erkAnnteSaison.name);
-      if (spByName) return spByName.preisProNacht;
+      const sp = preise.find((p) => p.saisonId === erkAnnteSaison.id)
+        || preise.find((p) => p.saison?.name === erkAnnteSaison.name);
+      if (sp) {
+        const gastPreis = lookupGastPreis(sp.gastPreise, personen);
+        if (gastPreis !== null) return gastPreis; // Stufe 1
+        return sp.preisProNacht; // Stufe 2
+      }
     }
-    return unterkunft.preisProNacht;
+    const basisGastPreis = lookupGastPreis(unterkunft.gastPreise, personen);
+    if (basisGastPreis !== null) return basisGastPreis; // Stufe 3
+    return unterkunft.preisProNacht; // Stufe 4
   }
 
   // Kalkulation: summiert über alle gewählten Unterkünfte
@@ -159,7 +189,7 @@ export default function FewoFormularPage() {
     return Math.round(
       selectedUnterkuenfte.reduce((sum, u) => sum + naechte * getEffektiverPreis(u), 0) * 100
     ) / 100;
-  }, [selectedUnterkuenfte, hasUnterkunft, naechte, erkAnnteSaison]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedUnterkuenfte, hasUnterkunft, naechte, erkAnnteSaison, personen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const extrasNetto = useMemo(() => {
     let sum = 0;
@@ -229,7 +259,17 @@ export default function FewoFormularPage() {
     ]).then(([u, s, e, f, tv]) => {
       if (Array.isArray(u)) setUnterkuenfte(u.filter((x: Unterkunft) => x.aktiv));
       if (Array.isArray(s)) setSaisons(s);
-      if (Array.isArray(e)) setExtras(e.filter((x: FewoExtra) => x.aktiv));
+      if (Array.isArray(e)) {
+        const aktive = e.filter((x: FewoExtra) => x.aktiv);
+        setExtras(aktive);
+        // Vorausgewählte automatisch selektieren (nur bei neuer Eingabe, nicht bei Edit/AI)
+        const editId = sessionStorage.getItem("edit-angebot-id");
+        const aiData = sessionStorage.getItem("ai-ergebnis");
+        if (!editId && !aiData) {
+          const preSelected = new Set(aktive.filter((x: FewoExtra) => x.vorausgewaehlt).map((x: FewoExtra) => x.id));
+          if (preSelected.size > 0) setSelectedExtras(preSelected);
+        }
+      }
       if (f && !f.error) setFirma(f);
       if (Array.isArray(tv)) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

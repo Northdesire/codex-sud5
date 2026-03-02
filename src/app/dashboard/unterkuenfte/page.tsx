@@ -26,6 +26,7 @@ interface SaisonPreis {
   id: string;
   saisonId: string;
   preisProNacht: number;
+  gastPreise: Record<string, number> | null;
   saison: Saison;
 }
 
@@ -36,6 +37,7 @@ interface Unterkunft {
   typ: string;
   kapazitaet: number;
   preisProNacht: number;
+  gastPreise: Record<string, number> | null;
   aktiv: boolean;
   komplexId: string | null;
   komplex: Komplex | null;
@@ -89,6 +91,9 @@ const emptyUnterkunftForm = {
   hausname: "",
   saisonPreise: {} as Record<string, string>, // saisonId → preis string
   icalUrl: "",
+  hatGastPreise: false,
+  gastPreise: {} as Record<string, string>, // "1" → "50", "2" → "65"
+  saisonGastPreise: {} as Record<string, Record<string, string>>, // saisonId → {"1": "60"}
 };
 
 // ═══════════════════════════════════════════
@@ -150,6 +155,23 @@ export default function UnterkuenftePage() {
     for (const p of u.saisonPreise) {
       sp[p.saisonId] = p.preisProNacht.toString();
     }
+    // Load gastPreise (basis)
+    const gp: Record<string, string> = {};
+    if (u.gastPreise) {
+      for (const [k, v] of Object.entries(u.gastPreise)) {
+        gp[k] = String(v);
+      }
+    }
+    // Load saisonGastPreise
+    const sgp: Record<string, Record<string, string>> = {};
+    for (const p of u.saisonPreise) {
+      if (p.gastPreise) {
+        sgp[p.saisonId] = {};
+        for (const [k, v] of Object.entries(p.gastPreise)) {
+          sgp[p.saisonId][k] = String(v);
+        }
+      }
+    }
     setForm({
       name: u.name,
       beschreibung: u.beschreibung ?? "",
@@ -161,6 +183,9 @@ export default function UnterkuenftePage() {
       hausname: u.komplex?.name ?? "",
       saisonPreise: sp,
       icalUrl: u.icalUrl ?? "",
+      hatGastPreise: !!u.gastPreise && Object.keys(u.gastPreise).length > 0,
+      gastPreise: gp,
+      saisonGastPreise: sgp,
     });
     setDialogOpen(true);
   }
@@ -202,9 +227,32 @@ export default function UnterkuenftePage() {
         }
       }
 
+      // Build gastPreise (basis)
+      let gastPreise: Record<string, number> | null = null;
+      if (form.hatGastPreise) {
+        const gp: Record<string, number> = {};
+        for (const [k, v] of Object.entries(form.gastPreise)) {
+          const num = parseFloat(v);
+          if (num > 0) gp[k] = num;
+        }
+        if (Object.keys(gp).length > 0) gastPreise = gp;
+      }
+
       const saisonPreise = Object.entries(form.saisonPreise)
         .filter(([, v]) => v && parseFloat(v) > 0)
-        .map(([saisonId, preis]) => ({ saisonId, preisProNacht: parseFloat(preis) }));
+        .map(([saisonId, preis]) => {
+          // Build saison-specific gastPreise
+          let saisonGP: Record<string, number> | null = null;
+          if (form.hatGastPreise && form.saisonGastPreise[saisonId]) {
+            const sgp: Record<string, number> = {};
+            for (const [k, v] of Object.entries(form.saisonGastPreise[saisonId])) {
+              const num = parseFloat(v);
+              if (num > 0) sgp[k] = num;
+            }
+            if (Object.keys(sgp).length > 0) saisonGP = sgp;
+          }
+          return { saisonId, preisProNacht: parseFloat(preis), gastPreise: saisonGP };
+        });
 
       const payload = {
         name: form.name,
@@ -212,6 +260,7 @@ export default function UnterkuenftePage() {
         typ: form.typ,
         kapazitaet: form.kapazitaet,
         preisProNacht: form.preisProNacht,
+        gastPreise,
         aktiv: form.aktiv,
         komplexId,
         saisonPreise,
@@ -578,6 +627,52 @@ export default function UnterkuenftePage() {
               </div>
             </div>
 
+            {/* Preis nach Personenzahl */}
+            <div className="space-y-2">
+              <Label>Preis nach Personenzahl?</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={form.hatGastPreise ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setForm({ ...form, hatGastPreise: true })}
+                >
+                  Ja
+                </Button>
+                <Button
+                  type="button"
+                  variant={!form.hatGastPreise ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setForm({ ...form, hatGastPreise: false })}
+                >
+                  Nein
+                </Button>
+              </div>
+              {form.hatGastPreise && parseInt(form.kapazitaet) > 0 && (
+                <div className="space-y-2 rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Basispreise pro Personenzahl (EUR/Nacht)</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Array.from({ length: parseInt(form.kapazitaet) || 1 }, (_, i) => i + 1).map((n) => (
+                      <div key={n} className="flex items-center gap-2">
+                        <span className="text-sm w-16 shrink-0">{n} {n === 1 ? "Gast" : "Gäste"}:</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder={form.preisProNacht || "—"}
+                          value={form.gastPreise[String(n)] ?? ""}
+                          onChange={(e) => {
+                            const updated = { ...form.gastPreise, [String(n)]: e.target.value };
+                            setForm({ ...form, gastPreise: updated });
+                          }}
+                          className="h-8"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Saisonpreise — gruppiert nach Name (ein Preis pro Saisontyp) */}
             {saisons.length > 0 && (
               <div className="space-y-3">
@@ -589,27 +684,60 @@ export default function UnterkuenftePage() {
                   {[...new Set(saisons.map((s) => s.name))].map((saisonName) => {
                     // Use the first saison with this name as key for the form value
                     const firstSaison = saisons.find((s) => s.name === saisonName)!;
+                    const saisonPreisValue = form.saisonPreise[firstSaison.id] ?? "";
+                    const hasSaisonPreis = saisonPreisValue && parseFloat(saisonPreisValue) > 0;
                     return (
-                      <div key={saisonName} className="flex items-center gap-3">
-                        <span className="text-sm w-32 shrink-0">{saisonName}:</span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="—"
-                          value={form.saisonPreise[firstSaison.id] ?? ""}
-                          onChange={(e) => {
-                            // Set same price for ALL saisons with this name
-                            const updated = { ...form.saisonPreise };
-                            for (const s of saisons) {
-                              if (s.name === saisonName) {
-                                updated[s.id] = e.target.value;
+                      <div key={saisonName} className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm w-32 shrink-0">{saisonName}:</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="—"
+                            value={saisonPreisValue}
+                            onChange={(e) => {
+                              // Set same price for ALL saisons with this name
+                              const updated = { ...form.saisonPreise };
+                              for (const s of saisons) {
+                                if (s.name === saisonName) {
+                                  updated[s.id] = e.target.value;
+                                }
                               }
-                            }
-                            setForm({ ...form, saisonPreise: updated });
-                          }}
-                          className="h-9"
-                        />
-                        <span className="text-xs text-muted-foreground shrink-0">EUR/Nacht</span>
+                              setForm({ ...form, saisonPreise: updated });
+                            }}
+                            className="h-9"
+                          />
+                          <span className="text-xs text-muted-foreground shrink-0">EUR/Nacht</span>
+                        </div>
+                        {form.hatGastPreise && hasSaisonPreis && parseInt(form.kapazitaet) > 0 && (
+                          <div className="ml-32 pl-3 border-l-2 space-y-1">
+                            <p className="text-xs text-muted-foreground">{saisonName} — Staffel pro Personenzahl</p>
+                            <div className="grid grid-cols-2 gap-1">
+                              {Array.from({ length: parseInt(form.kapazitaet) || 1 }, (_, i) => i + 1).map((n) => (
+                                <div key={n} className="flex items-center gap-2">
+                                  <span className="text-xs w-14 shrink-0">{n} {n === 1 ? "Gast" : "Gäste"}:</span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder={saisonPreisValue || "—"}
+                                    value={form.saisonGastPreise[firstSaison.id]?.[String(n)] ?? ""}
+                                    onChange={(e) => {
+                                      const updated = { ...form.saisonGastPreise };
+                                      // Set for ALL saisons with this name
+                                      for (const s of saisons) {
+                                        if (s.name === saisonName) {
+                                          updated[s.id] = { ...(updated[s.id] || {}), [String(n)]: e.target.value };
+                                        }
+                                      }
+                                      setForm({ ...form, saisonGastPreise: updated });
+                                    }}
+                                    className="h-7 text-xs"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

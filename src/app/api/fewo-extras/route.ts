@@ -30,6 +30,7 @@ export async function POST(request: Request) {
         einheit: body.einheit || "pauschal",
         unterkunftTypen: body.unterkunftTypen ?? [],
         aktiv: body.aktiv ?? true,
+        vorausgewaehlt: body.vorausgewaehlt ?? false,
       },
     });
 
