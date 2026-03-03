@@ -51,6 +51,26 @@ export async function GET() {
       });
     }
 
+    if (branche === "FAHRRAD") {
+      const [fahrraederCount, fahrradExtrasCount, angeboteCount] = await Promise.all([
+        prisma.fahrrad.count({ where: { firmaId } }),
+        prisma.fahrradExtra.count({ where: { firmaId } }),
+        prisma.angebot.count({ where: { firmaId } }),
+      ]);
+
+      return NextResponse.json({
+        branche,
+        hasFirma: !!(firma?.firmenname && firma?.strasse),
+        hasFahrraeder: fahrraederCount > 0,
+        hasFahrradExtras: fahrradExtrasCount > 0,
+        hasAngebote: angeboteCount > 0,
+        hasLeistungen: false,
+        hasMaterial: false,
+        hasKalkRegeln: false,
+        hasProdukte: false,
+      });
+    }
+
     // MALER
     const [leistungenCount, materialCount, angeboteCount, kalkRegeln] =
       await Promise.all([

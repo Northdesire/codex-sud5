@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AIngebot — Intelligente Angebote für Malerbetriebe",
+  title: "AIngebot — Intelligente Angebote in 60 Sekunden",
   description:
-    "SaaS-Plattform für Malerbetriebe: AI-gestützte Angebotserstellung in unter 2 Minuten.",
+    "Branchenübergreifende SaaS-Plattform für AI-gestützte Angebotserstellung in 60 Sekunden.",
 };
 
 export default function RootLayout({

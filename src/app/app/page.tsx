@@ -94,7 +94,7 @@ export default async function AppHome() {
         <div>
           <h1 className="text-xl font-bold">AIngebot</h1>
           <p className="text-xs text-muted-foreground">
-            Intelligente Angebote in 2 Minuten
+            Intelligente Angebote in 60 Sekunden
           </p>
         </div>
       </div>
