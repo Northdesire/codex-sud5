@@ -10,6 +10,7 @@ export async function updateSession(request: NextRequest) {
     "/shop",
     "/ferienwohnung",
     "/fahrradverleih",
+    "/api/auth/register",
   ];
   const isPublicPath =
     pathname === "/" ||

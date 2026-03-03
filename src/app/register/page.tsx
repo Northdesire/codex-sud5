@@ -28,47 +28,60 @@ export default function RegisterPage() {
     }
     setLoading(true);
 
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      name: formData.get("name") as string,
-      firmenname: formData.get("firmenname") as string,
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-      branche,
-    };
+    try {
+      const formData = new FormData(e.currentTarget);
+      const data = {
+        name: formData.get("name") as string,
+        firmenname: formData.get("firmenname") as string,
+        email: formData.get("email") as string,
+        password: formData.get("password") as string,
+        branche,
+      };
 
-    // 1. Supabase Auth User erstellen
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
-    });
+      // 1. Supabase Auth User erstellen
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+      });
 
-    if (authError) {
-      toast.error("Registrierung fehlgeschlagen", { description: authError.message });
+      if (authError) {
+        toast.error("Registrierung fehlgeschlagen", { description: authError.message });
+        return;
+      }
+
+      // 2. Firma + User in unserer DB erstellen
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        let message = "Unbekannter Fehler";
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const err = (await res.json()) as { error?: string };
+          message = err.error || message;
+        } else {
+          message = `HTTP ${res.status}`;
+        }
+        toast.error("Fehler beim Erstellen der Firma", { description: message });
+        return;
+      }
+
+      toast.success("Willkommen bei AIngebot!", {
+        description: "Dein Konto wurde erfolgreich erstellt.",
+      });
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Netzwerkfehler bei Registrierung";
+      toast.error("Registrierung fehlgeschlagen", { description: message });
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // 2. Firma + User in unserer DB erstellen
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      toast.error("Fehler beim Erstellen der Firma", { description: err.error });
-      setLoading(false);
-      return;
-    }
-
-    toast.success("Willkommen bei AIngebot!", {
-      description: "Dein Konto wurde erfolgreich erstellt.",
-    });
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (
