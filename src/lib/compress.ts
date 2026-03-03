@@ -99,6 +99,7 @@ async function compressPdf(file: File): Promise<File> {
     canvas.height = Math.round(scaled.height);
 
     const renderTask = page.render({
+      canvas,
       canvasContext: canvas.getContext("2d")!,
       viewport: scaled,
     });
