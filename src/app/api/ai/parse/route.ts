@@ -5,9 +5,11 @@ import { requireUser } from "@/lib/auth";
 
 export const maxDuration = 60;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 // ═══════════════════════════════════════════
 // SHOP SYSTEM PROMPT + RESPONSE FORMAT
@@ -1381,6 +1383,7 @@ export async function POST(request: Request) {
             ? buildShopSystemPrompt(katalogKontext)
             : buildSystemPrompt(katalogKontext);
       const responseFormat = isFahrrad ? FAHRRAD_RESPONSE_FORMAT : isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
+      const openai = getOpenAI();
 
       const userContent: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail: "high" } }> = [];
 
@@ -1468,6 +1471,7 @@ export async function POST(request: Request) {
           ? buildShopSystemPrompt(katalogKontext)
           : buildSystemPrompt(katalogKontext);
     const responseFormat = isFahrrad ? FAHRRAD_RESPONSE_FORMAT : isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
+    const openai = getOpenAI();
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",

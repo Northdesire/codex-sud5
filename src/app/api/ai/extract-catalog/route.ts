@@ -5,9 +5,11 @@ import { requireUser } from "@/lib/auth";
 
 export const maxDuration = 60;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 // ═══════════════════════════════════════════
 // SHOP CATALOG EXTRACTION
@@ -256,6 +258,7 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+    const openai = getOpenAI();
 
     // Detect branche from user's firma
     let branche = "MALER";

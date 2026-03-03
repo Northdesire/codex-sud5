@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "@/lib/auth";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 const TRANSCRIBE_PROMPTS = {
   MALER:
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const branche = user.firma?.branche ?? "MALER";
     const prompt = TRANSCRIBE_PROMPTS[branche] ?? TRANSCRIBE_PROMPTS.MALER;
+    const openai = getOpenAI();
 
     const formData = await request.formData();
     const audioFile = formData.get("audio") as File | null;

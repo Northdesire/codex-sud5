@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 const SYSTEM_PROMPT = `Du bist ein Experte für die Analyse von Angeboten und Rechnungen aus dem Malerhandwerk. Du erhältst ein hochgeladenes Dokument (PDF oder Foto) eines alten Angebots oder einer Rechnung und extrahierst ALLE relevanten Daten.
 
@@ -180,6 +182,7 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+    const openai = getOpenAI();
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
