@@ -98,12 +98,11 @@ async function compressPdf(file: File): Promise<File> {
     canvas.width = Math.round(scaled.width);
     canvas.height = Math.round(scaled.height);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (page.render({
+    const renderTask = page.render({
       canvasContext: canvas.getContext("2d")!,
       viewport: scaled,
-      canvas,
-    } as any).promise);
+    });
+    await renderTask.promise;
 
     pageCanvases.push(canvas);
   }

@@ -98,17 +98,23 @@ function LeistungenContent() {
   }, [filter]);
 
   useEffect(() => {
-    loadData();
-    setSelected(new Set());
+    const timer = setTimeout(() => {
+      void loadData();
+      setSelected(new Set());
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadData]);
 
   // Guide-Modus: Dialog auto-öffnen wenn leer
   useEffect(() => {
     if (!loading && guideMode && leistungen.length === 0 && !guideTriggered.current) {
-      guideTriggered.current = true;
-      setEditId(null);
-      setForm(emptyForm);
-      setDialogOpen(true);
+      const timer = setTimeout(() => {
+        guideTriggered.current = true;
+        setEditId(null);
+        setForm(emptyForm);
+        setDialogOpen(true);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [loading, guideMode, leistungen.length]);
 

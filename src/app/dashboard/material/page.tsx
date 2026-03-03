@@ -93,17 +93,23 @@ function MaterialContent() {
   }, [filter]);
 
   useEffect(() => {
-    loadData();
-    setSelected(new Set());
+    const timer = setTimeout(() => {
+      void loadData();
+      setSelected(new Set());
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadData]);
 
   // Guide-Modus: Dialog auto-öffnen wenn leer
   useEffect(() => {
     if (!loading && guideMode && materialien.length === 0 && !guideTriggered.current) {
-      guideTriggered.current = true;
-      setEditId(null);
-      setForm(emptyMaterial);
-      setDialogOpen(true);
+      const timer = setTimeout(() => {
+        guideTriggered.current = true;
+        setEditId(null);
+        setForm(emptyMaterial);
+        setDialogOpen(true);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [loading, guideMode, materialien.length]);
 
