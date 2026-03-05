@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { parsePayload, unterkunftPayloadSchema } from "@/lib/validation/category-inputs";
 
 export async function GET() {
   try {
@@ -25,22 +26,27 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = await request.json();
+    const parsed = parsePayload(unterkunftPayloadSchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const data = parsed.data;
 
-    const saisonPreise: Array<{ saisonId: string; preisProNacht: number; gastPreise?: Record<string, number> | null }> = body.saisonPreise || [];
+    const saisonPreise = data.saisonPreise;
 
     const unterkunft = await prisma.$transaction(async (tx) => {
       const created = await tx.unterkunft.create({
         data: {
           firmaId: user.firmaId,
-          name: body.name,
-          beschreibung: body.beschreibung || null,
-          typ: body.typ || "FERIENWOHNUNG",
-          kapazitaet: parseInt(body.kapazitaet),
-          preisProNacht: parseFloat(body.preisProNacht),
-          gastPreise: body.gastPreise || undefined,
-          aktiv: body.aktiv ?? true,
-          komplexId: body.komplexId || null,
-          icalUrl: body.icalUrl || null,
+          name: data.name,
+          beschreibung: data.beschreibung,
+          typ: data.typ,
+          kapazitaet: data.kapazitaet,
+          preisProNacht: data.preisProNacht,
+          gastPreise: data.gastPreise ?? undefined,
+          aktiv: data.aktiv,
+          komplexId: data.komplexId,
+          icalUrl: data.icalUrl,
         },
       });
 
@@ -49,8 +55,8 @@ export async function POST(request: Request) {
           data: saisonPreise.map((sp) => ({
             unterkunftId: created.id,
             saisonId: sp.saisonId,
-            preisProNacht: parseFloat(String(sp.preisProNacht)),
-            gastPreise: sp.gastPreise || undefined,
+            preisProNacht: sp.preisProNacht,
+            gastPreise: sp.gastPreise ?? undefined,
           })),
         });
       }

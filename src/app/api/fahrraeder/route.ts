@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { fahrradPayloadSchema, parsePayload } from "@/lib/validation/category-inputs";
 
 export async function GET() {
   try {
@@ -24,18 +25,23 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = await request.json();
+    const parsed = parsePayload(fahrradPayloadSchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const data = parsed.data;
 
-    const preise: Array<{ tag: number; gesamtpreis: number }> = body.preise || [];
+    const preise = data.preise;
 
     const fahrrad = await prisma.$transaction(async (tx) => {
       const created = await tx.fahrrad.create({
         data: {
           firmaId: user.firmaId,
-          name: body.name,
-          kategorie: body.kategorie || "",
-          beschreibung: body.beschreibung || null,
-          aktiv: body.aktiv ?? true,
-          preisProWeitererTag: body.preisProWeitererTag != null && body.preisProWeitererTag !== "" ? parseFloat(String(body.preisProWeitererTag)) : null,
+          name: data.name,
+          kategorie: data.kategorie,
+          beschreibung: data.beschreibung,
+          aktiv: data.aktiv,
+          preisProWeitererTag: data.preisProWeitererTag,
         },
       });
 
@@ -44,7 +50,7 @@ export async function POST(request: Request) {
           data: preise.map((p) => ({
             fahrradId: created.id,
             tag: p.tag,
-            gesamtpreis: parseFloat(String(p.gesamtpreis)),
+            gesamtpreis: p.gesamtpreis,
           })),
         });
       }

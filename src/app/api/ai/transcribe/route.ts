@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "@/lib/auth";
+import { buildAIHeaders } from "@/lib/openai-chat";
 
 function getOpenAI() {
   return new OpenAI({
@@ -46,6 +47,8 @@ const TRANSCRIBE_PROMPTS = {
     "Achte auf Kundendaten und Zeiträume in der Signatur.",
 } as const;
 
+const TRANSCRIBE_PROMPT_VERSION = "transcribe-2026-03-05.1";
+
 export async function POST(request: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -76,7 +79,17 @@ export async function POST(request: Request) {
       prompt,
     });
 
-    return NextResponse.json({ text: transcription.text });
+    return NextResponse.json(
+      { text: transcription.text },
+      {
+        headers: buildAIHeaders({
+          promptVersion: TRANSCRIBE_PROMPT_VERSION,
+          modelUsed: "whisper-1",
+          usedFallback: false,
+          source: "openai-audio",
+        }),
+      }
+    );
   } catch (error) {
     console.error("Whisper Fehler:", error);
     return NextResponse.json(

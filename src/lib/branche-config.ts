@@ -97,7 +97,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
       { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
       { href: "/dashboard/import", label: "AI-Import", icon: Sparkles },
-      { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: GraduationCap },
+      { href: "/dashboard/onboarding", label: "Onboarding", icon: GraduationCap },
     ],
     tutorialSteps: [
       {
@@ -203,7 +203,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
       { href: "/dashboard/rechnungen", label: "Rechnungen", icon: Receipt },
       { href: "/dashboard/import", label: "AI-Import", icon: Sparkles },
-      { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: GraduationCap },
+      { href: "/dashboard/onboarding", label: "Onboarding", icon: GraduationCap },
     ],
     tutorialSteps: [
       {
@@ -287,7 +287,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/dashboard/fewo-extras", label: "Extras", icon: Star },
       { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
       { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
-      { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: GraduationCap },
+      { href: "/dashboard/onboarding", label: "Onboarding", icon: GraduationCap },
     ],
     tutorialSteps: [
       {
@@ -381,7 +381,7 @@ export const BRANCHE_CONFIG: Record<Branche, BrancheConfig> = {
       { href: "/dashboard/textvorlagen", label: "Textvorlagen", icon: FileText },
       { href: "/dashboard/angebote", label: "Angebote", icon: FileSpreadsheet },
       { href: "/dashboard/rechnungen", label: "Rechnungen", icon: Receipt },
-      { href: "/dashboard/tutorial", label: "Einrichtungs-Guide", icon: HelpCircle },
+      { href: "/dashboard/onboarding", label: "Onboarding", icon: HelpCircle },
     ],
     tutorialSteps: [
       {

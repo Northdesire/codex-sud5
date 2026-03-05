@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { parsePayload, produktPayloadSchema } from "@/lib/validation/category-inputs";
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,17 +27,22 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = await request.json();
+    const parsed = parsePayload(produktPayloadSchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const data = parsed.data;
 
     const produkt = await prisma.produkt.create({
       data: {
         firmaId: user.firmaId,
-        name: body.name,
-        kategorie: body.kategorie,
-        artikelNr: body.artikelNr || null,
-        beschreibung: body.beschreibung || null,
-        ekPreis: parseFloat(body.ekPreis),
-        vkPreis: parseFloat(body.vkPreis),
-        einheit: body.einheit || "Stk.",
+        name: data.name,
+        kategorie: data.kategorie,
+        artikelNr: data.artikelNr,
+        beschreibung: data.beschreibung,
+        ekPreis: data.ekPreis,
+        vkPreis: data.vkPreis,
+        einheit: data.einheit,
       },
     });
 

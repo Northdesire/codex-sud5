@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { parsePayload, unterkunftPayloadSchema } from "@/lib/validation/category-inputs";
 
 export async function GET(
   _request: Request,
@@ -36,6 +37,11 @@ export async function PUT(
     const user = await requireUser();
     const { id } = await params;
     const body = await request.json();
+    const parsed = parsePayload(unterkunftPayloadSchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const data = parsed.data;
 
     const existing = await prisma.unterkunft.findFirst({
       where: { id, firmaId: user.firmaId },
@@ -44,21 +50,21 @@ export async function PUT(
       return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
     }
 
-    const saisonPreise: Array<{ saisonId: string; preisProNacht: number; gastPreise?: Record<string, number> | null }> = body.saisonPreise || [];
+    const saisonPreise = data.saisonPreise;
 
     const unterkunft = await prisma.$transaction(async (tx) => {
       await tx.unterkunft.update({
         where: { id },
         data: {
-          name: body.name,
-          beschreibung: body.beschreibung || null,
-          typ: body.typ || existing.typ,
-          kapazitaet: parseInt(body.kapazitaet),
-          preisProNacht: parseFloat(body.preisProNacht),
-          gastPreise: body.gastPreise ? body.gastPreise : body.gastPreise === null ? Prisma.DbNull : undefined,
-          aktiv: body.aktiv ?? true,
-          komplexId: body.komplexId || null,
-          icalUrl: body.icalUrl || null,
+          name: data.name,
+          beschreibung: data.beschreibung,
+          typ: data.typ || existing.typ,
+          kapazitaet: data.kapazitaet,
+          preisProNacht: data.preisProNacht,
+          gastPreise: data.gastPreise === null ? Prisma.DbNull : data.gastPreise,
+          aktiv: data.aktiv,
+          komplexId: data.komplexId,
+          icalUrl: data.icalUrl,
         },
       });
 
@@ -69,8 +75,8 @@ export async function PUT(
           data: saisonPreise.map((sp) => ({
             unterkunftId: id,
             saisonId: sp.saisonId,
-            preisProNacht: parseFloat(String(sp.preisProNacht)),
-            gastPreise: sp.gastPreise || undefined,
+            preisProNacht: sp.preisProNacht,
+            gastPreise: sp.gastPreise ?? undefined,
           })),
         });
       }

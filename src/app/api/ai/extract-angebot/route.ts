@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { buildAIHeaders, createChatCompletionWithFallback } from "@/lib/openai-chat";
 
 function getOpenAI() {
   return new OpenAI({
@@ -174,6 +175,8 @@ const RESPONSE_FORMAT = {
   },
 };
 
+const PROMPT_VERSION = "extract-angebot-2026-03-05.1";
+
 export async function POST(request: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -245,8 +248,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const { completion, modelUsed, usedFallback } = await createChatCompletionWithFallback(openai, {
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userContent },
@@ -261,7 +263,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Keine Antwort vom AI" }, { status: 500 });
     }
 
-    return NextResponse.json(JSON.parse(content));
+    return NextResponse.json(JSON.parse(content), {
+      headers: buildAIHeaders({
+        promptVersion: PROMPT_VERSION,
+        modelUsed,
+        usedFallback,
+      }),
+    });
   } catch (error) {
     console.error("Angebot-Extraktion Fehler:", error);
     return NextResponse.json(

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { buildAIHeaders, createChatCompletionWithFallback } from "@/lib/openai-chat";
 
 export const maxDuration = 60;
 
@@ -251,6 +252,7 @@ const RESPONSE_FORMAT = {
 };
 
 export async function POST(request: Request) {
+  const promptVersion = "extract-catalog-2026-03-05.1";
   try {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -315,8 +317,7 @@ export async function POST(request: Request) {
         const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
         const dataUrl = `data:${file.type};base64,${base64}`;
 
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o",
+        const { completion, modelUsed, usedFallback } = await createChatCompletionWithFallback(openai, {
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -335,7 +336,13 @@ export async function POST(request: Request) {
         const content = completion.choices[0]?.message?.content;
         if (!content)
           return NextResponse.json({ error: "Keine Antwort vom AI" }, { status: 500 });
-        return NextResponse.json(JSON.parse(content));
+        return NextResponse.json(JSON.parse(content), {
+          headers: buildAIHeaders({
+            promptVersion,
+            modelUsed,
+            usedFallback,
+          }),
+        });
       } else {
         // Textdatei
         extractedText = await file.text();
@@ -356,9 +363,11 @@ export async function POST(request: Request) {
       const allProdukte: any[] = [];
       let zusammenfassung = "";
 
+      const modelsUsed = new Set<string>();
+      let usedFallback = false;
+
       for (const chunk of chunks) {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o",
+        const { completion, modelUsed, usedFallback: chunkUsedFallback } = await createChatCompletionWithFallback(openai, {
           messages: [
             { role: "system", content: systemPrompt },
             {
@@ -370,6 +379,8 @@ export async function POST(request: Request) {
           temperature: 0.1,
           max_tokens: 8000,
         });
+        modelsUsed.add(modelUsed);
+        if (chunkUsedFallback) usedFallback = true;
 
         const content = completion.choices[0]?.message?.content;
         if (content) {
@@ -393,14 +404,24 @@ export async function POST(request: Request) {
         return true;
       });
 
-      return NextResponse.json({
-        produkte: uniqueProdukte,
-        zusammenfassung: zusammenfassung || `${uniqueProdukte.length} Produkte aus ${chunks.length} Textabschnitten extrahiert.`,
-      });
+      return NextResponse.json(
+        {
+          produkte: uniqueProdukte,
+          zusammenfassung:
+            zusammenfassung ||
+            `${uniqueProdukte.length} Produkte aus ${chunks.length} Textabschnitten extrahiert.`,
+        },
+        {
+          headers: buildAIHeaders({
+            promptVersion,
+            modelUsed: Array.from(modelsUsed).join(","),
+            usedFallback,
+          }),
+        }
+      );
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const { completion, modelUsed, usedFallback } = await createChatCompletionWithFallback(openai, {
       messages: [
         { role: "system", content: systemPrompt },
         {
@@ -421,7 +442,13 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(JSON.parse(content));
+    return NextResponse.json(JSON.parse(content), {
+      headers: buildAIHeaders({
+        promptVersion,
+        modelUsed,
+        usedFallback,
+      }),
+    });
   } catch (error) {
     console.error("Katalog-Extraktion Fehler:", error);
     const msg = error instanceof Error ? error.message : "Unbekannter Fehler";

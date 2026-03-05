@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { buildAIHeaders, createChatCompletionWithFallback } from "@/lib/openai-chat";
 
 export const maxDuration = 60;
+const PROMPT_VERSION = "parse-2026-03-05.1";
 
 function getOpenAI() {
   return new OpenAI({
@@ -1369,7 +1371,15 @@ export async function POST(request: Request) {
       if (!process.env.OPENAI_API_KEY) {
         if (textPart) {
           return NextResponse.json(
-            isFahrrad ? parseFahrradAnfrageRegex(textPart) : isFewo ? parseFewoAnfrageRegex(textPart) : isShop ? parseShopAnfrageRegex(textPart) : parseAnfrageRegex(textPart)
+            isFahrrad ? parseFahrradAnfrageRegex(textPart) : isFewo ? parseFewoAnfrageRegex(textPart) : isShop ? parseShopAnfrageRegex(textPart) : parseAnfrageRegex(textPart),
+            {
+              headers: buildAIHeaders({
+                promptVersion: PROMPT_VERSION,
+                modelUsed: "regex-fallback",
+                usedFallback: false,
+                source: "regex",
+              }),
+            }
           );
         }
         return NextResponse.json({ error: "Kein API Key für Bilderkennung" }, { status: 500 });
@@ -1419,8 +1429,7 @@ export async function POST(request: Request) {
         });
       }
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+      const { completion, modelUsed, usedFallback } = await createChatCompletionWithFallback(openai, {
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
@@ -1436,7 +1445,16 @@ export async function POST(request: Request) {
       }
 
       const parsed = JSON.parse(content);
-      return NextResponse.json((isShop || isFewo || isFahrrad) ? parsed : validateParsedResult(parsed));
+      return NextResponse.json(
+        (isShop || isFewo || isFahrrad) ? parsed : validateParsedResult(parsed),
+        {
+          headers: buildAIHeaders({
+            promptVersion: PROMPT_VERSION,
+            modelUsed,
+            usedFallback,
+          }),
+        }
+      );
     }
 
     // Handle JSON body (text only)
@@ -1459,7 +1477,15 @@ export async function POST(request: Request) {
     if (!process.env.OPENAI_API_KEY) {
       console.log("AI Parse: Kein API Key, nutze Regex-Fallback");
       return NextResponse.json(
-        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText),
+        {
+          headers: buildAIHeaders({
+            promptVersion: PROMPT_VERSION,
+            modelUsed: "regex-fallback",
+            usedFallback: false,
+            source: "regex",
+          }),
+        }
       );
     }
 
@@ -1473,8 +1499,7 @@ export async function POST(request: Request) {
     const responseFormat = isFahrrad ? FAHRRAD_RESPONSE_FORMAT : isFewo ? FEWO_RESPONSE_FORMAT : isShop ? SHOP_RESPONSE_FORMAT : RESPONSE_FORMAT;
     const openai = getOpenAI();
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const { completion, modelUsed, usedFallback } = await createChatCompletionWithFallback(openai, {
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: inputText },
@@ -1488,12 +1513,29 @@ export async function POST(request: Request) {
     if (!content) {
       console.error("OpenAI: Leere Antwort, nutze Regex-Fallback");
       return NextResponse.json(
-        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText),
+        {
+          headers: buildAIHeaders({
+            promptVersion: PROMPT_VERSION,
+            modelUsed: "regex-fallback",
+            usedFallback: false,
+            source: "regex",
+          }),
+        }
       );
     }
 
     const parsed = JSON.parse(content);
-    return NextResponse.json((isShop || isFewo || isFahrrad) ? parsed : validateParsedResult(parsed));
+    return NextResponse.json(
+      (isShop || isFewo || isFahrrad) ? parsed : validateParsedResult(parsed),
+      {
+        headers: buildAIHeaders({
+          promptVersion: PROMPT_VERSION,
+          modelUsed,
+          usedFallback,
+        }),
+      }
+    );
   } catch (error) {
     console.error("AI Parse Fehler:", error);
 
@@ -1503,7 +1545,15 @@ export async function POST(request: Request) {
       const isFewo = branche === "FEWO";
       const isFahrrad = branche === "FAHRRAD";
       return NextResponse.json(
-        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText)
+        isFahrrad ? parseFahrradAnfrageRegex(inputText) : isFewo ? parseFewoAnfrageRegex(inputText) : isShop ? parseShopAnfrageRegex(inputText) : parseAnfrageRegex(inputText),
+        {
+          headers: buildAIHeaders({
+            promptVersion: PROMPT_VERSION,
+            modelUsed: "regex-fallback",
+            usedFallback: false,
+            source: "regex",
+          }),
+        }
       );
     }
 

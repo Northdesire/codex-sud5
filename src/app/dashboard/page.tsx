@@ -130,11 +130,11 @@ export default async function DashboardPage() {
                 ))}
               </div>
               <Link
-                href="/dashboard/tutorial"
+                href="/dashboard/onboarding"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
               >
                 <GraduationCap className="h-4 w-4" />
-                Tutorial starten
+                Onboarding starten
               </Link>
             </CardContent>
           </Card>
